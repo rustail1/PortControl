@@ -53,6 +53,142 @@ function positiveSum(values: Dictionary<number>): boolean {
   return Object.values(values).reduce((sum, value) => sum + value, 0) > 0;
 }
 
+function resolveMachineReference(
+  configs: Readonly<Record<string, unknown>>,
+  reference: string,
+): unknown {
+  const [configId, ...path] = reference.split('.');
+  let current: unknown = configs[`${configId}.json`];
+  for (const segment of path) {
+    if (typeof current !== 'object' || current === null || Array.isArray(current)) {
+      return undefined;
+    }
+    current = (current as Dictionary)[segment];
+  }
+  return current;
+}
+
+function validateMachineContracts(
+  configs: Readonly<Record<string, unknown>>,
+  levels: ReadonlyMap<string, Level>,
+  issues: string[],
+): void {
+  const platform = as<{ releaseFeatures: Dictionary; auth: Dictionary }>(
+    configs,
+    'platform.json',
+  );
+  const releaseFeatures = platform.releaseFeatures;
+  if (releaseFeatures['campaignLevelCount'] !== levels.size) {
+    issues.push(
+      `platform: campaignLevelCount ${String(releaseFeatures['campaignLevelCount'])} does not match bundled levels ${levels.size}`,
+    );
+  }
+
+  const screenFlow = as<{
+    firstLaunch: { menuAction: string; target: string };
+    screens: Dictionary<Dictionary>;
+    transitions: Array<Dictionary<string>>;
+  }>(configs, 'screen_flow.json');
+  const screens = screenFlow.screens;
+  const unlockAfterLevel = platform.auth['unlockAfterLevel'] as string;
+  if (!levels.has(unlockAfterLevel)) {
+    issues.push(`platform: unknown auth unlock level ${unlockAfterLevel}`);
+  }
+  for (const placement of platform.auth['placements'] as string[]) {
+    if (!screens[placement]) {
+      issues.push(`platform: unknown auth placement screen ${placement}`);
+    }
+  }
+
+  const [firstLaunchScreen, firstLaunchLevel] = screenFlow.firstLaunch.target.split(':');
+  if (!screens[firstLaunchScreen]) {
+    issues.push(`screen_flow: firstLaunch references unknown screen ${firstLaunchScreen}`);
+  }
+  if (!levels.has(firstLaunchLevel)) {
+    issues.push(`screen_flow: firstLaunch references unknown level ${firstLaunchLevel}`);
+  }
+  if (
+    !screenFlow.transitions.some(
+      (transition) =>
+        transition['from'] === 'menu' &&
+        transition['action'] === screenFlow.firstLaunch.menuAction,
+    )
+  ) {
+    issues.push(
+      `screen_flow: firstLaunch action ${screenFlow.firstLaunch.menuAction} has no menu transition`,
+    );
+  }
+  for (const [screenId, screen] of Object.entries(screens)) {
+    const owner = screen['owner'];
+    if (typeof owner !== 'string') {
+      continue;
+    }
+    for (const ownerScreen of owner.split('_or_')) {
+      if (!screens[ownerScreen]) {
+        issues.push(
+          `screen_flow: ${screenId} references unknown owner screen ${ownerScreen}`,
+        );
+      }
+    }
+  }
+  for (const transition of screenFlow.transitions) {
+    const from = transition['from'];
+    const action = transition['action'];
+    const to = transition['to'];
+    if (!screens[from]) {
+      issues.push(
+        `screen_flow: transition ${from}/${action} references unknown from screen ${from}`,
+      );
+    }
+    if (!screens[to]) {
+      issues.push(
+        `screen_flow: transition ${from}/${action} references unknown to screen ${to}`,
+      );
+    }
+  }
+
+  const analytics = as<{
+    parameters: Dictionary;
+    events: Dictionary<{ required: string[]; optional: string[] }>;
+  }>(configs, 'analytics_events.json');
+  for (const [eventId, event] of Object.entries(analytics.events)) {
+    for (const parameter of [...event.required, ...event.optional]) {
+      if (!analytics.parameters[parameter]) {
+        issues.push(
+          `analytics: ${eventId} references unknown parameter ${parameter}`,
+        );
+      }
+    }
+    for (const parameter of event.required) {
+      if (event.optional.includes(parameter)) {
+        issues.push(`analytics: ${eventId} parameter ${parameter} is both required and optional`);
+      }
+    }
+  }
+
+  const audio = as<{
+    formatPreference: string[];
+    musicIntensity: { source: string; crossfadeMsSource: string };
+    assets: Dictionary<{ path: string }>;
+  }>(configs, 'audio.json');
+  for (const reference of [
+    audio.musicIntensity.source,
+    audio.musicIntensity.crossfadeMsSource,
+  ]) {
+    if (resolveMachineReference(configs, reference) === undefined) {
+      issues.push(`audio: unknown reference ${reference}`);
+    }
+  }
+  for (const [audioId, asset] of Object.entries(audio.assets)) {
+    const extension = asset.path.split('.').at(-1);
+    if (extension === undefined || !audio.formatPreference.includes(extension)) {
+      issues.push(
+        `audio: ${audioId} path extension ${String(extension)} is not in formatPreference`,
+      );
+    }
+  }
+}
+
 export function validateSemanticConfig(
   configs: Readonly<Record<string, unknown>>,
 ): string[] {
@@ -133,6 +269,8 @@ export function validateSemanticConfig(
     simulation: { logicalWorld: [number, number] };
   }>(configs, 'balance.json').simulation.logicalWorld;
   const usedBlockTypes = new Set<string>();
+
+  validateMachineContracts(configs, levels, issues);
 
   for (const level of levels.values()) {
     if (!ports[level.portId]) {
