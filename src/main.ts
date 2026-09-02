@@ -1,21 +1,28 @@
 import Phaser from 'phaser';
 
+import { getLogicalWorldSize } from './config/getLogicalWorldSize.ts';
 import { loadBundledConfig } from './config/loadBundledConfig.ts';
 import { LocalPlatformAdapter } from './platform/LocalPlatformAdapter.ts';
 import { BootstrapScene } from './scenes/BootstrapScene.ts';
 import './styles.css';
 
-loadBundledConfig();
+const configBundle = loadBundledConfig();
+const logicalWorld = getLogicalWorldSize(configBundle);
 
 const platform = new LocalPlatformAdapter();
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  parent: 'game',
-  width: 1280,
-  height: 720,
   backgroundColor: '#0b1720',
-  scene: [BootstrapScene],
+  scale: {
+    parent: 'game',
+    mode: Phaser.Scale.EXPAND,
+    width: logicalWorld.width,
+    height: logicalWorld.height,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    expandParent: true,
+  },
+  scene: [new BootstrapScene(logicalWorld)],
 };
 
 async function bootstrap(): Promise<void> {
