@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "assets",
+    "releaseRule"
+  ],
+  "properties": {
+    "version": {
+      "const": 2
+    },
+    "assets": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "priority",
+          "path",
+          "frame",
+          "sourceSize",
+          "density",
+          "pivot",
+          "preloadGroup",
+          "deliveryStatus",
+          "requiredForRelease"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "sprite",
+              "visual_variant",
+              "asset_bundle",
+              "meta_scene_variant",
+              "ui_vfx"
+            ]
+          },
+          "priority": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "DEV"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "frame": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceSize": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "integer",
+                "minimum": 1
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "density": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "pivot": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "preloadGroup": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deliveryStatus": {
+            "enum": [
+              "planned",
+              "placeholder",
+              "production"
+            ]
+          },
+          "requiredForRelease": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "releaseRule": {
+      "type": "string"
+    }
+  }
+}

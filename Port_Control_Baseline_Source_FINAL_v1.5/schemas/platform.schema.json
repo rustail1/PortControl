@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "platform.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "target",
+    "releaseFeatures",
+    "auth",
+    "cloudSave",
+    "remoteFlags",
+    "softLaunch"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "target": {
+      "const": "yandex_games"
+    },
+    "releaseFeatures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "campaignLevelCount",
+        "endlessEnabled",
+        "dailyWeeklySurfaceEnabled",
+        "leaderboardsEnabled",
+        "iapEnabled",
+        "stickyBannerEnabled",
+        "editorEnabledInProduction"
+      ],
+      "properties": {
+        "campaignLevelCount": {
+          "const": 40
+        },
+        "endlessEnabled": {
+          "const": true
+        },
+        "dailyWeeklySurfaceEnabled": {
+          "const": false
+        },
+        "leaderboardsEnabled": {
+          "const": false
+        },
+        "iapEnabled": {
+          "const": false
+        },
+        "stickyBannerEnabled": {
+          "const": false
+        },
+        "editorEnabledInProduction": {
+          "const": false
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "guestPlayRequired",
+        "ctaEnabled",
+        "unlockAfterLevel",
+        "placements",
+        "neverAutoPrompt"
+      ],
+      "properties": {
+        "guestPlayRequired": {
+          "const": true
+        },
+        "ctaEnabled": {
+          "const": true
+        },
+        "unlockAfterLevel": {
+          "type": "string"
+        },
+        "placements": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "port_meta",
+              "settings"
+            ]
+          }
+        },
+        "neverAutoPrompt": {
+          "const": true
+        }
+      }
+    },
+    "cloudSave": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "localSaveAlwaysEnabled",
+        "authorizedCloudEnabled",
+        "cloudFailureNeverBlocksGameplay"
+      ],
+      "properties": {
+        "localSaveAlwaysEnabled": {
+          "const": true
+        },
+        "authorizedCloudEnabled": {
+          "const": true
+        },
+        "cloudFailureNeverBlocksGameplay": {
+          "const": true
+        }
+      }
+    },
+    "remoteFlags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "bundledFallbackRequired"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "bundledFallbackRequired": {
+          "const": true
+        }
+      }
+    },
+    "softLaunch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "validationBuildMayExposeFirst30Levels",
+        "finalReleaseRequiresAll40Levels"
+      ],
+      "properties": {
+        "validationBuildMayExposeFirst30Levels": {
+          "const": true
+        },
+        "finalReleaseRequiresAll40Levels": {
+          "const": true
+        }
+      }
+    }
+  }
+}

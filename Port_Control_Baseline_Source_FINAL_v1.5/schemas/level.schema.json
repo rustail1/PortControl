@@ -1,0 +1,1285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "level.schema.json",
+  "title": "Port Control LevelConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "id",
+    "order",
+    "portId",
+    "objective",
+    "starConditions",
+    "allowedShips",
+    "cargoTypes",
+    "director",
+    "cargoGeneration",
+    "layout",
+    "rewards",
+    "seedMode",
+    "flags"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 999
+    },
+    "portId": {
+      "type": "string"
+    },
+    "focus": {
+      "type": "string"
+    },
+    "objective": {
+      "$ref": "#/$defs/objective"
+    },
+    "starConditions": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/star"
+      }
+    },
+    "allowedShips": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "shipWeights": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "cargoTypes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "general",
+          "container",
+          "oil"
+        ]
+      }
+    },
+    "cargoGeneration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "weights",
+        "multiCargoChance"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "single",
+            "mixed"
+          ]
+        },
+        "weights": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "multiCargoChance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "director": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startInterval",
+        "minimumInterval",
+        "warningLeadTime",
+        "maxAlive",
+        "pressureCap",
+        "jitter",
+        "wave"
+      ],
+      "properties": {
+        "startInterval": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minimumInterval": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "warningLeadTime": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maxAlive": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "pressureCap": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "jitter": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5
+        },
+        "wave": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "burstMin",
+            "burstMax",
+            "breathMin",
+            "breathMax"
+          ],
+          "properties": {
+            "burstMin": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "burstMax": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "breathMin": {
+              "type": "number",
+              "minimum": 0
+            },
+            "breathMax": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "templateId",
+        "blocks"
+      ],
+      "properties": {
+        "templateId": {
+          "type": "string"
+        },
+        "blocks": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "$ref": "#/$defs/block"
+          }
+        }
+      }
+    },
+    "rewards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseCoins"
+      ],
+      "properties": {
+        "baseCoins": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "seedMode": {
+      "enum": [
+        "random",
+        "fixed",
+        "daily"
+      ]
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supportsUpgradeDock",
+        "allowRewind"
+      ],
+      "properties": {
+        "supportsUpgradeDock": {
+          "type": "boolean"
+        },
+        "allowRewind": {
+          "type": "boolean"
+        },
+        "tutorialStep": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scriptedIntroShip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "objective": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "target"
+          ],
+          "properties": {
+            "type": {
+              "const": "deliver_cargo"
+            },
+            "target": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "target",
+            "cargoType"
+          ],
+          "properties": {
+            "type": {
+              "const": "deliver_cargo_type"
+            },
+            "target": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "cargoType": {
+              "enum": [
+                "general",
+                "container",
+                "oil"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "target"
+          ],
+          "properties": {
+            "type": {
+              "const": "service_ships"
+            },
+            "target": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "target"
+          ],
+          "properties": {
+            "type": {
+              "const": "survive_seconds"
+            },
+            "target": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 600
+            }
+          }
+        }
+      ]
+    },
+    "star": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "complete"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "max_warnings"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "max_time_seconds"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "min_cargo"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "max_wrong_dock_attempts"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "min_multi_cargo_ships"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "shipId",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "min_ship_exits"
+            },
+            "shipId": {
+              "type": "string"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "shipIds",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "min_ship_group_exits"
+            },
+            "shipIds": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "shipTarget",
+            "maxSeconds"
+          ],
+          "properties": {
+            "type": {
+              "const": "service_ships_under_time"
+            },
+            "shipTarget": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxSeconds": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "hazardType",
+            "shipId",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "max_hazard_hits_by_ship"
+            },
+            "hazardType": {
+              "const": "storm"
+            },
+            "shipId": {
+              "type": "string"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "block": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "navigation_zone"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "geometry"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "points"
+              ],
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "minItems": 3,
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      }
+                    ],
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "exit_zone"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "gameplay"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "width",
+                "height",
+                "edge"
+              ],
+              "properties": {
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "edge": {
+                  "enum": [
+                    "left",
+                    "right",
+                    "top",
+                    "bottom"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "shore_polygon"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "geometry"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "points",
+                "visualVariant",
+                "collision"
+              ],
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "minItems": 3,
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      }
+                    ],
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "visualVariant": {
+                  "type": "string"
+                },
+                "collision": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "dock"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "gameplay"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cargoTypes",
+                "snapRadius",
+                "dockAngle",
+                "helperFlag",
+                "visualVariant"
+              ],
+              "properties": {
+                "cargoTypes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "enum": [
+                      "general",
+                      "container",
+                      "oil"
+                    ]
+                  }
+                },
+                "snapRadius": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "dockAngle": {
+                  "type": "number"
+                },
+                "helperFlag": {
+                  "type": "boolean"
+                },
+                "visualVariant": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "spawn_point"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "gameplay"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "directionDeg",
+                "weight",
+                "tags"
+              ],
+              "properties": {
+                "directionDeg": {
+                  "type": "number"
+                },
+                "weight": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "leadTimeOverride": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "current_zone"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "hazards"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "points",
+                "directionDeg",
+                "driftMultiplier"
+              ],
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "minItems": 3,
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      }
+                    ],
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "directionDeg": {
+                  "type": "number"
+                },
+                "driftMultiplier": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.5
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "storm_path"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "hazards"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "waypoints",
+                "radius",
+                "speed",
+                "startDelay"
+              ],
+              "properties": {
+                "waypoints": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      }
+                    ],
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "radius": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "speed": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "startDelay": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "fog_zone"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "hazards"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "width",
+                "height",
+                "warningPenalty",
+                "opacity"
+              ],
+              "properties": {
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "warningPenalty": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "opacity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "decoration"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "decoration"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "assetKey",
+                "scale"
+              ],
+              "properties": {
+                "assetKey": {
+                  "type": "string"
+                },
+                "scale": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockType",
+            "id",
+            "x",
+            "y",
+            "rotation",
+            "layer",
+            "enabled",
+            "props"
+          ],
+          "properties": {
+            "blockType": {
+              "const": "nav_marker"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "layer": {
+              "const": "debug"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "color",
+                "tags"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string"
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

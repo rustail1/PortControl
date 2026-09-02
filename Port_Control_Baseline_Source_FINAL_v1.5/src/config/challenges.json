@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "modifiers": {
+    "RUSH_HOUR": {
+      "type": "spawn_interval_multiplier",
+      "value": 0.8
+    },
+    "HEAVY_FREIGHT": {
+      "type": "ship_spawn_weight_multiplier",
+      "shipId": "freighter",
+      "value": 2.0
+    },
+    "FOG": {
+      "type": "incoming_warning_bonus",
+      "value": -0.25
+    },
+    "LONG_SHIFT": {
+      "type": "objective_target_multiplier",
+      "value": 1.5
+    },
+    "NO_REWIND": {
+      "type": "rewind_enabled",
+      "value": false
+    },
+    "EXPRESS_DOCKS": {
+      "type": "unload_speed_multiplier",
+      "value": 1.25
+    },
+    "STORM_FRONT": {
+      "type": "enable_hazard",
+      "hazardType": "storm"
+    },
+    "ONE_COLOR_DAY": {
+      "type": "cargo_filter",
+      "cargoTypes": [
+        "general"
+      ],
+      "pressureMultiplier": 1.25
+    },
+    "PERFECT_HARBOR": {
+      "type": "bonus_break_on_warning",
+      "value": true
+    }
+  }
+}

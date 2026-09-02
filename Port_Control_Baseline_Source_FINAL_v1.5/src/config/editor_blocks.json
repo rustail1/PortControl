@@ -1,0 +1,145 @@
+{
+  "version": 2,
+  "coordinateRules": {
+    "worldOrigin": "top_left",
+    "positiveX": "right",
+    "positiveY": "down",
+    "rotationZeroDeg": "positive_x_right",
+    "positiveRotation": "clockwise",
+    "rotationNormalization": "[0,360)",
+    "canonicalPolygonWinding": "visual_clockwise",
+    "defaultGridSnapLogicalUnits": 10,
+    "defaultRotationSnapDeg": 15,
+    "coarseRotationSnapDeg": 90,
+    "pointLike": "x/y are authoritative world coordinates.",
+    "rectLike": "x/y are rectangle center; width/height are in props.",
+    "polygonLike": "props.points are ABSOLUTE logical-world coordinates. x/y are bbox-center editor pivot metadata only; runtime MUST NOT translate points by x/y.",
+    "pathLike": "props.waypoints are ABSOLUTE logical-world coordinates. x/y equals first waypoint and is editor pivot metadata only; runtime MUST NOT translate waypoints by x/y."
+  },
+  "blocks": {
+    "navigation_zone": {
+      "category": "Geometry",
+      "layer": "geometry",
+      "geometryMode": "polygonLike",
+      "runtimeFactory": "NavigationZoneFactory",
+      "fields": [
+        "points"
+      ]
+    },
+    "exit_zone": {
+      "category": "Gameplay",
+      "layer": "gameplay",
+      "geometryMode": "rectLike",
+      "runtimeFactory": "ExitZoneFactory",
+      "fields": [
+        "width",
+        "height",
+        "edge"
+      ]
+    },
+    "shore_polygon": {
+      "category": "Geometry",
+      "layer": "geometry",
+      "geometryMode": "polygonLike",
+      "runtimeFactory": "ShoreFactory",
+      "fields": [
+        "points",
+        "visualVariant",
+        "collision"
+      ]
+    },
+    "dock": {
+      "category": "Docks",
+      "layer": "gameplay",
+      "geometryMode": "pointLike",
+      "runtimeFactory": "DockFactory",
+      "fields": [
+        "cargoTypes",
+        "snapRadius",
+        "dockAngle",
+        "helperFlag",
+        "visualVariant"
+      ]
+    },
+    "spawn_point": {
+      "category": "Spawn",
+      "layer": "gameplay",
+      "geometryMode": "pointLike",
+      "runtimeFactory": "SpawnPointFactory",
+      "fields": [
+        "directionDeg",
+        "weight",
+        "leadTimeOverride",
+        "tags"
+      ]
+    },
+    "current_zone": {
+      "category": "Hazards",
+      "layer": "hazards",
+      "geometryMode": "polygonLike",
+      "runtimeFactory": "CurrentZoneFactory",
+      "fields": [
+        "points",
+        "directionDeg",
+        "driftMultiplier"
+      ]
+    },
+    "storm_path": {
+      "category": "Hazards",
+      "layer": "hazards",
+      "geometryMode": "pathLike",
+      "runtimeFactory": "StormPathFactory",
+      "fields": [
+        "waypoints",
+        "radius",
+        "speed",
+        "startDelay"
+      ]
+    },
+    "fog_zone": {
+      "category": "Hazards",
+      "layer": "hazards",
+      "geometryMode": "rectLike",
+      "runtimeFactory": "FogZoneFactory",
+      "fields": [
+        "width",
+        "height",
+        "warningPenalty",
+        "opacity"
+      ]
+    },
+    "decoration": {
+      "category": "Decoration",
+      "layer": "decoration",
+      "geometryMode": "pointLike",
+      "runtimeFactory": "DecorationFactory",
+      "fields": [
+        "assetKey",
+        "scale"
+      ]
+    },
+    "nav_marker": {
+      "category": "Debug",
+      "layer": "debug",
+      "geometryMode": "pointLike",
+      "runtimeFactory": "NavMarkerFactory",
+      "fields": [
+        "label",
+        "color",
+        "tags"
+      ]
+    }
+  },
+  "editorRules": {
+    "undoRedoHistoryMinimum": 50,
+    "dragIsSingleTransaction": true,
+    "inspectorCommitIsSingleTransaction": true,
+    "newEditAfterUndoClearsRedoBranch": true,
+    "duplicateAndPasteGenerateNewIds": true,
+    "polygonMinVertices": 3,
+    "polygonRejectSelfIntersection": true,
+    "polygonXYPivotRecomputedAsBBoxCenter": true,
+    "stormPathXYRecomputedFromFirstWaypoint": true,
+    "importNormalizesRotationAndWinding": true
+  }
+}

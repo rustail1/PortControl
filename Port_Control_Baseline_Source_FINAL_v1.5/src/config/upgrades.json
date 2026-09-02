@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "upgrades": {
+    "crane": {
+      "nameKey": "upgrade.crane.name",
+      "descKey": "upgrade.crane.desc",
+      "family": "efficiency",
+      "maxLevel": 3,
+      "baseCosts": [
+        250,
+        390,
+        605
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "unload_speed_bonus",
+        "values": [
+          0.06,
+          0.12,
+          0.18
+        ]
+      }
+    },
+    "radar": {
+      "nameKey": "upgrade.radar.name",
+      "descKey": "upgrade.radar.desc",
+      "family": "safety",
+      "maxLevel": 3,
+      "baseCosts": [
+        400,
+        660,
+        1090
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "incoming_warning_bonus_seconds",
+        "values": [
+          0.1,
+          0.2,
+          0.3
+        ]
+      }
+    },
+    "quick_mooring": {
+      "nameKey": "upgrade.quick_mooring.name",
+      "descKey": "upgrade.quick_mooring.desc",
+      "family": "efficiency",
+      "maxLevel": 2,
+      "baseCosts": [
+        550,
+        900
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "dock_snap_reduction",
+        "values": [
+          0.08,
+          0.15
+        ]
+      }
+    },
+    "harbor_office": {
+      "nameKey": "upgrade.harbor_office.name",
+      "descKey": "upgrade.harbor_office.desc",
+      "family": "meta",
+      "maxLevel": 2,
+      "baseCosts": [
+        650,
+        1100
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "coin_bonus",
+        "values": [
+          0.05,
+          0.1
+        ]
+      }
+    },
+    "dock_expansion": {
+      "nameKey": "upgrade.dock_expansion.name",
+      "descKey": "upgrade.dock_expansion.desc",
+      "family": "capacity",
+      "maxLevel": 1,
+      "baseCosts": [
+        900
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "helper_dock_enabled",
+        "values": [
+          true
+        ]
+      }
+    },
+    "dock_lights": {
+      "nameKey": "upgrade.dock_lights.name",
+      "descKey": "upgrade.dock_lights.desc",
+      "family": "readability",
+      "maxLevel": 1,
+      "baseCosts": [
+        500
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "dock_compatibility_highlight",
+        "values": [
+          true
+        ]
+      }
+    },
+    "weather_station": {
+      "nameKey": "upgrade.weather_station.name",
+      "descKey": "upgrade.weather_station.desc",
+      "family": "safety",
+      "maxLevel": 1,
+      "baseCosts": [
+        1200
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "weather_cue_bonus_seconds",
+        "values": [
+          3.0
+        ]
+      }
+    },
+    "deep_water_berth": {
+      "nameKey": "upgrade.deep_water_berth.name",
+      "descKey": "upgrade.deep_water_berth.desc",
+      "family": "access",
+      "maxLevel": 1,
+      "baseCosts": [
+        900
+      ],
+      "applyPortMultiplier": false,
+      "effect": {
+        "type": "content_access",
+        "values": [
+          [
+            "freighter"
+          ]
+        ]
+      },
+      "note": "Mandatory campaign access node. Fixed 900 Coins; port multiplier MUST NOT apply."
+    },
+    "current_buoys": {
+      "nameKey": "upgrade.current_buoys.name",
+      "descKey": "upgrade.current_buoys.desc",
+      "family": "safety",
+      "maxLevel": 1,
+      "baseCosts": [
+        1300
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "current_preview",
+        "values": [
+          {
+            "directionVisible": true,
+            "cueBonusSeconds": 0.5
+          }
+        ]
+      }
+    },
+    "breakwater": {
+      "nameKey": "upgrade.breakwater.name",
+      "descKey": "upgrade.breakwater.desc",
+      "family": "safety",
+      "maxLevel": 1,
+      "baseCosts": [
+        1500
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "storm_speed_multiplier",
+        "values": [
+          0.9
+        ]
+      }
+    },
+    "oil_safety_dock": {
+      "nameKey": "upgrade.oil_safety_dock.name",
+      "descKey": "upgrade.oil_safety_dock.desc",
+      "family": "access",
+      "maxLevel": 1,
+      "baseCosts": [
+        1800
+      ],
+      "applyPortMultiplier": false,
+      "effect": {
+        "type": "content_access",
+        "values": [
+          [
+            "oil_terminal",
+            "tanker"
+          ]
+        ]
+      },
+      "note": "Mandatory campaign access node. Fixed 1800 Coins; port multiplier MUST NOT apply."
+    },
+    "landmark": {
+      "nameKey": "upgrade.landmark.name",
+      "descKey": "upgrade.landmark.desc",
+      "family": "visual",
+      "maxLevel": 1,
+      "baseCosts": [
+        800
+      ],
+      "applyPortMultiplier": true,
+      "effect": {
+        "type": "visual_prestige",
+        "values": [
+          true
+        ]
+      },
+      "note": "Optional prestige embellishment. It never gates Stage IV or port completion."
+    }
+  }
+}

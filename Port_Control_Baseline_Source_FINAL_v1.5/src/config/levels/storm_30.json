@@ -1,0 +1,402 @@
+{
+  "version": 1,
+  "id": "storm_30",
+  "order": 30,
+  "portId": "storm_harbor",
+  "focus": "Storm finale",
+  "objective": {
+    "type": "deliver_cargo",
+    "target": 34
+  },
+  "starConditions": [
+    {
+      "type": "complete"
+    },
+    {
+      "type": "max_warnings",
+      "value": 3
+    },
+    {
+      "type": "max_time_seconds",
+      "value": 145
+    }
+  ],
+  "allowedShips": [
+    "speedboat",
+    "cargo_boat",
+    "freighter"
+  ],
+  "shipWeights": {
+    "speedboat": 0.32,
+    "cargo_boat": 0.42,
+    "freighter": 0.26
+  },
+  "cargoTypes": [
+    "general",
+    "container"
+  ],
+  "cargoGeneration": {
+    "mode": "single",
+    "weights": {
+      "general": 0.45,
+      "container": 0.55
+    },
+    "multiCargoChance": 0
+  },
+  "director": {
+    "startInterval": 2.6,
+    "minimumInterval": 1.6,
+    "warningLeadTime": 0.9,
+    "maxAlive": 14,
+    "pressureCap": 20.3,
+    "jitter": 0.12,
+    "wave": {
+      "burstMin": 2,
+      "burstMax": 4,
+      "breathMin": 1.2,
+      "breathMax": 2.2
+    }
+  },
+  "layout": {
+    "templateId": "storm_harbor_layout_4",
+    "blocks": [
+      {
+        "blockType": "navigation_zone",
+        "id": "nav_main",
+        "x": 500,
+        "y": 500,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              1000
+            ],
+            [
+              0,
+              1000
+            ]
+          ]
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_left",
+        "x": 20,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "left"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_right",
+        "x": 980,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "right"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_bottom",
+        "x": 500,
+        "y": 980,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 40,
+          "edge": "bottom"
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "shore_n",
+        "x": 500.0,
+        "y": 52.5,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              105
+            ],
+            [
+              0,
+              105
+            ]
+          ],
+          "visualVariant": "storm_quay",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "break_w",
+        "x": 52.5,
+        "y": 140.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              105,
+              0
+            ],
+            [
+              105,
+              280
+            ],
+            [
+              0,
+              280
+            ]
+          ],
+          "visualVariant": "storm_quay",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "break_e",
+        "x": 947.5,
+        "y": 140.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              895,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              280
+            ],
+            [
+              895,
+              280
+            ]
+          ],
+          "visualVariant": "storm_quay",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_a",
+        "x": 270,
+        "y": 135,
+        "rotation": 90,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "general"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 90,
+          "helperFlag": false,
+          "visualVariant": "dock_general"
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_b",
+        "x": 730,
+        "y": 135,
+        "rotation": 90,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "container"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 90,
+          "helperFlag": false,
+          "visualVariant": "dock_container"
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_l",
+        "x": 25,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 0,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_r",
+        "x": 975,
+        "y": 500,
+        "rotation": 180,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 180,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_b1",
+        "x": 330,
+        "y": 975,
+        "rotation": 270,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 270,
+          "weight": 0.9,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_b2",
+        "x": 670,
+        "y": 975,
+        "rotation": 270,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 270,
+          "weight": 0.9,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "storm_path",
+        "id": "storm_1",
+        "x": 240,
+        "y": 700,
+        "rotation": 0,
+        "layer": "hazards",
+        "enabled": true,
+        "props": {
+          "waypoints": [
+            [
+              240,
+              700
+            ],
+            [
+              760,
+              380
+            ],
+            [
+              300,
+              250
+            ]
+          ],
+          "radius": 90,
+          "speed": 56,
+          "startDelay": 0
+        }
+      },
+      {
+        "blockType": "storm_path",
+        "id": "storm_2",
+        "x": 760,
+        "y": 720,
+        "rotation": 0,
+        "layer": "hazards",
+        "enabled": true,
+        "props": {
+          "waypoints": [
+            [
+              760,
+              720
+            ],
+            [
+              250,
+              430
+            ],
+            [
+              720,
+              270
+            ]
+          ],
+          "radius": 86,
+          "speed": 50,
+          "startDelay": 6
+        }
+      },
+      {
+        "blockType": "fog_zone",
+        "id": "fog_main",
+        "x": 500,
+        "y": 560,
+        "rotation": 0,
+        "layer": "hazards",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 600,
+          "warningPenalty": 0.25,
+          "opacity": 0.28
+        }
+      }
+    ]
+  },
+  "rewards": {
+    "baseCoins": 390
+  },
+  "seedMode": "random",
+  "flags": {
+    "supportsUpgradeDock": false,
+    "allowRewind": true,
+    "tutorialStep": null,
+    "scriptedIntroShip": null
+  }
+}

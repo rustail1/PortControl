@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "revision": 0,
+  "updatedAt": 0,
+  "coins": 0,
+  "totalStars": 0,
+  "currentPortId": "calm_bay",
+  "unlockedPorts": [
+    "calm_bay"
+  ],
+  "portProgress": {},
+  "records": {
+    "bestScoreByLevel": {},
+    "bestTimeMsByLevel": {},
+    "endlessBestScore": 0
+  },
+  "settings": {
+    "language": "auto",
+    "musicVolume": 1.0,
+    "sfxVolume": 1.0,
+    "routeThickness": 5,
+    "colorblindSymbols": true,
+    "reduceMotion": false,
+    "screenShake": true
+  },
+  "experiments": {
+    "assignments": {}
+  },
+  "firstSessionFlags": {
+    "ftueStarted": false,
+    "ftueCompleted": false,
+    "firstRewardSeen": false,
+    "firstUpgradeCompleted": false,
+    "authCtaShown": false
+  },
+  "grantLedger": []
+}

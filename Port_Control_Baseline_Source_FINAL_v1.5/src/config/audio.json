@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "formatPreference": [
+    "ogg",
+    "mp3"
+  ],
+  "autoplayRequiresUserGesture": true,
+  "musicIntensity": {
+    "source": "balance.presentation.musicPressureThresholds",
+    "crossfadeMsSource": "balance.presentation.musicCrossfadeMs"
+  },
+  "hornPolicy": {
+    "incomingChance": 0.15,
+    "globalCooldownMs": 6000
+  },
+  "assets": {
+    "ship_select": {
+      "path": "assets/audio/ship_select.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "route_commit": {
+      "path": "assets/audio/route_commit.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "route_redraw": {
+      "path": "assets/audio/route_redraw.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "incoming_ping": {
+      "path": "assets/audio/incoming_ping.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "danger_warning": {
+      "path": "assets/audio/danger_warning.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "dock_snap": {
+      "path": "assets/audio/dock_snap.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "cargo_tick": {
+      "path": "assets/audio/cargo_tick.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "cargo_complete": {
+      "path": "assets/audio/cargo_complete.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "ship_exit": {
+      "path": "assets/audio/ship_exit.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "collision": {
+      "path": "assets/audio/collision.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "level_complete": {
+      "path": "assets/audio/level_complete.ogg",
+      "bus": "sfx",
+      "preloadGroup": "core",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "upgrade_build": {
+      "path": "assets/audio/upgrade_build.ogg",
+      "bus": "sfx",
+      "preloadGroup": "meta",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "port_stage_up": {
+      "path": "assets/audio/port_stage_up.ogg",
+      "bus": "sfx",
+      "preloadGroup": "meta",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "rewarded_success": {
+      "path": "assets/audio/rewarded_success.ogg",
+      "bus": "sfx",
+      "preloadGroup": "ui",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "horn_small": {
+      "path": "assets/audio/horn_small.ogg",
+      "bus": "sfx",
+      "preloadGroup": "harbor",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "horn_medium": {
+      "path": "assets/audio/horn_medium.ogg",
+      "bus": "sfx",
+      "preloadGroup": "harbor",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "horn_freighter": {
+      "path": "assets/audio/horn_freighter.ogg",
+      "bus": "sfx",
+      "preloadGroup": "harbor",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "horn_tanker": {
+      "path": "assets/audio/horn_tanker.ogg",
+      "bus": "sfx",
+      "preloadGroup": "harbor",
+      "loop": false,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "sea_loop": {
+      "path": "assets/audio/sea_loop.ogg",
+      "bus": "ambient",
+      "preloadGroup": "harbor",
+      "loop": true,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "harbor_loop": {
+      "path": "assets/audio/harbor_loop.ogg",
+      "bus": "ambient",
+      "preloadGroup": "harbor",
+      "loop": true,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "music_low": {
+      "path": "assets/audio/music_low.ogg",
+      "bus": "music",
+      "preloadGroup": "music",
+      "loop": true,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "music_medium": {
+      "path": "assets/audio/music_medium.ogg",
+      "bus": "music",
+      "preloadGroup": "music",
+      "loop": true,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "music_high": {
+      "path": "assets/audio/music_high.ogg",
+      "bus": "music",
+      "preloadGroup": "music",
+      "loop": true,
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    }
+  }
+}

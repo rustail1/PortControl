@@ -1,0 +1,533 @@
+{
+  "version": 1,
+  "privacy": {
+    "noPII": true,
+    "noRawPointerSamples": true
+  },
+  "parameters": {
+    "build": {
+      "type": "string"
+    },
+    "device_class": {
+      "type": "string"
+    },
+    "orientation": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "elapsed_ms": {
+      "type": "integer"
+    },
+    "level_id": {
+      "type": "string"
+    },
+    "ship_type": {
+      "type": "string"
+    },
+    "pressure": {
+      "type": "number"
+    },
+    "alive_ships": {
+      "type": "integer"
+    },
+    "fail_reason": {
+      "type": "string"
+    },
+    "input_device": {
+      "type": "string"
+    },
+    "route_length": {
+      "type": "number"
+    },
+    "point_count": {
+      "type": "integer"
+    },
+    "redraw_count_for_ship": {
+      "type": "integer"
+    },
+    "state_before": {
+      "type": "string"
+    },
+    "ends_in_dock_candidate": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "dock_id": {
+      "type": "string"
+    },
+    "cargo_type": {
+      "type": "string"
+    },
+    "port_id": {
+      "type": "string"
+    },
+    "upgrade_id": {
+      "type": "string"
+    },
+    "old_level": {
+      "type": "integer"
+    },
+    "new_level": {
+      "type": "integer"
+    },
+    "coin_balance": {
+      "type": "integer"
+    },
+    "placement": {
+      "type": "string"
+    },
+    "session_seconds": {
+      "type": "number"
+    },
+    "error_code": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "experiment_id": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "objective_type": {
+      "type": "string"
+    },
+    "stars": {
+      "type": "integer"
+    },
+    "coins_earned": {
+      "type": "integer"
+    },
+    "is_replay": {
+      "type": "boolean"
+    },
+    "rewind_used": {
+      "type": "boolean"
+    },
+    "warning_count": {
+      "type": "integer"
+    }
+  },
+  "events": {
+    "session_start": {
+      "required": [
+        "build",
+        "device_class",
+        "orientation",
+        "platform"
+      ],
+      "optional": []
+    },
+    "session_end": {
+      "required": [
+        "build",
+        "session_seconds"
+      ],
+      "optional": [
+        "action"
+      ]
+    },
+    "game_ready": {
+      "required": [
+        "build",
+        "platform"
+      ],
+      "optional": []
+    },
+    "visibility_hidden": {
+      "required": [
+        "build"
+      ],
+      "optional": []
+    },
+    "platform_pause": {
+      "required": [
+        "build"
+      ],
+      "optional": [
+        "reason"
+      ]
+    },
+    "platform_resume": {
+      "required": [
+        "build"
+      ],
+      "optional": []
+    },
+    "ftue_started": {
+      "required": [
+        "elapsed_ms",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "ship_selected_first": {
+      "required": [
+        "elapsed_ms",
+        "level_id",
+        "input_device"
+      ],
+      "optional": []
+    },
+    "route_committed_first": {
+      "required": [
+        "elapsed_ms",
+        "level_id",
+        "input_device"
+      ],
+      "optional": []
+    },
+    "dock_completed_first": {
+      "required": [
+        "elapsed_ms",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "unload_completed_first": {
+      "required": [
+        "elapsed_ms",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "exit_completed_first": {
+      "required": [
+        "elapsed_ms",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "first_reward_seen": {
+      "required": [
+        "elapsed_ms",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "first_upgrade_completed": {
+      "required": [
+        "elapsed_ms",
+        "upgrade_id"
+      ],
+      "optional": []
+    },
+    "ftue_completed": {
+      "required": [
+        "elapsed_ms",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "level_start": {
+      "required": [
+        "level_id",
+        "seed",
+        "objective_type",
+        "is_replay"
+      ],
+      "optional": []
+    },
+    "ship_spawned": {
+      "required": [
+        "level_id",
+        "ship_type",
+        "pressure",
+        "alive_ships"
+      ],
+      "optional": []
+    },
+    "route_committed": {
+      "required": [
+        "level_id",
+        "ship_type",
+        "point_count",
+        "route_length",
+        "redraw_count_for_ship",
+        "alive_ships",
+        "pressure",
+        "state_before",
+        "ends_in_dock_candidate",
+        "input_device"
+      ],
+      "optional": []
+    },
+    "route_rejected": {
+      "required": [
+        "level_id",
+        "ship_type",
+        "reason",
+        "input_device"
+      ],
+      "optional": []
+    },
+    "route_redrawn": {
+      "required": [
+        "level_id",
+        "ship_type",
+        "redraw_count_for_ship"
+      ],
+      "optional": []
+    },
+    "danger_warning": {
+      "required": [
+        "level_id",
+        "alive_ships",
+        "pressure"
+      ],
+      "optional": []
+    },
+    "collision": {
+      "required": [
+        "level_id",
+        "fail_reason",
+        "alive_ships",
+        "pressure"
+      ],
+      "optional": []
+    },
+    "grounding": {
+      "required": [
+        "level_id",
+        "ship_type",
+        "fail_reason"
+      ],
+      "optional": []
+    },
+    "dock_started": {
+      "required": [
+        "level_id",
+        "ship_type",
+        "dock_id"
+      ],
+      "optional": []
+    },
+    "dock_rejected": {
+      "required": [
+        "level_id",
+        "ship_type",
+        "dock_id",
+        "reason"
+      ],
+      "optional": []
+    },
+    "cargo_unloaded": {
+      "required": [
+        "level_id",
+        "ship_type",
+        "cargo_type"
+      ],
+      "optional": []
+    },
+    "ship_exited": {
+      "required": [
+        "level_id",
+        "ship_type"
+      ],
+      "optional": []
+    },
+    "level_complete": {
+      "required": [
+        "level_id",
+        "stars",
+        "coins_earned",
+        "warning_count",
+        "rewind_used",
+        "is_replay"
+      ],
+      "optional": []
+    },
+    "level_failed": {
+      "required": [
+        "level_id",
+        "fail_reason",
+        "warning_count",
+        "rewind_used"
+      ],
+      "optional": []
+    },
+    "level_restart": {
+      "required": [
+        "level_id",
+        "action"
+      ],
+      "optional": []
+    },
+    "result_action": {
+      "required": [
+        "level_id",
+        "action"
+      ],
+      "optional": []
+    },
+    "meta_opened": {
+      "required": [
+        "port_id"
+      ],
+      "optional": []
+    },
+    "upgrade_viewed": {
+      "required": [
+        "port_id",
+        "upgrade_id"
+      ],
+      "optional": []
+    },
+    "upgrade_purchased": {
+      "required": [
+        "port_id",
+        "upgrade_id",
+        "old_level",
+        "new_level",
+        "coin_balance"
+      ],
+      "optional": []
+    },
+    "upgrade_blocked": {
+      "required": [
+        "port_id",
+        "upgrade_id",
+        "reason",
+        "coin_balance"
+      ],
+      "optional": []
+    },
+    "port_stage_up": {
+      "required": [
+        "port_id"
+      ],
+      "optional": []
+    },
+    "port_unlocked": {
+      "required": [
+        "port_id"
+      ],
+      "optional": []
+    },
+    "choice_offered": {
+      "required": [
+        "port_id"
+      ],
+      "optional": []
+    },
+    "choice_selected": {
+      "required": [
+        "port_id",
+        "action"
+      ],
+      "optional": []
+    },
+    "ad_offer": {
+      "required": [
+        "placement",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "rewarded_started": {
+      "required": [
+        "placement",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "rewarded_completed": {
+      "required": [
+        "placement",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "reward_granted": {
+      "required": [
+        "placement",
+        "level_id"
+      ],
+      "optional": []
+    },
+    "interstitial_requested": {
+      "required": [
+        "placement",
+        "session_seconds"
+      ],
+      "optional": []
+    },
+    "interstitial_shown": {
+      "required": [
+        "placement"
+      ],
+      "optional": []
+    },
+    "interstitial_closed": {
+      "required": [
+        "placement"
+      ],
+      "optional": []
+    },
+    "ad_error": {
+      "required": [
+        "placement",
+        "error_code"
+      ],
+      "optional": []
+    },
+    "save_success": {
+      "required": [
+        "build"
+      ],
+      "optional": [
+        "reason"
+      ]
+    },
+    "save_failure": {
+      "required": [
+        "build",
+        "error_code"
+      ],
+      "optional": [
+        "reason"
+      ]
+    },
+    "cloud_conflict": {
+      "required": [
+        "build",
+        "action"
+      ],
+      "optional": []
+    },
+    "config_error": {
+      "required": [
+        "build",
+        "error_code"
+      ],
+      "optional": []
+    },
+    "uncaught_error": {
+      "required": [
+        "build",
+        "error_code"
+      ],
+      "optional": []
+    },
+    "fps_sample": {
+      "required": [
+        "build",
+        "device_class"
+      ],
+      "optional": []
+    },
+    "asset_load_failure": {
+      "required": [
+        "build",
+        "error_code"
+      ],
+      "optional": []
+    }
+  }
+}

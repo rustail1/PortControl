@@ -1,0 +1,340 @@
+{
+  "version": 2,
+  "ports": {
+    "calm_bay": {
+      "displayNameKey": "port.calm_bay",
+      "order": 1,
+      "levelIds": [
+        "calm_01",
+        "calm_02",
+        "calm_03",
+        "calm_04",
+        "calm_05",
+        "calm_06",
+        "calm_07",
+        "calm_08",
+        "calm_09",
+        "calm_10"
+      ],
+      "costMultiplier": 1.0,
+      "visualStages": [
+        {
+          "id": "starter",
+          "afterLevel": 0,
+          "sceneVariant": "calm_stage_1",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "commercial",
+          "afterLevel": 3,
+          "sceneVariant": "calm_stage_2",
+          "minOwnedUpgrades": 1,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "specialized",
+          "afterLevel": 6,
+          "sceneVariant": "calm_stage_3",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": [
+            "deep_water_berth"
+          ]
+        },
+        {
+          "id": "landmark",
+          "afterLevel": 10,
+          "sceneVariant": "calm_stage_4",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        }
+      ],
+      "localUpgrades": [
+        "crane",
+        "radar",
+        "quick_mooring",
+        "harbor_office",
+        "dock_expansion",
+        "dock_lights",
+        "deep_water_berth",
+        "landmark"
+      ],
+      "chapterPerkPools": [
+        [
+          "EARLY_RADAR",
+          "FAST_CRANES",
+          "TEMP_DOCK",
+          "HARBOR_PILOT"
+        ],
+        [
+          "SAFE_SHIFT",
+          "LONG_WARNING",
+          "FAST_MOORING",
+          "FAST_CRANES"
+        ],
+        [
+          "FREIGHT_BONUS",
+          "SAFE_SHIFT",
+          "EARLY_RADAR",
+          "TEMP_DOCK",
+          "HARBOR_PILOT"
+        ]
+      ],
+      "completionUnlock": "river_junction",
+      "assetBundleKey": "port_calm",
+      "levelGates": {
+        "calm_07": [
+          "deep_water_berth"
+        ]
+      }
+    },
+    "river_junction": {
+      "displayNameKey": "port.river_junction",
+      "order": 2,
+      "levelIds": [
+        "river_11",
+        "river_12",
+        "river_13",
+        "river_14",
+        "river_15",
+        "river_16",
+        "river_17",
+        "river_18",
+        "river_19",
+        "river_20"
+      ],
+      "costMultiplier": 2.2,
+      "visualStages": [
+        {
+          "id": "starter",
+          "afterLevel": 10,
+          "sceneVariant": "river_stage_1",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "commercial",
+          "afterLevel": 13,
+          "sceneVariant": "river_stage_2",
+          "minOwnedUpgrades": 1,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "specialized",
+          "afterLevel": 16,
+          "sceneVariant": "river_stage_3",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "landmark",
+          "afterLevel": 20,
+          "sceneVariant": "river_stage_4",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        }
+      ],
+      "localUpgrades": [
+        "crane",
+        "radar",
+        "quick_mooring",
+        "harbor_office",
+        "dock_expansion",
+        "dock_lights",
+        "current_buoys",
+        "landmark"
+      ],
+      "chapterPerkPools": [
+        [
+          "EARLY_RADAR",
+          "FAST_CRANES",
+          "TEMP_DOCK",
+          "HARBOR_PILOT"
+        ],
+        [
+          "SAFE_SHIFT",
+          "LONG_WARNING",
+          "FAST_MOORING",
+          "FAST_CRANES"
+        ],
+        [
+          "FREIGHT_BONUS",
+          "SAFE_SHIFT",
+          "EARLY_RADAR",
+          "TEMP_DOCK",
+          "HARBOR_PILOT"
+        ]
+      ],
+      "completionUnlock": "storm_harbor",
+      "assetBundleKey": "port_river",
+      "levelGates": {}
+    },
+    "storm_harbor": {
+      "displayNameKey": "port.storm_harbor",
+      "order": 3,
+      "levelIds": [
+        "storm_21",
+        "storm_22",
+        "storm_23",
+        "storm_24",
+        "storm_25",
+        "storm_26",
+        "storm_27",
+        "storm_28",
+        "storm_29",
+        "storm_30"
+      ],
+      "costMultiplier": 4.5,
+      "visualStages": [
+        {
+          "id": "starter",
+          "afterLevel": 20,
+          "sceneVariant": "storm_stage_1",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "commercial",
+          "afterLevel": 23,
+          "sceneVariant": "storm_stage_2",
+          "minOwnedUpgrades": 1,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "specialized",
+          "afterLevel": 26,
+          "sceneVariant": "storm_stage_3",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "landmark",
+          "afterLevel": 30,
+          "sceneVariant": "storm_stage_4",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        }
+      ],
+      "localUpgrades": [
+        "crane",
+        "radar",
+        "quick_mooring",
+        "harbor_office",
+        "dock_lights",
+        "weather_station",
+        "breakwater",
+        "landmark"
+      ],
+      "chapterPerkPools": [
+        [
+          "EARLY_RADAR",
+          "FAST_CRANES",
+          "HARBOR_PILOT",
+          "SAFE_SHIFT"
+        ],
+        [
+          "LONG_WARNING",
+          "FAST_MOORING",
+          "SAFE_SHIFT",
+          "FAST_CRANES"
+        ],
+        [
+          "FREIGHT_BONUS",
+          "EARLY_RADAR",
+          "LONG_WARNING",
+          "SAFE_SHIFT"
+        ]
+      ],
+      "completionUnlock": "industrial_channel",
+      "assetBundleKey": "port_storm",
+      "levelGates": {}
+    },
+    "industrial_channel": {
+      "displayNameKey": "port.industrial_channel",
+      "order": 4,
+      "levelIds": [
+        "industrial_31",
+        "industrial_32",
+        "industrial_33",
+        "industrial_34",
+        "industrial_35",
+        "industrial_36",
+        "industrial_37",
+        "industrial_38",
+        "industrial_39",
+        "industrial_40"
+      ],
+      "costMultiplier": 8.0,
+      "visualStages": [
+        {
+          "id": "starter",
+          "afterLevel": 30,
+          "sceneVariant": "industrial_stage_1",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "commercial",
+          "afterLevel": 33,
+          "sceneVariant": "industrial_stage_2",
+          "minOwnedUpgrades": 1,
+          "requiredUpgrades": []
+        },
+        {
+          "id": "specialized",
+          "afterLevel": 36,
+          "sceneVariant": "industrial_stage_3",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": [
+            "oil_safety_dock"
+          ]
+        },
+        {
+          "id": "landmark",
+          "afterLevel": 40,
+          "sceneVariant": "industrial_stage_4",
+          "minOwnedUpgrades": 0,
+          "requiredUpgrades": []
+        }
+      ],
+      "localUpgrades": [
+        "crane",
+        "radar",
+        "quick_mooring",
+        "harbor_office",
+        "dock_lights",
+        "current_buoys",
+        "breakwater",
+        "oil_safety_dock",
+        "landmark"
+      ],
+      "chapterPerkPools": [
+        [
+          "EARLY_RADAR",
+          "FAST_CRANES",
+          "HARBOR_PILOT",
+          "SAFE_SHIFT"
+        ],
+        [
+          "LONG_WARNING",
+          "FAST_MOORING",
+          "FREIGHT_BONUS",
+          "FAST_CRANES"
+        ],
+        [
+          "FREIGHT_BONUS",
+          "SAFE_SHIFT",
+          "EARLY_RADAR",
+          "LONG_WARNING"
+        ]
+      ],
+      "completionUnlock": null,
+      "assetBundleKey": "port_industrial",
+      "levelGates": {
+        "industrial_31": [
+          "oil_safety_dock"
+        ]
+      }
+    }
+  }
+}

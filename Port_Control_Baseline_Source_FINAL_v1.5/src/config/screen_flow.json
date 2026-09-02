@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "firstLaunch": {
+    "menuAction": "play",
+    "target": "harbor:calm_01"
+  },
+  "screens": {
+    "boot": {
+      "kind": "scene"
+    },
+    "preload": {
+      "kind": "scene"
+    },
+    "menu": {
+      "kind": "scene"
+    },
+    "port_meta": {
+      "kind": "scene"
+    },
+    "map_select": {
+      "kind": "scene"
+    },
+    "harbor": {
+      "kind": "scene"
+    },
+    "pause": {
+      "kind": "overlay",
+      "owner": "harbor"
+    },
+    "result_win": {
+      "kind": "overlay",
+      "owner": "harbor"
+    },
+    "result_fail": {
+      "kind": "overlay",
+      "owner": "harbor"
+    },
+    "perk_choice": {
+      "kind": "modal",
+      "owner": "port_meta"
+    },
+    "settings": {
+      "kind": "modal",
+      "owner": "menu_or_port_meta_or_pause"
+    },
+    "campaign_complete": {
+      "kind": "modal",
+      "owner": "port_meta"
+    },
+    "endless_result": {
+      "kind": "overlay",
+      "owner": "harbor"
+    }
+  },
+  "transitions": [
+    {
+      "from": "boot",
+      "action": "ready",
+      "to": "preload"
+    },
+    {
+      "from": "preload",
+      "action": "interactive",
+      "to": "menu"
+    },
+    {
+      "from": "menu",
+      "action": "play",
+      "to": "harbor",
+      "condition": "no_completed_levels",
+      "payload": "calm_01"
+    },
+    {
+      "from": "menu",
+      "action": "continue",
+      "to": "port_meta",
+      "condition": "has_progress"
+    },
+    {
+      "from": "menu",
+      "action": "settings",
+      "to": "settings"
+    },
+    {
+      "from": "port_meta",
+      "action": "play_next",
+      "to": "harbor",
+      "condition": "no_pending_perk_and_level_gate_satisfied"
+    },
+    {
+      "from": "port_meta",
+      "action": "levels",
+      "to": "map_select"
+    },
+    {
+      "from": "port_meta",
+      "action": "pending_perk",
+      "to": "perk_choice",
+      "condition": "milestone_3_6_9_unclaimed"
+    },
+    {
+      "from": "map_select",
+      "action": "select_unlocked_level",
+      "to": "harbor"
+    },
+    {
+      "from": "map_select",
+      "action": "back",
+      "to": "port_meta"
+    },
+    {
+      "from": "harbor",
+      "action": "pause",
+      "to": "pause"
+    },
+    {
+      "from": "pause",
+      "action": "resume",
+      "to": "harbor"
+    },
+    {
+      "from": "pause",
+      "action": "restart_confirmed",
+      "to": "harbor",
+      "payload": "same_level_same_attempt_seed"
+    },
+    {
+      "from": "pause",
+      "action": "port_confirmed",
+      "to": "port_meta"
+    },
+    {
+      "from": "harbor",
+      "action": "terminal_fail_campaign",
+      "to": "result_fail"
+    },
+    {
+      "from": "result_fail",
+      "action": "rewarded_rewind_success",
+      "to": "harbor",
+      "condition": "eligible"
+    },
+    {
+      "from": "result_fail",
+      "action": "restart",
+      "to": "harbor",
+      "payload": "same_level_same_attempt_seed"
+    },
+    {
+      "from": "result_fail",
+      "action": "port",
+      "to": "port_meta"
+    },
+    {
+      "from": "harbor",
+      "action": "objective_complete",
+      "to": "result_win"
+    },
+    {
+      "from": "result_win",
+      "action": "double_coins",
+      "to": "result_win",
+      "condition": "eligible_and_not_claimed"
+    },
+    {
+      "from": "result_win",
+      "action": "next",
+      "to": "port_meta",
+      "condition": "pending_perk_or_required_level_gate_or_port_complete"
+    },
+    {
+      "from": "result_win",
+      "action": "next",
+      "to": "harbor",
+      "condition": "next_level_unlocked_without_meta_stop"
+    },
+    {
+      "from": "result_win",
+      "action": "port",
+      "to": "port_meta"
+    },
+    {
+      "from": "port_meta",
+      "action": "campaign_complete",
+      "to": "campaign_complete",
+      "condition": "industrial_40_complete"
+    },
+    {
+      "from": "campaign_complete",
+      "action": "endless",
+      "to": "harbor",
+      "payload": "industrial_endless"
+    },
+    {
+      "from": "harbor",
+      "action": "terminal_fail_endless",
+      "to": "endless_result"
+    },
+    {
+      "from": "endless_result",
+      "action": "restart",
+      "to": "harbor",
+      "payload": "industrial_endless_new_seed"
+    },
+    {
+      "from": "endless_result",
+      "action": "port",
+      "to": "port_meta"
+    },
+    {
+      "from": "port_meta",
+      "action": "settings",
+      "to": "settings"
+    },
+    {
+      "from": "pause",
+      "action": "settings",
+      "to": "settings"
+    },
+    {
+      "from": "settings",
+      "action": "close",
+      "to": "menu",
+      "condition": "owner_menu"
+    },
+    {
+      "from": "settings",
+      "action": "close",
+      "to": "port_meta",
+      "condition": "owner_port_meta"
+    },
+    {
+      "from": "settings",
+      "action": "close",
+      "to": "pause",
+      "condition": "owner_pause"
+    },
+    {
+      "from": "perk_choice",
+      "action": "select",
+      "to": "port_meta",
+      "condition": "valid_choice_persisted"
+    },
+    {
+      "from": "campaign_complete",
+      "action": "port",
+      "to": "port_meta"
+    },
+    {
+      "from": "endless_result",
+      "action": "rewarded_rewind_success",
+      "to": "harbor",
+      "condition": "eligible_and_not_used"
+    }
+  ]
+}

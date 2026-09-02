@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "revision",
+    "updatedAt",
+    "coins",
+    "totalStars",
+    "currentPortId",
+    "unlockedPorts",
+    "portProgress",
+    "records",
+    "settings",
+    "experiments",
+    "firstSessionFlags",
+    "grantLedger"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "updatedAt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "coins": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "totalStars": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 120
+    },
+    "currentPortId": {
+      "type": "string"
+    },
+    "unlockedPorts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "portProgress": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "completedLevels",
+          "starsByLevel",
+          "upgrades",
+          "stage",
+          "activePerks",
+          "perkMilestonesClaimed"
+        ],
+        "properties": {
+          "completedLevels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "starsByLevel": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3
+            }
+          },
+          "upgrades": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            }
+          },
+          "stage": {
+            "enum": [
+              "starter",
+              "commercial",
+              "specialized",
+              "landmark"
+            ]
+          },
+          "activePerks": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 3,
+            "items": {
+              "type": "string"
+            }
+          },
+          "perkMilestonesClaimed": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                3,
+                6,
+                9
+              ]
+            }
+          }
+        }
+      }
+    },
+    "records": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bestScoreByLevel",
+        "bestTimeMsByLevel",
+        "endlessBestScore"
+      ],
+      "properties": {
+        "bestScoreByLevel": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "bestTimeMsByLevel": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "endlessBestScore": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "musicVolume",
+        "sfxVolume",
+        "routeThickness",
+        "colorblindSymbols",
+        "reduceMotion",
+        "screenShake"
+      ],
+      "properties": {
+        "language": {
+          "enum": [
+            "auto",
+            "ru",
+            "en"
+          ]
+        },
+        "musicVolume": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sfxVolume": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "routeThickness": {
+          "type": "number",
+          "minimum": 4,
+          "maximum": 8
+        },
+        "colorblindSymbols": {
+          "type": "boolean"
+        },
+        "reduceMotion": {
+          "type": "boolean"
+        },
+        "screenShake": {
+          "type": "boolean"
+        }
+      }
+    },
+    "experiments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assignments"
+      ],
+      "properties": {
+        "assignments": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "firstSessionFlags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ftueStarted",
+        "ftueCompleted",
+        "firstRewardSeen",
+        "firstUpgradeCompleted",
+        "authCtaShown"
+      ],
+      "properties": {
+        "ftueStarted": {
+          "type": "boolean"
+        },
+        "ftueCompleted": {
+          "type": "boolean"
+        },
+        "firstRewardSeen": {
+          "type": "boolean"
+        },
+        "firstUpgradeCompleted": {
+          "type": "boolean"
+        },
+        "authCtaShown": {
+          "type": "boolean"
+        }
+      }
+    },
+    "grantLedger": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    }
+  }
+}

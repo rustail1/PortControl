@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "perks"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "perks": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "nameKey",
+          "descKey",
+          "effect"
+        ],
+        "properties": {
+          "nameKey": {
+            "type": "string"
+          },
+          "descKey": {
+            "type": "string"
+          },
+          "effect": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "incoming_warning_bonus_seconds"
+                  },
+                  "value": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 5
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "unload_speed_bonus"
+                  },
+                  "value": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 0.5
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "temporary_helper_dock"
+                  },
+                  "value": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "turn_rate_bonus"
+                  },
+                  "value": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 0.5
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "spawn_interval_multiplier"
+                  },
+                  "value": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 2
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "dock_snap_reduction"
+                  },
+                  "value": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 0.5
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "coinBonus",
+                  "spawnWeightMultiplier"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "freighter_coin_bonus_and_weight"
+                  },
+                  "coinBonus": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "spawnWeightMultiplier": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 3
+                  }
+                }
+              }
+            ]
+          },
+          "compatibility": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "requiresLevelFlag"
+            ],
+            "properties": {
+              "requiresLevelFlag": {
+                "type": "string"
+              },
+              "requiresUpgradeNotOwned": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

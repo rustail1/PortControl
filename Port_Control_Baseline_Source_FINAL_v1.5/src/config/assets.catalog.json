@@ -1,0 +1,942 @@
+{
+  "version": 2,
+  "assets": {
+    "ship_speedboat": {
+      "type": "sprite",
+      "priority": "P0",
+      "path": "assets/shared/ships.webp",
+      "frame": "ship_speedboat",
+      "sourceSize": [
+        160,
+        64
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "ship_cargo": {
+      "type": "sprite",
+      "priority": "P0",
+      "path": "assets/shared/ships.webp",
+      "frame": "ship_cargo",
+      "sourceSize": [
+        192,
+        80
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "ship_freighter": {
+      "type": "sprite",
+      "priority": "P0",
+      "path": "assets/shared/ships.webp",
+      "frame": "ship_freighter",
+      "sourceSize": [
+        256,
+        96
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "ship_tanker": {
+      "type": "sprite",
+      "priority": "P0",
+      "path": "assets/shared/ships.webp",
+      "frame": "ship_tanker",
+      "sourceSize": [
+        256,
+        104
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "dock_general": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/docks.webp",
+      "frame": "dock_general",
+      "sourceSize": [
+        256,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "dock_container": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/docks.webp",
+      "frame": "dock_container",
+      "sourceSize": [
+        256,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "dock_oil": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/docks.webp",
+      "frame": "dock_oil",
+      "sourceSize": [
+        256,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "dock_helper": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/docks.webp",
+      "frame": "dock_helper",
+      "sourceSize": [
+        192,
+        96
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "sand": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/shore_variants.webp",
+      "frame": "sand",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "rock": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/shore_variants.webp",
+      "frame": "rock",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "river_bank": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/shore_variants.webp",
+      "frame": "river_bank",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "storm_quay": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/shore_variants.webp",
+      "frame": "storm_quay",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "industrial": {
+      "type": "visual_variant",
+      "priority": "P0",
+      "path": "assets/shared/shore_variants.webp",
+      "frame": "industrial",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "pc_prop_lighthouse_small": {
+      "type": "sprite",
+      "priority": "P1",
+      "path": "assets/shared/props.webp",
+      "frame": "pc_prop_lighthouse_small",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "pc_prop_lighthouse_landmark": {
+      "type": "sprite",
+      "priority": "P1",
+      "path": "assets/shared/props.webp",
+      "frame": "pc_prop_lighthouse_landmark",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "pc_prop_oil_tanks": {
+      "type": "sprite",
+      "priority": "P1",
+      "path": "assets/shared/props.webp",
+      "frame": "pc_prop_oil_tanks",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "pc_prop_gantry_landmark": {
+      "type": "sprite",
+      "priority": "P1",
+      "path": "assets/shared/props.webp",
+      "frame": "pc_prop_gantry_landmark",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "port_calm": {
+      "type": "asset_bundle",
+      "priority": "P1",
+      "path": "assets/ports/calm/bundle.manifest.json",
+      "frame": null,
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "port_calm",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "port_river": {
+      "type": "asset_bundle",
+      "priority": "P1",
+      "path": "assets/ports/river/bundle.manifest.json",
+      "frame": null,
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "port_river",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "port_storm": {
+      "type": "asset_bundle",
+      "priority": "P1",
+      "path": "assets/ports/storm/bundle.manifest.json",
+      "frame": null,
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "port_storm",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "port_industrial": {
+      "type": "asset_bundle",
+      "priority": "P1",
+      "path": "assets/ports/industrial/bundle.manifest.json",
+      "frame": null,
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "port_industrial",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "calm_stage_1": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/calm_stages.webp",
+      "frame": "calm_stage_1",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "calm_stage_2": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/calm_stages.webp",
+      "frame": "calm_stage_2",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "calm_stage_3": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/calm_stages.webp",
+      "frame": "calm_stage_3",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "calm_stage_4": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/calm_stages.webp",
+      "frame": "calm_stage_4",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "river_stage_1": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/river_stages.webp",
+      "frame": "river_stage_1",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "river_stage_2": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/river_stages.webp",
+      "frame": "river_stage_2",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "river_stage_3": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/river_stages.webp",
+      "frame": "river_stage_3",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "river_stage_4": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/river_stages.webp",
+      "frame": "river_stage_4",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "storm_stage_1": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/storm_stages.webp",
+      "frame": "storm_stage_1",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "storm_stage_2": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/storm_stages.webp",
+      "frame": "storm_stage_2",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "storm_stage_3": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/storm_stages.webp",
+      "frame": "storm_stage_3",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "storm_stage_4": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/storm_stages.webp",
+      "frame": "storm_stage_4",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "industrial_stage_1": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/industrial_stages.webp",
+      "frame": "industrial_stage_1",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "industrial_stage_2": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/industrial_stages.webp",
+      "frame": "industrial_stage_2",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "industrial_stage_3": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/industrial_stages.webp",
+      "frame": "industrial_stage_3",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "industrial_stage_4": {
+      "type": "meta_scene_variant",
+      "priority": "P1",
+      "path": "assets/meta/industrial_stages.webp",
+      "frame": "industrial_stage_4",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "meta",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "route_brush": {
+      "type": "ui_vfx",
+      "priority": "P0",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "route_brush",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "incoming_arrow": {
+      "type": "ui_vfx",
+      "priority": "P0",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "incoming_arrow",
+      "sourceSize": [
+        96,
+        96
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "danger_ring": {
+      "type": "ui_vfx",
+      "priority": "P0",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "danger_ring",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "crash_burst": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "crash_burst",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "wake_mask_small": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "wake_mask_small",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "wake_mask_med": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "wake_mask_med",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "wake_mask_large": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "wake_mask_large",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "cargo_general": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "cargo_general",
+      "sourceSize": [
+        64,
+        64
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "cargo_container": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "cargo_container",
+      "sourceSize": [
+        64,
+        64
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "cargo_oil": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "cargo_oil",
+      "sourceSize": [
+        64,
+        64
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "ui_star": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "ui_star",
+      "sourceSize": [
+        64,
+        64
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "ui_coin": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "ui_coin",
+      "sourceSize": [
+        64,
+        64
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "ui_pause": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "ui_pause",
+      "sourceSize": [
+        64,
+        64
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "ui_settings": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "ui_settings",
+      "sourceSize": [
+        64,
+        64
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    },
+    "tutorial_ghost": {
+      "type": "ui_vfx",
+      "priority": "P1",
+      "path": "assets/shared/ui_vfx.webp",
+      "frame": "tutorial_ghost",
+      "sourceSize": [
+        128,
+        128
+      ],
+      "density": 2,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "preloadGroup": "core",
+      "deliveryStatus": "planned",
+      "requiredForRelease": true
+    }
+  },
+  "releaseRule": "Before Release Candidate, every requiredForRelease asset must have deliveryStatus=production and its path/frame must exist in the production asset pipeline."
+}

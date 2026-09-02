@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "perks": {
+    "EARLY_RADAR": {
+      "nameKey": "perk.early_radar.name",
+      "descKey": "perk.early_radar.desc",
+      "effect": {
+        "type": "incoming_warning_bonus_seconds",
+        "value": 0.35
+      }
+    },
+    "FAST_CRANES": {
+      "nameKey": "perk.fast_cranes.name",
+      "descKey": "perk.fast_cranes.desc",
+      "effect": {
+        "type": "unload_speed_bonus",
+        "value": 0.15
+      }
+    },
+    "TEMP_DOCK": {
+      "nameKey": "perk.temp_dock.name",
+      "descKey": "perk.temp_dock.desc",
+      "effect": {
+        "type": "temporary_helper_dock",
+        "value": true
+      },
+      "compatibility": {
+        "requiresLevelFlag": "supportsUpgradeDock",
+        "requiresUpgradeNotOwned": "dock_expansion"
+      }
+    },
+    "HARBOR_PILOT": {
+      "nameKey": "perk.harbor_pilot.name",
+      "descKey": "perk.harbor_pilot.desc",
+      "effect": {
+        "type": "turn_rate_bonus",
+        "value": 0.1
+      }
+    },
+    "SAFE_SHIFT": {
+      "nameKey": "perk.safe_shift.name",
+      "descKey": "perk.safe_shift.desc",
+      "effect": {
+        "type": "spawn_interval_multiplier",
+        "value": 1.1
+      }
+    },
+    "FREIGHT_BONUS": {
+      "nameKey": "perk.freight_bonus.name",
+      "descKey": "perk.freight_bonus.desc",
+      "effect": {
+        "type": "freighter_coin_bonus_and_weight",
+        "coinBonus": 0.25,
+        "spawnWeightMultiplier": 1.15
+      }
+    },
+    "LONG_WARNING": {
+      "nameKey": "perk.long_warning.name",
+      "descKey": "perk.long_warning.desc",
+      "effect": {
+        "type": "incoming_warning_bonus_seconds",
+        "value": 0.2
+      }
+    },
+    "FAST_MOORING": {
+      "nameKey": "perk.fast_mooring.name",
+      "descKey": "perk.fast_mooring.desc",
+      "effect": {
+        "type": "dock_snap_reduction",
+        "value": 0.15
+      }
+    }
+  }
+}

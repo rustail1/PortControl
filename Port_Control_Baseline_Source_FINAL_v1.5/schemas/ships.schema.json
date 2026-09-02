@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "ships"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "ships": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cargoCapacity",
+          "speed",
+          "turnRateDeg",
+          "collisionRadius",
+          "warningRadius",
+          "unloadStepMs",
+          "pressureWeight",
+          "spawnWeight",
+          "spriteKey"
+        ],
+        "properties": {
+          "cargoCapacity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "speed": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "turnRateDeg": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "collisionRadius": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "warningRadius": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "unloadStepMs": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pressureWeight": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "spawnWeight": {
+            "type": "number",
+            "minimum": 0
+          },
+          "spriteKey": {
+            "type": "string"
+          },
+          "defaultCargoTypes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "general",
+                "container",
+                "oil"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

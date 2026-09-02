@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "endless": {
+    "id": "industrial_endless",
+    "unlockAfterLevel": "industrial_40",
+    "baseLevelId": "industrial_40",
+    "seedMode": "random",
+    "objective": "high_score_until_collision",
+    "rewind": {
+      "enabled": true,
+      "maxRewardedUsesPerRun": 1
+    },
+    "directorScaling": {
+      "stepSeconds": 30,
+      "startIntervalMultiplierPerStep": 0.97,
+      "minimumIntervalFloor": 1.2,
+      "pressureCapAddPerStep": 0.75,
+      "maxAliveAddEverySteps": 3,
+      "maxAliveHardCap": 24
+    },
+    "score": {
+      "inheritsFrom": "balance.score",
+      "completionBonus": 0
+    },
+    "leaderboardKey": "endless_score"
+  }
+}

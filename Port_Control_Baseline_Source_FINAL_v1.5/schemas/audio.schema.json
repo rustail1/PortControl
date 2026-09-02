@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audio.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "formatPreference",
+    "autoplayRequiresUserGesture",
+    "musicIntensity",
+    "hornPolicy",
+    "assets"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "formatPreference": {
+      "type": "array",
+      "const": [
+        "ogg",
+        "mp3"
+      ]
+    },
+    "autoplayRequiresUserGesture": {
+      "const": true
+    },
+    "musicIntensity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "crossfadeMsSource"
+      ],
+      "properties": {
+        "source": {
+          "const": "balance.presentation.musicPressureThresholds"
+        },
+        "crossfadeMsSource": {
+          "const": "balance.presentation.musicCrossfadeMs"
+        }
+      }
+    },
+    "hornPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "incomingChance",
+        "globalCooldownMs"
+      ],
+      "properties": {
+        "incomingChance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "globalCooldownMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "bus",
+          "preloadGroup",
+          "loop",
+          "deliveryStatus",
+          "requiredForRelease"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bus": {
+            "enum": [
+              "sfx",
+              "ambient",
+              "music",
+              "ui",
+              "meta",
+              "harbor"
+            ]
+          },
+          "preloadGroup": {
+            "type": "string"
+          },
+          "loop": {
+            "type": "boolean"
+          },
+          "deliveryStatus": {
+            "enum": [
+              "planned",
+              "placeholder",
+              "production"
+            ]
+          },
+          "requiredForRelease": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

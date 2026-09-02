@@ -1,0 +1,316 @@
+{
+  "version": 1,
+  "id": "storm_21",
+  "order": 21,
+  "portId": "storm_harbor",
+  "focus": "Storm cell intro (slow)",
+  "objective": {
+    "type": "deliver_cargo",
+    "target": 14
+  },
+  "starConditions": [
+    {
+      "type": "complete"
+    },
+    {
+      "type": "max_warnings",
+      "value": 4
+    },
+    {
+      "type": "max_hazard_hits_by_ship",
+      "hazardType": "storm",
+      "shipId": "freighter",
+      "value": 0
+    }
+  ],
+  "allowedShips": [
+    "speedboat",
+    "cargo_boat",
+    "freighter"
+  ],
+  "shipWeights": {
+    "speedboat": 0.32,
+    "cargo_boat": 0.42,
+    "freighter": 0.26
+  },
+  "cargoTypes": [
+    "general",
+    "container"
+  ],
+  "cargoGeneration": {
+    "mode": "single",
+    "weights": {
+      "general": 0.45,
+      "container": 0.55
+    },
+    "multiCargoChance": 0
+  },
+  "director": {
+    "startInterval": 4.0,
+    "minimumInterval": 2.5,
+    "warningLeadTime": 0.9,
+    "maxAlive": 9,
+    "pressureCap": 13.05,
+    "jitter": 0.12,
+    "wave": {
+      "burstMin": 2,
+      "burstMax": 4,
+      "breathMin": 1.2,
+      "breathMax": 2.2
+    }
+  },
+  "layout": {
+    "templateId": "storm_harbor_layout_1",
+    "blocks": [
+      {
+        "blockType": "navigation_zone",
+        "id": "nav_main",
+        "x": 500,
+        "y": 500,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              1000
+            ],
+            [
+              0,
+              1000
+            ]
+          ]
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_left",
+        "x": 20,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "left"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_right",
+        "x": 980,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "right"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_bottom",
+        "x": 500,
+        "y": 980,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 40,
+          "edge": "bottom"
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "break_n",
+        "x": 500.0,
+        "y": 60.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              120
+            ],
+            [
+              0,
+              120
+            ]
+          ],
+          "visualVariant": "storm_quay",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "break_w",
+        "x": 60.0,
+        "y": 165.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              120,
+              0
+            ],
+            [
+              120,
+              330
+            ],
+            [
+              0,
+              330
+            ]
+          ],
+          "visualVariant": "storm_quay",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_a",
+        "x": 315,
+        "y": 150,
+        "rotation": 90,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "general"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 90,
+          "helperFlag": false,
+          "visualVariant": "dock_general"
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_b",
+        "x": 685,
+        "y": 150,
+        "rotation": 90,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "container"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 90,
+          "helperFlag": false,
+          "visualVariant": "dock_container"
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_l",
+        "x": 25,
+        "y": 520,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 0,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_r",
+        "x": 975,
+        "y": 620,
+        "rotation": 180,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 180,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_b",
+        "x": 520,
+        "y": 975,
+        "rotation": 270,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 270,
+          "weight": 0.9,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "storm_path",
+        "id": "storm_1",
+        "x": 250,
+        "y": 700,
+        "rotation": 0,
+        "layer": "hazards",
+        "enabled": true,
+        "props": {
+          "waypoints": [
+            [
+              250,
+              700
+            ],
+            [
+              750,
+              430
+            ],
+            [
+              350,
+              300
+            ]
+          ],
+          "radius": 88,
+          "speed": 46,
+          "startDelay": 0
+        }
+      }
+    ]
+  },
+  "rewards": {
+    "baseCoins": 210
+  },
+  "seedMode": "random",
+  "flags": {
+    "supportsUpgradeDock": false,
+    "allowRewind": true,
+    "tutorialStep": "storm",
+    "scriptedIntroShip": null
+  }
+}

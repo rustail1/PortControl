@@ -1,0 +1,349 @@
+{
+  "version": 1,
+  "id": "industrial_32",
+  "order": 32,
+  "portId": "industrial_channel",
+  "focus": "3 cargo categories",
+  "objective": {
+    "type": "deliver_cargo",
+    "target": 24
+  },
+  "starConditions": [
+    {
+      "type": "complete"
+    },
+    {
+      "type": "max_warnings",
+      "value": 4
+    },
+    {
+      "type": "max_time_seconds",
+      "value": 125
+    }
+  ],
+  "allowedShips": [
+    "speedboat",
+    "cargo_boat",
+    "freighter",
+    "tanker"
+  ],
+  "shipWeights": {
+    "speedboat": 0.24,
+    "cargo_boat": 0.34,
+    "freighter": 0.2,
+    "tanker": 0.22
+  },
+  "cargoTypes": [
+    "general",
+    "container",
+    "oil"
+  ],
+  "cargoGeneration": {
+    "mode": "single",
+    "weights": {
+      "general": 0.35,
+      "container": 0.35,
+      "oil": 0.3
+    },
+    "multiCargoChance": 0.0
+  },
+  "director": {
+    "startInterval": 3.6,
+    "minimumInterval": 2.2,
+    "warningLeadTime": 0.9,
+    "maxAlive": 11,
+    "pressureCap": 15.95,
+    "jitter": 0.12,
+    "wave": {
+      "burstMin": 2,
+      "burstMax": 4,
+      "breathMin": 1.2,
+      "breathMax": 2.2
+    }
+  },
+  "layout": {
+    "templateId": "industrial_channel_layout_1",
+    "blocks": [
+      {
+        "blockType": "navigation_zone",
+        "id": "nav_main",
+        "x": 500,
+        "y": 500,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              1000
+            ],
+            [
+              0,
+              1000
+            ]
+          ]
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_left",
+        "x": 20,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "left"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_right",
+        "x": 980,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "right"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_bottom",
+        "x": 500,
+        "y": 980,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 40,
+          "edge": "bottom"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_top",
+        "x": 500,
+        "y": 20,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 40,
+          "edge": "top"
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "shore_e",
+        "x": 915.0,
+        "y": 500.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              830,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              1000
+            ],
+            [
+              830,
+              1000
+            ]
+          ],
+          "visualVariant": "industrial",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "shore_n",
+        "x": 350.0,
+        "y": 62.5,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              700,
+              0
+            ],
+            [
+              700,
+              125
+            ],
+            [
+              0,
+              125
+            ]
+          ],
+          "visualVariant": "industrial",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_g",
+        "x": 800,
+        "y": 250,
+        "rotation": 180,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "general"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 180,
+          "helperFlag": false,
+          "visualVariant": "dock_general"
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_c",
+        "x": 800,
+        "y": 500,
+        "rotation": 180,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "container"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 180,
+          "helperFlag": false,
+          "visualVariant": "dock_container"
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_o",
+        "x": 800,
+        "y": 750,
+        "rotation": 180,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "oil"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 180,
+          "helperFlag": false,
+          "visualVariant": "dock_oil"
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_l1",
+        "x": 25,
+        "y": 300,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 0,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_l2",
+        "x": 25,
+        "y": 700,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 0,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_b",
+        "x": 480,
+        "y": 975,
+        "rotation": 270,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 270,
+          "weight": 0.8,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_t",
+        "x": 420,
+        "y": 25,
+        "rotation": 90,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 90,
+          "weight": 0.7,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "decoration",
+        "id": "oil_tanks",
+        "x": 930,
+        "y": 700,
+        "rotation": 0,
+        "layer": "decoration",
+        "enabled": true,
+        "props": {
+          "assetKey": "pc_prop_oil_tanks",
+          "scale": 1
+        }
+      }
+    ]
+  },
+  "rewards": {
+    "baseCoins": 325
+  },
+  "seedMode": "random",
+  "flags": {
+    "supportsUpgradeDock": false,
+    "allowRewind": true,
+    "tutorialStep": null,
+    "scriptedIntroShip": null
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "coordinateRules",
+    "editorRules",
+    "blocks"
+  ],
+  "properties": {
+    "version": {
+      "const": 2
+    },
+    "coordinateRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "worldOrigin",
+        "positiveX",
+        "positiveY",
+        "rotationZeroDeg",
+        "positiveRotation",
+        "rotationNormalization",
+        "canonicalPolygonWinding",
+        "defaultGridSnapLogicalUnits",
+        "defaultRotationSnapDeg",
+        "coarseRotationSnapDeg",
+        "pointLike",
+        "rectLike",
+        "polygonLike",
+        "pathLike"
+      ],
+      "properties": {
+        "worldOrigin": {
+          "const": "top_left"
+        },
+        "positiveX": {
+          "const": "right"
+        },
+        "positiveY": {
+          "const": "down"
+        },
+        "rotationZeroDeg": {
+          "const": "positive_x_right"
+        },
+        "positiveRotation": {
+          "const": "clockwise"
+        },
+        "rotationNormalization": {
+          "const": "[0,360)"
+        },
+        "canonicalPolygonWinding": {
+          "const": "visual_clockwise"
+        },
+        "defaultGridSnapLogicalUnits": {
+          "type": "integer",
+          "const": 10
+        },
+        "defaultRotationSnapDeg": {
+          "type": "integer",
+          "const": 15
+        },
+        "coarseRotationSnapDeg": {
+          "type": "integer",
+          "const": 90
+        },
+        "pointLike": {
+          "type": "string"
+        },
+        "rectLike": {
+          "type": "string"
+        },
+        "polygonLike": {
+          "type": "string"
+        },
+        "pathLike": {
+          "type": "string"
+        }
+      }
+    },
+    "editorRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dragIsSingleTransaction",
+        "inspectorCommitIsSingleTransaction",
+        "newEditAfterUndoClearsRedoBranch",
+        "duplicateAndPasteGenerateNewIds",
+        "polygonRejectSelfIntersection",
+        "polygonXYPivotRecomputedAsBBoxCenter",
+        "stormPathXYRecomputedFromFirstWaypoint",
+        "importNormalizesRotationAndWinding",
+        "undoRedoHistoryMinimum",
+        "polygonMinVertices"
+      ],
+      "properties": {
+        "dragIsSingleTransaction": {
+          "type": "boolean"
+        },
+        "inspectorCommitIsSingleTransaction": {
+          "type": "boolean"
+        },
+        "newEditAfterUndoClearsRedoBranch": {
+          "type": "boolean"
+        },
+        "duplicateAndPasteGenerateNewIds": {
+          "type": "boolean"
+        },
+        "polygonRejectSelfIntersection": {
+          "type": "boolean"
+        },
+        "polygonXYPivotRecomputedAsBBoxCenter": {
+          "type": "boolean"
+        },
+        "stormPathXYRecomputedFromFirstWaypoint": {
+          "type": "boolean"
+        },
+        "importNormalizesRotationAndWinding": {
+          "type": "boolean"
+        },
+        "undoRedoHistoryMinimum": {
+          "type": "integer",
+          "minimum": 50
+        },
+        "polygonMinVertices": {
+          "type": "integer",
+          "const": 3
+        }
+      }
+    },
+    "blocks": {
+      "type": "object",
+      "minProperties": 10,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "layer",
+          "geometryMode",
+          "runtimeFactory",
+          "fields"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "geometryMode": {
+            "enum": [
+              "pointLike",
+              "polygonLike",
+              "pathLike",
+              "rectLike"
+            ]
+          },
+          "runtimeFactory": {
+            "type": "string",
+            "pattern": "Factory$"
+          },
+          "fields": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

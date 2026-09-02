@@ -1,0 +1,636 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "balance.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "simulation",
+    "route",
+    "collision",
+    "docking",
+    "score",
+    "spawnDirector",
+    "hazards",
+    "rewind",
+    "economy",
+    "ads",
+    "performance",
+    "visual",
+    "cargoGeneration",
+    "presentation"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "simulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixedHz",
+        "maxCatchUpSteps",
+        "logicalWorld",
+        "postMovementPriority",
+        "runSeedPolicy"
+      ],
+      "properties": {
+        "fixedHz": {
+          "type": "integer",
+          "const": 60
+        },
+        "maxCatchUpSteps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "logicalWorld": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": 1000
+            },
+            {
+              "const": 1000
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "postMovementPriority": {
+          "type": "array",
+          "const": [
+            "ship_collision",
+            "grounding",
+            "dock",
+            "cargo",
+            "exit",
+            "objective"
+          ]
+        },
+        "runSeedPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "newCampaignAttempt",
+            "restartFailedOrPausedCampaignAttempt",
+            "replayCompletedCampaignLevel",
+            "newEndlessRun",
+            "testsMayInjectExplicitSeed"
+          ],
+          "properties": {
+            "newCampaignAttempt": {
+              "const": "crypto_seed"
+            },
+            "restartFailedOrPausedCampaignAttempt": {
+              "const": "reuse_attempt_seed"
+            },
+            "replayCompletedCampaignLevel": {
+              "const": "new_crypto_seed"
+            },
+            "newEndlessRun": {
+              "const": "new_crypto_seed"
+            },
+            "testsMayInjectExplicitSeed": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sampleDistance",
+        "simplifyEpsilon",
+        "minValidRouteLength",
+        "waypointTolerance",
+        "maxRawPoints",
+        "maxSimplifiedPoints",
+        "lineWidth",
+        "lineAlpha",
+        "selectedLineAlpha",
+        "navigationClearanceExtra"
+      ],
+      "properties": {
+        "sampleDistance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "simplifyEpsilon": {
+          "type": "number",
+          "minimum": 0
+        },
+        "minValidRouteLength": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "waypointTolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maxRawPoints": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 1024
+        },
+        "maxSimplifiedPoints": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 256
+        },
+        "lineWidth": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 12
+        },
+        "lineAlpha": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "selectedLineAlpha": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "navigationClearanceExtra": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 32
+        }
+      }
+    },
+    "docking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseSnapDurationMs",
+        "reservationTieBreak",
+        "collisionEnabledUntilSnapComplete"
+      ],
+      "properties": {
+        "baseSnapDurationMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 3000
+        },
+        "reservationTieBreak": {
+          "const": "distance_then_spawn_sequence"
+        },
+        "collisionEnabledUntilSnapComplete": {
+          "const": true
+        }
+      }
+    },
+    "collision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "warningRearmOutsideMs",
+        "postRewindGraceMs"
+      ],
+      "properties": {
+        "postRewindGraceMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        },
+        "warningRearmOutsideMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        }
+      }
+    },
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cargoUnit",
+        "shipExit",
+        "campaignCompletionBonus"
+      ],
+      "properties": {
+        "cargoUnit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "shipExit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "campaignCompletionBonus": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        }
+      }
+    },
+    "spawnDirector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occupiedDockPressureWeight",
+        "activeStormCellPressureWeight",
+        "unsafeSpawnRetryDelayMs",
+        "spawnRequiresOutsideCombinedWarningRadii"
+      ],
+      "properties": {
+        "occupiedDockPressureWeight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "activeStormCellPressureWeight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "unsafeSpawnRetryDelayMs": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 2000
+        },
+        "spawnRequiresOutsideCombinedWarningRadii": {
+          "const": true
+        }
+      }
+    },
+    "hazards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "storm"
+      ],
+      "properties": {
+        "storm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shipSpeedMultiplier",
+            "turnRateMultiplier",
+            "effectDurationMs",
+            "inputLockMs"
+          ],
+          "properties": {
+            "shipSpeedMultiplier": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "turnRateMultiplier": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "effectDurationMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "inputLockMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          }
+        }
+      }
+    },
+    "rewind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshotIntervalMs",
+        "historyMs",
+        "restoreOffsetMs",
+        "freeUsesPerLevel",
+        "maxRewardedUsesPerLevel"
+      ],
+      "properties": {
+        "snapshotIntervalMs": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 1000
+        },
+        "historyMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 10000
+        },
+        "restoreOffsetMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 5000
+        },
+        "freeUsesPerLevel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "maxRewardedUsesPerLevel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        }
+      }
+    },
+    "economy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cargoCoinValue",
+        "starCoinValue",
+        "replayBaseCoinsMultiplier",
+        "permanentPowerCap",
+        "portCostMultipliers",
+        "upgradeCostRounding",
+        "coinRewardRounding"
+      ],
+      "properties": {
+        "cargoCoinValue": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "starCoinValue": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "replayBaseCoinsMultiplier": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "permanentPowerCap": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5
+        },
+        "portCostMultipliers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "calm_bay",
+            "river_junction",
+            "storm_harbor",
+            "industrial_channel"
+          ],
+          "properties": {
+            "calm_bay": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "river_junction": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "storm_harbor": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "industrial_channel": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            }
+          }
+        },
+        "upgradeCostRounding": {
+          "const": "nearest_integer"
+        },
+        "coinRewardRounding": {
+          "const": "floor"
+        }
+      }
+    },
+    "ads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimumLevelsBeforeInterstitial",
+        "minimumGameplaySecondsBeforeInterstitialRequest",
+        "rewardedRewindUnlockAfterLevel",
+        "rewardedDoubleCoinsUnlockAfterFirstUpgrade"
+      ],
+      "properties": {
+        "minimumLevelsBeforeInterstitial": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "minimumGameplaySecondsBeforeInterstitialRequest": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 1800
+        },
+        "rewardedRewindUnlockAfterLevel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "rewardedDoubleCoinsUnlockAfterFirstUpgrade": {
+          "type": "boolean"
+        }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dprCap",
+        "targetMaxActiveShips",
+        "hardMaxActiveShipsBeforeProfiling",
+        "criticalPreloadCompressedMb",
+        "minSustainedMobileFps"
+      ],
+      "properties": {
+        "dprCap": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "targetMaxActiveShips": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "hardMaxActiveShipsBeforeProfiling": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "criticalPreloadCompressedMb": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 50
+        },
+        "minSustainedMobileFps": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 120
+        }
+      }
+    },
+    "visual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "worldBackground",
+        "route",
+        "routeSelected",
+        "danger",
+        "crash",
+        "uiNavy",
+        "uiCard",
+        "text"
+      ],
+      "properties": {
+        "worldBackground": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "route": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "routeSelected": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "danger": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "crash": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "uiNavy": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "uiCard": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        }
+      }
+    },
+    "cargoGeneration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "spawnAtFullCapacity",
+        "mixedCargoTypeCount",
+        "mixedAllocation",
+        "fallbackToSingleWhenCapacityOrTypesInsufficient"
+      ],
+      "properties": {
+        "spawnAtFullCapacity": {
+          "const": true
+        },
+        "mixedCargoTypeCount": {
+          "const": 2
+        },
+        "mixedAllocation": {
+          "const": "ceil_half_primary_floor_half_secondary"
+        },
+        "fallbackToSingleWhenCapacityOrTypesInsufficient": {
+          "const": true
+        }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "crashSlowMotionMs",
+        "crashTimeScale",
+        "crashShakeLogicalPx",
+        "routeCommitFlashMs",
+        "dockSnapBumpMs",
+        "cargoTickPopMs",
+        "resultPanelEnterMs",
+        "portBuildDurationMs",
+        "musicPressureThresholds",
+        "musicCrossfadeMs"
+      ],
+      "properties": {
+        "crashSlowMotionMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "crashTimeScale": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 1
+        },
+        "crashShakeLogicalPx": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "routeCommitFlashMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "dockSnapBumpMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "cargoTickPopMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "resultPanelEnterMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "portBuildDurationMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 5000
+        },
+        "musicPressureThresholds": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "musicCrossfadeMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        }
+      }
+    }
+  }
+}

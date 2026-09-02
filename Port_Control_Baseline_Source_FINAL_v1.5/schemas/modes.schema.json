@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "endless"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "endless": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "unlockAfterLevel",
+        "baseLevelId",
+        "seedMode",
+        "objective",
+        "rewind",
+        "directorScaling",
+        "score",
+        "leaderboardKey"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "unlockAfterLevel": {
+          "type": "string"
+        },
+        "baseLevelId": {
+          "type": "string"
+        },
+        "seedMode": {
+          "enum": [
+            "random",
+            "fixed",
+            "daily"
+          ]
+        },
+        "objective": {
+          "const": "high_score_until_collision"
+        },
+        "rewind": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxRewardedUsesPerRun"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxRewardedUsesPerRun": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            }
+          }
+        },
+        "directorScaling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stepSeconds",
+            "startIntervalMultiplierPerStep",
+            "minimumIntervalFloor",
+            "pressureCapAddPerStep",
+            "maxAliveAddEverySteps",
+            "maxAliveHardCap"
+          ],
+          "properties": {
+            "stepSeconds": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 300
+            },
+            "startIntervalMultiplierPerStep": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "minimumIntervalFloor": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "pressureCapAddPerStep": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maxAliveAddEverySteps": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxAliveHardCap": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            }
+          }
+        },
+        "score": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "inheritsFrom",
+            "completionBonus"
+          ],
+          "properties": {
+            "inheritsFrom": {
+              "const": "balance.score"
+            },
+            "completionBonus": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            }
+          }
+        },
+        "leaderboardKey": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        }
+      }
+    }
+  }
+}

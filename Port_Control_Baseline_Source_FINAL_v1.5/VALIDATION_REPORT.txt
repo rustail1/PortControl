@@ -1,0 +1,13 @@
+Port Control Baseline Source v1.5
+STATUS: PASS
+Schemas: 20
+Campaign Level JSON: 40/40
+Schema validation: PASS
+Semantic validation: PASS
+Geometry/winding/rect bounds: PASS
+Localization exact parity: PASS
+Mandatory access gate pricing: PASS
+Semantic manifest: PASS
+Screen flow semantic validation: PASS
+
+NOTE: runtime ship-route reachability/fairness, human Core Feel, real-device touch UX, production asset delivery and cohort retention/monetization remain implementation/QA evidence gates; they are not missing design rules.

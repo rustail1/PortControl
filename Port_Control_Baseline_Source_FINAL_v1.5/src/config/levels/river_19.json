@@ -1,0 +1,379 @@
+{
+  "version": 1,
+  "id": "river_19",
+  "order": 19,
+  "portId": "river_junction",
+  "focus": "Current pressure wave",
+  "objective": {
+    "type": "deliver_cargo",
+    "target": 26
+  },
+  "starConditions": [
+    {
+      "type": "complete"
+    },
+    {
+      "type": "max_warnings",
+      "value": 3
+    },
+    {
+      "type": "max_time_seconds",
+      "value": 130
+    }
+  ],
+  "allowedShips": [
+    "speedboat",
+    "cargo_boat",
+    "freighter"
+  ],
+  "shipWeights": {
+    "speedboat": 0.35,
+    "cargo_boat": 0.45,
+    "freighter": 0.2
+  },
+  "cargoTypes": [
+    "general",
+    "container"
+  ],
+  "cargoGeneration": {
+    "mode": "single",
+    "weights": {
+      "general": 0.5,
+      "container": 0.5
+    },
+    "multiCargoChance": 0
+  },
+  "director": {
+    "startInterval": 3.1,
+    "minimumInterval": 1.9,
+    "warningLeadTime": 0.9,
+    "maxAlive": 11,
+    "pressureCap": 15.95,
+    "jitter": 0.12,
+    "wave": {
+      "burstMin": 2,
+      "burstMax": 4,
+      "breathMin": 1.2,
+      "breathMax": 2.2
+    }
+  },
+  "layout": {
+    "templateId": "river_junction_layout_3",
+    "blocks": [
+      {
+        "blockType": "navigation_zone",
+        "id": "nav_main",
+        "x": 500,
+        "y": 500,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              1000
+            ],
+            [
+              0,
+              1000
+            ]
+          ]
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_left",
+        "x": 20,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "left"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_right",
+        "x": 980,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "right"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_bottom",
+        "x": 500,
+        "y": 980,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 40,
+          "edge": "bottom"
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "n1",
+        "x": 310.0,
+        "y": 140.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              620,
+              0
+            ],
+            [
+              620,
+              280
+            ],
+            [
+              0,
+              280
+            ]
+          ],
+          "visualVariant": "river_bank",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "n2",
+        "x": 880.0,
+        "y": 250.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              760,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              500
+            ],
+            [
+              760,
+              500
+            ]
+          ],
+          "visualVariant": "river_bank",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "s1",
+        "x": 175.0,
+        "y": 860.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              720
+            ],
+            [
+              350,
+              720
+            ],
+            [
+              350,
+              1000
+            ],
+            [
+              0,
+              1000
+            ]
+          ],
+          "visualVariant": "river_bank",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "s2",
+        "x": 740.0,
+        "y": 780.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              480,
+              560
+            ],
+            [
+              1000,
+              560
+            ],
+            [
+              1000,
+              1000
+            ],
+            [
+              480,
+              1000
+            ]
+          ],
+          "visualVariant": "river_bank",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_g",
+        "x": 315,
+        "y": 680,
+        "rotation": 270,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "general"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 270,
+          "helperFlag": false,
+          "visualVariant": "dock_general"
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_c",
+        "x": 705,
+        "y": 520,
+        "rotation": 180,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "container"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 180,
+          "helperFlag": false,
+          "visualVariant": "dock_container"
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_l",
+        "x": 25,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 0,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_r",
+        "x": 975,
+        "y": 520,
+        "rotation": 180,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 180,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_b",
+        "x": 410,
+        "y": 975,
+        "rotation": 270,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 270,
+          "weight": 0.8,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "current_zone",
+        "id": "current_1",
+        "x": 500.0,
+        "y": 690.0,
+        "rotation": 0,
+        "layer": "hazards",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              180,
+              610
+            ],
+            [
+              820,
+              610
+            ],
+            [
+              820,
+              770
+            ],
+            [
+              180,
+              770
+            ]
+          ],
+          "directionDeg": 0,
+          "driftMultiplier": 0.18
+        }
+      }
+    ]
+  },
+  "rewards": {
+    "baseCoins": 265
+  },
+  "seedMode": "random",
+  "flags": {
+    "supportsUpgradeDock": false,
+    "allowRewind": true,
+    "tutorialStep": null,
+    "scriptedIntroShip": null
+  }
+}

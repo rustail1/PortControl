@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "target": "yandex_games",
+  "releaseFeatures": {
+    "campaignLevelCount": 40,
+    "endlessEnabled": true,
+    "dailyWeeklySurfaceEnabled": false,
+    "leaderboardsEnabled": false,
+    "iapEnabled": false,
+    "stickyBannerEnabled": false,
+    "editorEnabledInProduction": false
+  },
+  "auth": {
+    "guestPlayRequired": true,
+    "ctaEnabled": true,
+    "unlockAfterLevel": "calm_03",
+    "placements": [
+      "port_meta",
+      "settings"
+    ],
+    "neverAutoPrompt": true
+  },
+  "cloudSave": {
+    "localSaveAlwaysEnabled": true,
+    "authorizedCloudEnabled": true,
+    "cloudFailureNeverBlocksGameplay": true
+  },
+  "remoteFlags": {
+    "enabled": true,
+    "bundledFallbackRequired": true
+  },
+  "softLaunch": {
+    "validationBuildMayExposeFirst30Levels": true,
+    "finalReleaseRequiresAll40Levels": true
+  }
+}

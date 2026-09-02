@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "ships": {
+    "speedboat": {
+      "cargoCapacity": 1,
+      "speed": 150,
+      "turnRateDeg": 220,
+      "collisionRadius": 14,
+      "warningRadius": 42,
+      "unloadStepMs": 800,
+      "pressureWeight": 1.0,
+      "spawnWeight": 55,
+      "spriteKey": "ship_speedboat",
+      "defaultCargoTypes": [
+        "general",
+        "container"
+      ]
+    },
+    "cargo_boat": {
+      "cargoCapacity": 2,
+      "speed": 105,
+      "turnRateDeg": 155,
+      "collisionRadius": 22,
+      "warningRadius": 58,
+      "unloadStepMs": 850,
+      "pressureWeight": 1.6,
+      "spawnWeight": 35,
+      "spriteKey": "ship_cargo",
+      "defaultCargoTypes": [
+        "general",
+        "container",
+        "oil"
+      ]
+    },
+    "freighter": {
+      "cargoCapacity": 4,
+      "speed": 68,
+      "turnRateDeg": 95,
+      "collisionRadius": 32,
+      "warningRadius": 76,
+      "unloadStepMs": 900,
+      "pressureWeight": 2.8,
+      "spawnWeight": 10,
+      "spriteKey": "ship_freighter",
+      "defaultCargoTypes": [
+        "general",
+        "container"
+      ]
+    },
+    "tanker": {
+      "cargoCapacity": 3,
+      "speed": 78,
+      "turnRateDeg": 85,
+      "collisionRadius": 30,
+      "warningRadius": 72,
+      "unloadStepMs": 1000,
+      "pressureWeight": 2.5,
+      "spawnWeight": 10,
+      "spriteKey": "ship_tanker",
+      "defaultCargoTypes": [
+        "oil"
+      ]
+    }
+  }
+}

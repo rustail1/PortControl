@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "coordinateSystem",
+    "ports"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "coordinateSystem": {
+      "const": "logical_1000x1000"
+    },
+    "ports": {
+      "type": "object",
+      "minProperties": 4,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "nodes",
+          "stagePresentation"
+        ],
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "upgradeId",
+                "x",
+                "y"
+              ],
+              "properties": {
+                "upgradeId": {
+                  "type": "string"
+                },
+                "x": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000
+                }
+              }
+            }
+          },
+          "stagePresentation": {
+            "type": "object",
+            "required": [
+              "buildDurationMs"
+            ],
+            "properties": {
+              "buildDurationMs": {
+                "const": 900
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  }
+}

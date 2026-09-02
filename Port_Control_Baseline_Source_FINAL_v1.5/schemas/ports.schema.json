@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "ports"
+  ],
+  "properties": {
+    "version": {
+      "const": 2
+    },
+    "ports": {
+      "type": "object",
+      "minProperties": 4,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "displayNameKey",
+          "order",
+          "levelIds",
+          "costMultiplier",
+          "visualStages",
+          "localUpgrades",
+          "chapterPerkPools",
+          "completionUnlock",
+          "assetBundleKey",
+          "levelGates"
+        ],
+        "properties": {
+          "displayNameKey": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "levelIds": {
+            "type": "array",
+            "minItems": 10,
+            "maxItems": 10,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "costMultiplier": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "visualStages": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "afterLevel",
+                "sceneVariant",
+                "minOwnedUpgrades",
+                "requiredUpgrades"
+              ],
+              "properties": {
+                "id": {
+                  "enum": [
+                    "starter",
+                    "commercial",
+                    "specialized",
+                    "landmark"
+                  ]
+                },
+                "afterLevel": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sceneVariant": {
+                  "type": "string"
+                },
+                "minOwnedUpgrades": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 20
+                },
+                "requiredUpgrades": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "localUpgrades": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "chapterPerkPools": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "completionUnlock": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assetBundleKey": {
+            "type": "string"
+          },
+          "levelGates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

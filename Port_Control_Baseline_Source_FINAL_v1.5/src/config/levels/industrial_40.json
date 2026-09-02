@@ -1,0 +1,485 @@
+{
+  "version": 1,
+  "id": "industrial_40",
+  "order": 40,
+  "portId": "industrial_channel",
+  "focus": "All-systems finale",
+  "objective": {
+    "type": "deliver_cargo",
+    "target": 40
+  },
+  "starConditions": [
+    {
+      "type": "complete"
+    },
+    {
+      "type": "max_warnings",
+      "value": 3
+    },
+    {
+      "type": "max_time_seconds",
+      "value": 150
+    }
+  ],
+  "allowedShips": [
+    "speedboat",
+    "cargo_boat",
+    "freighter",
+    "tanker"
+  ],
+  "shipWeights": {
+    "speedboat": 0.24,
+    "cargo_boat": 0.34,
+    "freighter": 0.2,
+    "tanker": 0.22
+  },
+  "cargoTypes": [
+    "general",
+    "container",
+    "oil"
+  ],
+  "cargoGeneration": {
+    "mode": "mixed",
+    "weights": {
+      "general": 0.35,
+      "container": 0.35,
+      "oil": 0.3
+    },
+    "multiCargoChance": 0.35
+  },
+  "director": {
+    "startInterval": 2.3,
+    "minimumInterval": 1.5,
+    "warningLeadTime": 0.9,
+    "maxAlive": 16,
+    "pressureCap": 23.2,
+    "jitter": 0.12,
+    "wave": {
+      "burstMin": 2,
+      "burstMax": 4,
+      "breathMin": 1.2,
+      "breathMax": 2.2
+    }
+  },
+  "layout": {
+    "templateId": "industrial_channel_layout_4",
+    "blocks": [
+      {
+        "blockType": "navigation_zone",
+        "id": "nav_main",
+        "x": 500,
+        "y": 500,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              1000
+            ],
+            [
+              0,
+              1000
+            ]
+          ]
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_left",
+        "x": 20,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "left"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_right",
+        "x": 980,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 40,
+          "height": 900,
+          "edge": "right"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_bottom",
+        "x": 500,
+        "y": 980,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 40,
+          "edge": "bottom"
+        }
+      },
+      {
+        "blockType": "exit_zone",
+        "id": "exit_top",
+        "x": 500,
+        "y": 20,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 40,
+          "edge": "top"
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "shore_n",
+        "x": 500.0,
+        "y": 55.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              110
+            ],
+            [
+              0,
+              110
+            ]
+          ],
+          "visualVariant": "industrial",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "shore_w",
+        "x": 52.5,
+        "y": 150.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              105,
+              0
+            ],
+            [
+              105,
+              300
+            ],
+            [
+              0,
+              300
+            ]
+          ],
+          "visualVariant": "industrial",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "shore_e",
+        "x": 947.5,
+        "y": 150.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              895,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              300
+            ],
+            [
+              895,
+              300
+            ]
+          ],
+          "visualVariant": "industrial",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "shore_polygon",
+        "id": "island",
+        "x": 500.0,
+        "y": 500.0,
+        "rotation": 0,
+        "layer": "geometry",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              430,
+              420
+            ],
+            [
+              570,
+              420
+            ],
+            [
+              570,
+              580
+            ],
+            [
+              430,
+              580
+            ]
+          ],
+          "visualVariant": "industrial",
+          "collision": true
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_g",
+        "x": 260,
+        "y": 140,
+        "rotation": 90,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "general"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 90,
+          "helperFlag": false,
+          "visualVariant": "dock_general"
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_c",
+        "x": 500,
+        "y": 140,
+        "rotation": 90,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "container"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 90,
+          "helperFlag": false,
+          "visualVariant": "dock_container"
+        }
+      },
+      {
+        "blockType": "dock",
+        "id": "dock_o",
+        "x": 740,
+        "y": 140,
+        "rotation": 90,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "cargoTypes": [
+            "oil"
+          ],
+          "snapRadius": 58,
+          "dockAngle": 90,
+          "helperFlag": false,
+          "visualVariant": "dock_oil"
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_l",
+        "x": 25,
+        "y": 500,
+        "rotation": 0,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 0,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_r",
+        "x": 975,
+        "y": 500,
+        "rotation": 180,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 180,
+          "weight": 1,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_b1",
+        "x": 330,
+        "y": 975,
+        "rotation": 270,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 270,
+          "weight": 0.9,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "spawn_point",
+        "id": "spawn_b2",
+        "x": 670,
+        "y": 975,
+        "rotation": 270,
+        "layer": "gameplay",
+        "enabled": true,
+        "props": {
+          "directionDeg": 270,
+          "weight": 0.9,
+          "tags": []
+        }
+      },
+      {
+        "blockType": "current_zone",
+        "id": "current_1",
+        "x": 500.0,
+        "y": 690.0,
+        "rotation": 0,
+        "layer": "hazards",
+        "enabled": true,
+        "props": {
+          "points": [
+            [
+              130,
+              600
+            ],
+            [
+              870,
+              600
+            ],
+            [
+              870,
+              780
+            ],
+            [
+              130,
+              780
+            ]
+          ],
+          "directionDeg": 0,
+          "driftMultiplier": 0.14
+        }
+      },
+      {
+        "blockType": "storm_path",
+        "id": "storm_1",
+        "x": 220,
+        "y": 760,
+        "rotation": 0,
+        "layer": "hazards",
+        "enabled": true,
+        "props": {
+          "waypoints": [
+            [
+              220,
+              760
+            ],
+            [
+              780,
+              440
+            ],
+            [
+              300,
+              300
+            ]
+          ],
+          "radius": 88,
+          "speed": 52,
+          "startDelay": 0
+        }
+      },
+      {
+        "blockType": "fog_zone",
+        "id": "fog_main",
+        "x": 500,
+        "y": 560,
+        "rotation": 0,
+        "layer": "hazards",
+        "enabled": true,
+        "props": {
+          "width": 900,
+          "height": 650,
+          "warningPenalty": 0.25,
+          "opacity": 0.24
+        }
+      },
+      {
+        "blockType": "decoration",
+        "id": "gantry",
+        "x": 500,
+        "y": 60,
+        "rotation": 0,
+        "layer": "decoration",
+        "enabled": true,
+        "props": {
+          "assetKey": "pc_prop_gantry_landmark",
+          "scale": 1
+        }
+      }
+    ]
+  },
+  "rewards": {
+    "baseCoins": 560
+  },
+  "seedMode": "random",
+  "flags": {
+    "supportsUpgradeDock": false,
+    "allowRewind": true,
+    "tutorialStep": null,
+    "scriptedIntroShip": null
+  }
+}

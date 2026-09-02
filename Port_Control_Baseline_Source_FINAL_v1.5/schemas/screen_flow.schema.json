@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "screen_flow.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "firstLaunch",
+    "screens",
+    "transitions"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "firstLaunch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "menuAction",
+        "target"
+      ],
+      "properties": {
+        "menuAction": {
+          "const": "play"
+        },
+        "target": {
+          "const": "harbor:calm_01"
+        }
+      }
+    },
+    "screens": {
+      "type": "object",
+      "minProperties": 10,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "scene",
+              "overlay",
+              "modal"
+            ]
+          },
+          "owner": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "action",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,285 @@
+{
+  "version": 1,
+  "levels": [
+    {
+      "id": "calm_01",
+      "order": 1,
+      "portId": "calm_bay",
+      "file": "levels/calm_01.json",
+      "templateId": "calm_bay_layout_1"
+    },
+    {
+      "id": "calm_02",
+      "order": 2,
+      "portId": "calm_bay",
+      "file": "levels/calm_02.json",
+      "templateId": "calm_bay_layout_1"
+    },
+    {
+      "id": "calm_03",
+      "order": 3,
+      "portId": "calm_bay",
+      "file": "levels/calm_03.json",
+      "templateId": "calm_bay_layout_1"
+    },
+    {
+      "id": "calm_04",
+      "order": 4,
+      "portId": "calm_bay",
+      "file": "levels/calm_04.json",
+      "templateId": "calm_bay_layout_2"
+    },
+    {
+      "id": "calm_05",
+      "order": 5,
+      "portId": "calm_bay",
+      "file": "levels/calm_05.json",
+      "templateId": "calm_bay_layout_2"
+    },
+    {
+      "id": "calm_06",
+      "order": 6,
+      "portId": "calm_bay",
+      "file": "levels/calm_06.json",
+      "templateId": "calm_bay_layout_2"
+    },
+    {
+      "id": "calm_07",
+      "order": 7,
+      "portId": "calm_bay",
+      "file": "levels/calm_07.json",
+      "templateId": "calm_bay_layout_3"
+    },
+    {
+      "id": "calm_08",
+      "order": 8,
+      "portId": "calm_bay",
+      "file": "levels/calm_08.json",
+      "templateId": "calm_bay_layout_3"
+    },
+    {
+      "id": "calm_09",
+      "order": 9,
+      "portId": "calm_bay",
+      "file": "levels/calm_09.json",
+      "templateId": "calm_bay_layout_3"
+    },
+    {
+      "id": "calm_10",
+      "order": 10,
+      "portId": "calm_bay",
+      "file": "levels/calm_10.json",
+      "templateId": "calm_bay_layout_4"
+    },
+    {
+      "id": "river_11",
+      "order": 11,
+      "portId": "river_junction",
+      "file": "levels/river_11.json",
+      "templateId": "river_junction_layout_1"
+    },
+    {
+      "id": "river_12",
+      "order": 12,
+      "portId": "river_junction",
+      "file": "levels/river_12.json",
+      "templateId": "river_junction_layout_1"
+    },
+    {
+      "id": "river_13",
+      "order": 13,
+      "portId": "river_junction",
+      "file": "levels/river_13.json",
+      "templateId": "river_junction_layout_1"
+    },
+    {
+      "id": "river_14",
+      "order": 14,
+      "portId": "river_junction",
+      "file": "levels/river_14.json",
+      "templateId": "river_junction_layout_2"
+    },
+    {
+      "id": "river_15",
+      "order": 15,
+      "portId": "river_junction",
+      "file": "levels/river_15.json",
+      "templateId": "river_junction_layout_2"
+    },
+    {
+      "id": "river_16",
+      "order": 16,
+      "portId": "river_junction",
+      "file": "levels/river_16.json",
+      "templateId": "river_junction_layout_2"
+    },
+    {
+      "id": "river_17",
+      "order": 17,
+      "portId": "river_junction",
+      "file": "levels/river_17.json",
+      "templateId": "river_junction_layout_3"
+    },
+    {
+      "id": "river_18",
+      "order": 18,
+      "portId": "river_junction",
+      "file": "levels/river_18.json",
+      "templateId": "river_junction_layout_3"
+    },
+    {
+      "id": "river_19",
+      "order": 19,
+      "portId": "river_junction",
+      "file": "levels/river_19.json",
+      "templateId": "river_junction_layout_3"
+    },
+    {
+      "id": "river_20",
+      "order": 20,
+      "portId": "river_junction",
+      "file": "levels/river_20.json",
+      "templateId": "river_junction_layout_4"
+    },
+    {
+      "id": "storm_21",
+      "order": 21,
+      "portId": "storm_harbor",
+      "file": "levels/storm_21.json",
+      "templateId": "storm_harbor_layout_1"
+    },
+    {
+      "id": "storm_22",
+      "order": 22,
+      "portId": "storm_harbor",
+      "file": "levels/storm_22.json",
+      "templateId": "storm_harbor_layout_1"
+    },
+    {
+      "id": "storm_23",
+      "order": 23,
+      "portId": "storm_harbor",
+      "file": "levels/storm_23.json",
+      "templateId": "storm_harbor_layout_1"
+    },
+    {
+      "id": "storm_24",
+      "order": 24,
+      "portId": "storm_harbor",
+      "file": "levels/storm_24.json",
+      "templateId": "storm_harbor_layout_2"
+    },
+    {
+      "id": "storm_25",
+      "order": 25,
+      "portId": "storm_harbor",
+      "file": "levels/storm_25.json",
+      "templateId": "storm_harbor_layout_2"
+    },
+    {
+      "id": "storm_26",
+      "order": 26,
+      "portId": "storm_harbor",
+      "file": "levels/storm_26.json",
+      "templateId": "storm_harbor_layout_2"
+    },
+    {
+      "id": "storm_27",
+      "order": 27,
+      "portId": "storm_harbor",
+      "file": "levels/storm_27.json",
+      "templateId": "storm_harbor_layout_3"
+    },
+    {
+      "id": "storm_28",
+      "order": 28,
+      "portId": "storm_harbor",
+      "file": "levels/storm_28.json",
+      "templateId": "storm_harbor_layout_3"
+    },
+    {
+      "id": "storm_29",
+      "order": 29,
+      "portId": "storm_harbor",
+      "file": "levels/storm_29.json",
+      "templateId": "storm_harbor_layout_3"
+    },
+    {
+      "id": "storm_30",
+      "order": 30,
+      "portId": "storm_harbor",
+      "file": "levels/storm_30.json",
+      "templateId": "storm_harbor_layout_4"
+    },
+    {
+      "id": "industrial_31",
+      "order": 31,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_31.json",
+      "templateId": "industrial_channel_layout_1"
+    },
+    {
+      "id": "industrial_32",
+      "order": 32,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_32.json",
+      "templateId": "industrial_channel_layout_1"
+    },
+    {
+      "id": "industrial_33",
+      "order": 33,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_33.json",
+      "templateId": "industrial_channel_layout_1"
+    },
+    {
+      "id": "industrial_34",
+      "order": 34,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_34.json",
+      "templateId": "industrial_channel_layout_2"
+    },
+    {
+      "id": "industrial_35",
+      "order": 35,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_35.json",
+      "templateId": "industrial_channel_layout_2"
+    },
+    {
+      "id": "industrial_36",
+      "order": 36,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_36.json",
+      "templateId": "industrial_channel_layout_2"
+    },
+    {
+      "id": "industrial_37",
+      "order": 37,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_37.json",
+      "templateId": "industrial_channel_layout_3"
+    },
+    {
+      "id": "industrial_38",
+      "order": 38,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_38.json",
+      "templateId": "industrial_channel_layout_3"
+    },
+    {
+      "id": "industrial_39",
+      "order": 39,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_39.json",
+      "templateId": "industrial_channel_layout_3"
+    },
+    {
+      "id": "industrial_40",
+      "order": 40,
+      "portId": "industrial_channel",
+      "file": "levels/industrial_40.json",
+      "templateId": "industrial_channel_layout_4"
+    }
+  ]
+}

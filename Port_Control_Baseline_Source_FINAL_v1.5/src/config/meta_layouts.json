@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "coordinateSystem": "logical_1000x1000",
+  "ports": {
+    "calm_bay": {
+      "nodes": [
+        {
+          "upgradeId": "crane",
+          "x": 300,
+          "y": 330
+        },
+        {
+          "upgradeId": "radar",
+          "x": 710,
+          "y": 290
+        },
+        {
+          "upgradeId": "quick_mooring",
+          "x": 390,
+          "y": 470
+        },
+        {
+          "upgradeId": "harbor_office",
+          "x": 610,
+          "y": 470
+        },
+        {
+          "upgradeId": "dock_expansion",
+          "x": 245,
+          "y": 640
+        },
+        {
+          "upgradeId": "dock_lights",
+          "x": 755,
+          "y": 620
+        },
+        {
+          "upgradeId": "deep_water_berth",
+          "x": 500,
+          "y": 735
+        },
+        {
+          "upgradeId": "landmark",
+          "x": 500,
+          "y": 185
+        }
+      ],
+      "stagePresentation": {
+        "buildDurationMs": 900
+      }
+    },
+    "river_junction": {
+      "nodes": [
+        {
+          "upgradeId": "crane",
+          "x": 270,
+          "y": 320
+        },
+        {
+          "upgradeId": "radar",
+          "x": 730,
+          "y": 300
+        },
+        {
+          "upgradeId": "quick_mooring",
+          "x": 390,
+          "y": 455
+        },
+        {
+          "upgradeId": "harbor_office",
+          "x": 610,
+          "y": 455
+        },
+        {
+          "upgradeId": "dock_expansion",
+          "x": 260,
+          "y": 635
+        },
+        {
+          "upgradeId": "dock_lights",
+          "x": 740,
+          "y": 620
+        },
+        {
+          "upgradeId": "current_buoys",
+          "x": 500,
+          "y": 715
+        },
+        {
+          "upgradeId": "landmark",
+          "x": 500,
+          "y": 175
+        }
+      ],
+      "stagePresentation": {
+        "buildDurationMs": 900
+      }
+    },
+    "storm_harbor": {
+      "nodes": [
+        {
+          "upgradeId": "crane",
+          "x": 285,
+          "y": 335
+        },
+        {
+          "upgradeId": "radar",
+          "x": 700,
+          "y": 290
+        },
+        {
+          "upgradeId": "quick_mooring",
+          "x": 390,
+          "y": 465
+        },
+        {
+          "upgradeId": "harbor_office",
+          "x": 610,
+          "y": 465
+        },
+        {
+          "upgradeId": "dock_lights",
+          "x": 250,
+          "y": 640
+        },
+        {
+          "upgradeId": "weather_station",
+          "x": 760,
+          "y": 620
+        },
+        {
+          "upgradeId": "breakwater",
+          "x": 500,
+          "y": 730
+        },
+        {
+          "upgradeId": "landmark",
+          "x": 500,
+          "y": 175
+        }
+      ],
+      "stagePresentation": {
+        "buildDurationMs": 900
+      }
+    },
+    "industrial_channel": {
+      "nodes": [
+        {
+          "upgradeId": "crane",
+          "x": 255,
+          "y": 320
+        },
+        {
+          "upgradeId": "radar",
+          "x": 735,
+          "y": 300
+        },
+        {
+          "upgradeId": "quick_mooring",
+          "x": 360,
+          "y": 455
+        },
+        {
+          "upgradeId": "harbor_office",
+          "x": 640,
+          "y": 455
+        },
+        {
+          "upgradeId": "dock_lights",
+          "x": 220,
+          "y": 640
+        },
+        {
+          "upgradeId": "current_buoys",
+          "x": 430,
+          "y": 690
+        },
+        {
+          "upgradeId": "breakwater",
+          "x": 570,
+          "y": 690
+        },
+        {
+          "upgradeId": "oil_safety_dock",
+          "x": 780,
+          "y": 635
+        },
+        {
+          "upgradeId": "landmark",
+          "x": 500,
+          "y": 165
+        }
+      ],
+      "stagePresentation": {
+        "buildDurationMs": 900
+      }
+    }
+  }
+}

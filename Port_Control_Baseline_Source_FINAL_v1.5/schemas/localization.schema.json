@@ -1,0 +1,819 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "locale",
+    "strings"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "locale": {
+      "enum": [
+        "ru",
+        "en"
+      ]
+    },
+    "strings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cargo.container",
+        "cargo.general",
+        "cargo.oil",
+        "editor.playtest",
+        "editor.save_ready",
+        "editor.unsaved",
+        "editor.validation_failed",
+        "editor.validation_ok",
+        "error.asset",
+        "error.config",
+        "error.resume",
+        "error.unsupported",
+        "ftue.exit",
+        "ftue.match",
+        "ftue.redraw",
+        "ftue.rewind",
+        "ftue.route",
+        "ftue.unload",
+        "objective.deliver_cargo",
+        "objective.deliver_cargo_type",
+        "objective.service_ships",
+        "objective.survive_seconds",
+        "perk.early_radar.desc",
+        "perk.early_radar.name",
+        "perk.fast_cranes.desc",
+        "perk.fast_cranes.name",
+        "perk.fast_mooring.desc",
+        "perk.fast_mooring.name",
+        "perk.freight_bonus.desc",
+        "perk.freight_bonus.name",
+        "perk.harbor_pilot.desc",
+        "perk.harbor_pilot.name",
+        "perk.long_warning.desc",
+        "perk.long_warning.name",
+        "perk.safe_shift.desc",
+        "perk.safe_shift.name",
+        "perk.temp_dock.desc",
+        "perk.temp_dock.name",
+        "port.calm_bay",
+        "port.industrial_channel",
+        "port.river_junction",
+        "port.storm_harbor",
+        "star.complete",
+        "star.max_hazard_hits_by_ship",
+        "star.max_time_seconds",
+        "star.max_warnings",
+        "star.max_wrong_dock_attempts",
+        "star.min_cargo",
+        "star.min_multi_cargo_ships",
+        "star.min_ship_exits",
+        "star.min_ship_group_exits",
+        "star.service_ships_under_time",
+        "ui.ad_unavailable",
+        "ui.back",
+        "ui.best",
+        "ui.build",
+        "ui.built",
+        "ui.busy",
+        "ui.campaign_complete",
+        "ui.cancel",
+        "ui.challenge_complete",
+        "ui.challenge_modifier",
+        "ui.claim",
+        "ui.close",
+        "ui.cloud_save",
+        "ui.cloud_save_benefit",
+        "ui.coins",
+        "ui.colorblind",
+        "ui.complete",
+        "ui.confirm",
+        "ui.continue",
+        "ui.continue_guest",
+        "ui.daily",
+        "ui.dock_busy",
+        "ui.double_coins",
+        "ui.double_offer",
+        "ui.endless",
+        "ui.endless_game_over",
+        "ui.endless_score",
+        "ui.endless_unlocked",
+        "ui.failed",
+        "ui.incoming",
+        "ui.language",
+        "ui.leave_run_confirm",
+        "ui.level",
+        "ui.level_complete",
+        "ui.level_failed",
+        "ui.load_error",
+        "ui.loading",
+        "ui.local_progress_kept",
+        "ui.locked",
+        "ui.map",
+        "ui.menu.title",
+        "ui.music",
+        "ui.new_game",
+        "ui.new_record",
+        "ui.next",
+        "ui.next_unlock",
+        "ui.objective",
+        "ui.offline",
+        "ui.out",
+        "ui.pause",
+        "ui.perk_active",
+        "ui.perk_choose",
+        "ui.play",
+        "ui.playtest",
+        "ui.port",
+        "ui.port_stage",
+        "ui.quit",
+        "ui.reduce_motion",
+        "ui.required",
+        "ui.restart",
+        "ui.resume",
+        "ui.retry",
+        "ui.retry_connection",
+        "ui.reward",
+        "ui.rewind",
+        "ui.rewind_offer",
+        "ui.rewind_used",
+        "ui.route_invalid",
+        "ui.route_thickness",
+        "ui.save",
+        "ui.save_error",
+        "ui.score",
+        "ui.screen_shake",
+        "ui.settings",
+        "ui.sfx",
+        "ui.sign_in",
+        "ui.stars",
+        "ui.time",
+        "ui.upgrades",
+        "ui.validate",
+        "ui.weekly",
+        "ui.wrong_dock",
+        "upgrade.breakwater.desc",
+        "upgrade.breakwater.name",
+        "upgrade.crane.desc",
+        "upgrade.crane.name",
+        "upgrade.current_buoys.desc",
+        "upgrade.current_buoys.name",
+        "upgrade.deep_water_berth.desc",
+        "upgrade.deep_water_berth.name",
+        "upgrade.dock_expansion.desc",
+        "upgrade.dock_expansion.name",
+        "upgrade.dock_lights.desc",
+        "upgrade.dock_lights.name",
+        "upgrade.harbor_office.desc",
+        "upgrade.harbor_office.name",
+        "upgrade.landmark.desc",
+        "upgrade.landmark.name",
+        "upgrade.oil_safety_dock.desc",
+        "upgrade.oil_safety_dock.name",
+        "upgrade.quick_mooring.desc",
+        "upgrade.quick_mooring.name",
+        "upgrade.radar.desc",
+        "upgrade.radar.name",
+        "upgrade.weather_station.desc",
+        "upgrade.weather_station.name"
+      ],
+      "properties": {
+        "cargo.container": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cargo.general": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cargo.oil": {
+          "type": "string",
+          "minLength": 1
+        },
+        "editor.playtest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "editor.save_ready": {
+          "type": "string",
+          "minLength": 1
+        },
+        "editor.unsaved": {
+          "type": "string",
+          "minLength": 1
+        },
+        "editor.validation_failed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "editor.validation_ok": {
+          "type": "string",
+          "minLength": 1
+        },
+        "error.asset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "error.config": {
+          "type": "string",
+          "minLength": 1
+        },
+        "error.resume": {
+          "type": "string",
+          "minLength": 1
+        },
+        "error.unsupported": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ftue.exit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ftue.match": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ftue.redraw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ftue.rewind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ftue.route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ftue.unload": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective.deliver_cargo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective.deliver_cargo_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective.service_ships": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective.survive_seconds": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.early_radar.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.early_radar.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.fast_cranes.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.fast_cranes.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.fast_mooring.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.fast_mooring.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.freight_bonus.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.freight_bonus.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.harbor_pilot.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.harbor_pilot.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.long_warning.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.long_warning.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.safe_shift.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.safe_shift.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.temp_dock.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perk.temp_dock.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port.calm_bay": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port.industrial_channel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port.river_junction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port.storm_harbor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.complete": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.max_hazard_hits_by_ship": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.max_time_seconds": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.max_warnings": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.max_wrong_dock_attempts": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.min_cargo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.min_multi_cargo_ships": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.min_ship_exits": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.min_ship_group_exits": {
+          "type": "string",
+          "minLength": 1
+        },
+        "star.service_ships_under_time": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.ad_unavailable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.back": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.best": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.build": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.built": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.busy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.campaign_complete": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.cancel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.challenge_complete": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.challenge_modifier": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.claim": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.close": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.cloud_save": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.cloud_save_benefit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.coins": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.colorblind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.complete": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.confirm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.continue": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.continue_guest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.daily": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.dock_busy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.double_coins": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.double_offer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.endless": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.endless_game_over": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.endless_score": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.endless_unlocked": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.failed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.incoming": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.language": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.leave_run_confirm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.level_complete": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.level_failed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.load_error": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.loading": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.local_progress_kept": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.locked": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.map": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.menu.title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.music": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.new_game": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.new_record": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.next": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.next_unlock": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.offline": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.out": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.pause": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.perk_active": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.perk_choose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.play": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.playtest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.port": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.port_stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.quit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.reduce_motion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.required": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.restart": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.resume": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.retry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.retry_connection": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.reward": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.rewind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.rewind_offer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.rewind_used": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.route_invalid": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.route_thickness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.save": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.save_error": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.score": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.screen_shake": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.settings": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.sfx": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.sign_in": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.stars": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.time": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.upgrades": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.validate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.weekly": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ui.wrong_dock": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.breakwater.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.breakwater.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.crane.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.crane.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.current_buoys.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.current_buoys.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.deep_water_berth.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.deep_water_berth.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.dock_expansion.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.dock_expansion.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.dock_lights.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.dock_lights.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.harbor_office.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.harbor_office.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.landmark.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.landmark.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.oil_safety_dock.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.oil_safety_dock.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.quick_mooring.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.quick_mooring.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.radar.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.radar.name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.weather_station.desc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upgrade.weather_station.name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "simulation": {
+    "fixedHz": 60,
+    "maxCatchUpSteps": 6,
+    "logicalWorld": [
+      1000,
+      1000
+    ],
+    "postMovementPriority": [
+      "ship_collision",
+      "grounding",
+      "dock",
+      "cargo",
+      "exit",
+      "objective"
+    ],
+    "runSeedPolicy": {
+      "newCampaignAttempt": "crypto_seed",
+      "restartFailedOrPausedCampaignAttempt": "reuse_attempt_seed",
+      "replayCompletedCampaignLevel": "new_crypto_seed",
+      "newEndlessRun": "new_crypto_seed",
+      "testsMayInjectExplicitSeed": true
+    }
+  },
+  "route": {
+    "sampleDistance": 8,
+    "simplifyEpsilon": 3.5,
+    "minValidRouteLength": 12,
+    "waypointTolerance": 8,
+    "maxRawPoints": 256,
+    "maxSimplifiedPoints": 96,
+    "lineWidth": 5,
+    "lineAlpha": 0.55,
+    "selectedLineAlpha": 1.0,
+    "navigationClearanceExtra": 4
+  },
+  "docking": {
+    "baseSnapDurationMs": 350,
+    "reservationTieBreak": "distance_then_spawn_sequence",
+    "collisionEnabledUntilSnapComplete": true
+  },
+  "collision": {
+    "postRewindGraceMs": 750,
+    "warningRearmOutsideMs": 700
+  },
+  "score": {
+    "cargoUnit": 100,
+    "shipExit": 20,
+    "campaignCompletionBonus": 250
+  },
+  "spawnDirector": {
+    "occupiedDockPressureWeight": 0.45,
+    "activeStormCellPressureWeight": 1.0,
+    "unsafeSpawnRetryDelayMs": 250,
+    "spawnRequiresOutsideCombinedWarningRadii": true
+  },
+  "hazards": {
+    "storm": {
+      "shipSpeedMultiplier": 0.65,
+      "turnRateMultiplier": 0.5,
+      "effectDurationMs": 1500,
+      "inputLockMs": 1000
+    }
+  },
+  "rewind": {
+    "snapshotIntervalMs": 100,
+    "historyMs": 4000,
+    "restoreOffsetMs": 2000,
+    "freeUsesPerLevel": 0,
+    "maxRewardedUsesPerLevel": 1
+  },
+  "economy": {
+    "cargoCoinValue": 5,
+    "starCoinValue": 20,
+    "replayBaseCoinsMultiplier": 0.65,
+    "permanentPowerCap": 0.25,
+    "portCostMultipliers": {
+      "calm_bay": 1.0,
+      "river_junction": 2.2,
+      "storm_harbor": 4.5,
+      "industrial_channel": 8.0
+    },
+    "upgradeCostRounding": "nearest_integer",
+    "coinRewardRounding": "floor"
+  },
+  "ads": {
+    "minimumLevelsBeforeInterstitial": 2,
+    "minimumGameplaySecondsBeforeInterstitialRequest": 120,
+    "rewardedRewindUnlockAfterLevel": 3,
+    "rewardedDoubleCoinsUnlockAfterFirstUpgrade": true
+  },
+  "performance": {
+    "dprCap": 2,
+    "targetMaxActiveShips": 24,
+    "hardMaxActiveShipsBeforeProfiling": 30,
+    "criticalPreloadCompressedMb": 8,
+    "minSustainedMobileFps": 45
+  },
+  "visual": {
+    "worldBackground": "#2F8FB3",
+    "route": "#F7FAFC",
+    "routeSelected": "#FFF0A6",
+    "danger": "#F5A623",
+    "crash": "#D94B4B",
+    "uiNavy": "#17324D",
+    "uiCard": "#F7F3E9",
+    "text": "#1C2B36"
+  },
+  "cargoGeneration": {
+    "spawnAtFullCapacity": true,
+    "mixedCargoTypeCount": 2,
+    "mixedAllocation": "ceil_half_primary_floor_half_secondary",
+    "fallbackToSingleWhenCapacityOrTypesInsufficient": true
+  },
+  "presentation": {
+    "crashSlowMotionMs": 150,
+    "crashTimeScale": 0.25,
+    "crashShakeLogicalPx": 1.5,
+    "routeCommitFlashMs": 90,
+    "dockSnapBumpMs": 120,
+    "cargoTickPopMs": 160,
+    "resultPanelEnterMs": 240,
+    "portBuildDurationMs": 900,
+    "musicPressureThresholds": [
+      0.35,
+      0.7
+    ],
+    "musicCrossfadeMs": 400
+  }
+}
