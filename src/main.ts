@@ -28,6 +28,17 @@ const config: Phaser.Types.Core.GameConfig = {
 async function bootstrap(): Promise<void> {
   await platform.init();
   new Phaser.Game(config);
+
+  if (import.meta.env.DEV) {
+    const { DebugOverlay, unavailableDebugSnapshot } = await import(
+      './debug/DebugOverlay.ts'
+    );
+    const debugOverlay = new DebugOverlay({
+      getDebugSnapshot: () => unavailableDebugSnapshot,
+    });
+    debugOverlay.mount();
+  }
+
   await platform.gameReady();
 }
 
