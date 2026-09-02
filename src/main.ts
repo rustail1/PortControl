@@ -1,7 +1,10 @@
 import Phaser from 'phaser';
 
+import { loadBundledConfig } from './config/loadBundledConfig.ts';
 import { BootstrapScene } from './scenes/BootstrapScene.ts';
 import './styles.css';
+
+loadBundledConfig();
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,

@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run validate:configs && tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test",
+    "validate:configs": "tsx scripts/validate-configs.ts",
+    "test": "npm run validate:configs && node --import tsx --test \"test/*.test.mjs\"",
     "preview": "vite preview"
   },
   "dependencies": {
+    "ajv": "8.20.0",
     "phaser": "4.2.1"
   },
   "devDependencies": {
+    "tsx": "4.23.13",
     "typescript": "5.9.3",
     "vite": "8.2.2"
   }
