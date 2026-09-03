@@ -57,3 +57,43 @@ test('rejects an unknown audio machine reference', async () => {
       'assets/audio/ship_select.wav';
   }, 'audio: ship_select path extension wav is not in formatPreference');
 });
+
+test('rejects a mutated unknown analytics event ID from the loaded contract', async () => {
+  const [{ validateConfigSource }, { createMachineContractIdRegistry }] =
+    await Promise.all([
+      import('../src/config/validateConfigSource.ts'),
+      import('../src/config/MachineContractIdRegistry.ts'),
+    ]);
+  const bundle = validateConfigSource(readBaselineSource());
+  const knownEventId = Object.keys(
+    bundle.configs['analytics_events.json'].events,
+  )[0];
+  assert.notEqual(knownEventId, undefined);
+
+  assert.throws(
+    () =>
+      createMachineContractIdRegistry(bundle).assertAnalyticsEventId(
+        `${knownEventId}_unknown`,
+      ),
+    /Unknown analytics event ID/,
+  );
+});
+
+test('rejects a mutated unknown audio asset ID from the loaded contract', async () => {
+  const [{ validateConfigSource }, { createMachineContractIdRegistry }] =
+    await Promise.all([
+      import('../src/config/validateConfigSource.ts'),
+      import('../src/config/MachineContractIdRegistry.ts'),
+    ]);
+  const bundle = validateConfigSource(readBaselineSource());
+  const knownAudioId = Object.keys(bundle.configs['audio.json'].assets)[0];
+  assert.notEqual(knownAudioId, undefined);
+
+  assert.throws(
+    () =>
+      createMachineContractIdRegistry(bundle).assertAudioAssetId(
+        `${knownAudioId}_unknown`,
+      ),
+    /Unknown audio asset ID/,
+  );
+});
