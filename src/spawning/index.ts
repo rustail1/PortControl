@@ -22,3 +22,20 @@ export {
   ShipSpawner,
   type SpawnedShipRecord,
 } from './ShipSpawner.ts';
+export {
+  SpawnDirector,
+  calculateSpawnPressure,
+  createSpawnDirectorConfig,
+  type AllocateSpawnIdentity,
+  type ReadySpawnResolution,
+  type SpawnDirectorActiveShip,
+  type SpawnDirectorBalanceConfig,
+  type SpawnDirectorConfig,
+  type SpawnDirectorInput,
+  type SpawnDirectorLevelConfig,
+  type SpawnDirectorSnapshot,
+  type SpawnDirectorStepResult,
+  type SpawnDirectorWaveConfig,
+  type SpawnIdentity,
+  type SpawnPressureSnapshot,
+} from './SpawnDirector.ts';

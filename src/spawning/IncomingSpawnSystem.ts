@@ -142,6 +142,11 @@ export class IncomingSpawnSystem {
     return this.#spawnPointOwners.has(spawnPointId);
   }
 
+  public getSpawnPointOwner(spawnPointId: string): string | null {
+    requireNonEmptyString(spawnPointId, 'spawnPointId');
+    return this.#spawnPointOwners.get(spawnPointId) ?? null;
+  }
+
   public schedule(request: IncomingSpawnRequest): ScheduleIncomingResult {
     requireNonEmptyString(request.transactionId, 'transactionId');
     requireSpawnPoint(request.spawnPoint);

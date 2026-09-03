@@ -7,6 +7,10 @@ export interface ShipCharacteristics {
   readonly collisionRadius: number;
   readonly unloadStepMs: number;
   readonly warningRadius: number;
+  readonly cargoCapacity: number;
+  readonly pressureWeight: number;
+  readonly spawnWeight: number;
+  readonly defaultCargoTypes: readonly string[];
 }
 
 interface ShipsDocument {
@@ -19,6 +23,10 @@ interface ShipCharacteristicsSource {
   readonly collisionRadius: number;
   readonly unloadStepMs: number;
   readonly warningRadius: number;
+  readonly cargoCapacity: number;
+  readonly pressureWeight: number;
+  readonly spawnWeight: number;
+  readonly defaultCargoTypes: readonly string[];
 }
 
 export class ShipCharacteristicsRegistry {
@@ -53,6 +61,10 @@ export function createShipCharacteristicsRegistry(
         collisionRadius: source.collisionRadius,
         unloadStepMs: source.unloadStepMs,
         warningRadius: source.warningRadius,
+        cargoCapacity: source.cargoCapacity,
+        pressureWeight: source.pressureWeight,
+        spawnWeight: source.spawnWeight,
+        defaultCargoTypes: Object.freeze([...source.defaultCargoTypes]),
       }),
     );
   }
