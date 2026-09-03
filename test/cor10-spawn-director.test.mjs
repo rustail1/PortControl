@@ -668,7 +668,7 @@ cases.push([64, 'final burst interval is minimumInterval before jitter', async (
   const secondTime = director.nextSpawnDueTime;
   const second = director.step(makeInput({ simulationTime: secondTime }));
   director.confirmScheduled(second.command.transactionId, secondTime);
-  assert.equal(director.nextSpawnDueTime - secondTime, custom.level.director.minimumInterval);
+  assert.equal(director.toSnapshot().unresolved?.effectiveInterval, custom.level.director.minimumInterval);
 }]);
 cases.push([65, 'middle burst ordinal uses exact linear interpolation', async () => {
   const { s, config, points, characteristics } = await setup();
