@@ -1,11 +1,47 @@
 import type { Point } from '../camera/SquareWorldViewport.ts';
+import { LandClearanceGeometry } from '../geometry/LandClearanceGeometry.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
 import type { RouteProcessingConfig } from './RouteProcessingConfig.ts';
-export interface ForbiddenPolygon { readonly points: readonly Point[]; }
-export interface NavigationValidationResult { readonly validPoints: readonly Point[]; readonly rejectedPoints: readonly Point[]; }
-function cross(a:Point,b:Point,c:Point):number{return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);}
-function on(a:Point,b:Point,p:Point):boolean{return Math.min(a.x,b.x)<=p.x&&p.x<=Math.max(a.x,b.x)&&Math.min(a.y,b.y)<=p.y&&p.y<=Math.max(a.y,b.y);}
-function intersects(a:Point,b:Point,c:Point,d:Point):boolean{const x1=cross(a,b,c),x2=cross(a,b,d),x3=cross(c,d,a),x4=cross(c,d,b);return (x1===0&&on(a,b,c))||(x2===0&&on(a,b,d))||(x3===0&&on(c,d,a))||(x4===0&&on(c,d,b))||((x1>0)!==(x2>0)&&(x3>0)!==(x4>0));}
-function pointSegment(p:Point,a:Point,b:Point):number{const dx=b.x-a.x,dy=b.y-a.y;const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));}
-function inside(p:Point, polygon:readonly Point[]):boolean{let value=false;for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){const a=polygon[i],b=polygon[j];if((a.y>p.y)!==(b.y>p.y)&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)value=!value;}return value;}
-export class NavigationValidator { readonly #land:readonly ForbiddenPolygon[]; public constructor(land:readonly ForbiddenPolygon[]){this.#land=Object.freeze(land.map((polygon)=>Object.freeze({points:Object.freeze(polygon.points.map((point)=>Object.freeze({...point})))})));} public validate(ship:ShipModel,points:readonly Point[],config:RouteProcessingConfig):NavigationValidationResult{let previous=ship.position;let index=0;for(;index<points.length;index+=1){const current=points[index];if(this.#invalid(previous,current,ship.characteristics.collisionRadius+config.navigationClearanceExtra))break;previous=current;}return Object.freeze({validPoints:Object.freeze(points.slice(0,index).map(p=>Object.freeze({...p}))),rejectedPoints:Object.freeze(points.slice(index).map(p=>Object.freeze({...p})))});} #invalid(a:Point,b:Point,clearance:number):boolean{return this.#land.some(({points})=>{if(inside(a,points)||inside(b,points))return true;for(let i=0;i<points.length;i+=1){const c=points[i],d=points[(i+1)%points.length];if(intersects(a,b,c,d)||pointSegment(c,a,b)<=clearance||pointSegment(d,a,b)<=clearance||pointSegment(a,c,d)<=clearance||pointSegment(b,c,d)<=clearance)return true;}return false;});} }
+
+export interface ForbiddenPolygon {
+  readonly points: readonly Point[];
+}
+
+export interface NavigationValidationResult {
+  readonly validPoints: readonly Point[];
+  readonly rejectedPoints: readonly Point[];
+}
+
+export class NavigationValidator {
+  readonly #geometry: LandClearanceGeometry;
+
+  public constructor(land: readonly ForbiddenPolygon[]) {
+    this.#geometry = new LandClearanceGeometry(land);
+  }
+
+  public validate(
+    ship: ShipModel,
+    points: readonly Point[],
+    config: RouteProcessingConfig,
+  ): NavigationValidationResult {
+    let previous = ship.position;
+    let index = 0;
+    const clearance =
+      ship.characteristics.collisionRadius + config.navigationClearanceExtra;
+    for (; index < points.length; index += 1) {
+      const current = points[index];
+      if (this.#geometry.blocksSegment(previous, current, clearance)) {
+        break;
+      }
+      previous = current;
+    }
+    return Object.freeze({
+      validPoints: Object.freeze(
+        points.slice(0, index).map((point) => Object.freeze({ ...point })),
+      ),
+      rejectedPoints: Object.freeze(
+        points.slice(index).map((point) => Object.freeze({ ...point })),
+      ),
+    });
+  }
+}

@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { getLogicalWorldSize } from './config/getLogicalWorldSize.ts';
 import { loadBundledConfig } from './config/loadBundledConfig.ts';
 import { LocalPlatformAdapter } from './platform/LocalPlatformAdapter.ts';
-import { BootstrapScene } from './scenes/BootstrapScene.ts';
+import { HarborScene } from './scenes/HarborScene.ts';
 import './styles.css';
 
 const configBundle = loadBundledConfig();
@@ -22,7 +22,7 @@ const config: Phaser.Types.Core.GameConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     expandParent: true,
   },
-  scene: [new BootstrapScene(logicalWorld)],
+  scene: [new HarborScene(logicalWorld, configBundle, 'calm_07')],
 };
 
 async function bootstrap(): Promise<void> {

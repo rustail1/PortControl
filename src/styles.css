@@ -4,13 +4,16 @@ body,
   width: 100%;
   height: 100%;
   margin: 0;
+  touch-action: none;
 }
 
 body {
   overflow: hidden;
   background: #0b1720;
+  overscroll-behavior: none;
 }
 
 canvas {
   display: block;
+  touch-action: none;
 }

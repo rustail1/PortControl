@@ -20,10 +20,16 @@ export interface RawRouteDraft {
   readonly points: readonly Point[];
 }
 
+export interface ActiveRouteDraftSnapshot {
+  readonly shipId: string;
+  readonly pointerId: number;
+  readonly points: readonly Point[];
+}
+
 export interface RouteInputControllerOptions {
   readonly viewport: SquareWorldViewport;
   readonly sampling: RouteSamplingConfig;
-  readonly hitTest: (worldPoint: Point) => ShipModel | null;
+  readonly hitTest: (worldPoint: Point, viewport: Size) => ShipModel | null;
 }
 
 export type RouteInputOutcome =
@@ -49,6 +55,10 @@ function assertSamplingConfig(sampling: RouteSamplingConfig): RouteSamplingConfi
   return Object.freeze({ ...sampling });
 }
 
+function copyPoints(points: readonly Point[]): readonly Point[] {
+  return Object.freeze(points.map((point) => Object.freeze({ ...point })));
+}
+
 export function isRouteInputState(state: ShipModel['state']): boolean {
   return (
     state === ShipState.Entering ||
@@ -61,7 +71,7 @@ export function isRouteInputState(state: ShipModel['state']): boolean {
 export class RouteInputController {
   readonly #viewport: SquareWorldViewport;
   readonly #sampling: RouteSamplingConfig;
-  readonly #hitTest: (worldPoint: Point) => ShipModel | null;
+  readonly #hitTest: (worldPoint: Point, viewport: Size) => ShipModel | null;
   #active: ActiveRouteDraft | null = null;
 
   public constructor(options: RouteInputControllerOptions) {
@@ -78,6 +88,26 @@ export class RouteInputController {
     return this.#active?.pointerId ?? null;
   }
 
+  public get activeDraftSnapshot(): ActiveRouteDraftSnapshot | null {
+    const active = this.#active;
+    if (active === null) {
+      return null;
+    }
+    return Object.freeze({
+      shipId: active.ship.id,
+      pointerId: active.pointerId,
+      points: copyPoints(active.points),
+    });
+  }
+
+  public cancelActiveDraft(): RouteInputOutcome {
+    if (this.#active === null) {
+      return { kind: 'ignored' };
+    }
+    this.#active = null;
+    return { kind: 'cancelled' };
+  }
+
   public pointerDown(input: NormalizedPointerInput): RouteInputOutcome {
     if (this.#active !== null) {
       return { kind: 'ignored' };
@@ -86,7 +116,7 @@ export class RouteInputController {
     if (worldPoint === null) {
       return { kind: 'ignored' };
     }
-    const ship = this.#hitTest(worldPoint);
+    const ship = this.#hitTest(worldPoint, input.viewport);
     if (ship === null || !isRouteInputState(ship.state)) {
       return { kind: 'ignored' };
     }
@@ -153,7 +183,10 @@ export class RouteInputController {
     if (previous !== undefined) {
       const deltaX = point.x - previous.x;
       const deltaY = point.y - previous.y;
-      if (deltaX * deltaX + deltaY * deltaY < this.#sampling.sampleDistance ** 2) {
+      if (
+        deltaX * deltaX + deltaY * deltaY <
+        this.#sampling.sampleDistance ** 2
+      ) {
         return false;
       }
     }
@@ -183,7 +216,7 @@ export class RouteInputController {
       kind: 'finished',
       draft: Object.freeze({
         shipId: active.ship.id,
-        points: Object.freeze(active.points.map((point) => Object.freeze({ ...point }))),
+        points: copyPoints(active.points),
       }),
     };
   }
