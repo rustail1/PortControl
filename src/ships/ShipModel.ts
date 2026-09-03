@@ -105,10 +105,19 @@ export class ShipModel {
     return this.#state;
   }
   public get cargo(): CargoManifest { return this.#cargo; }
+  public cargoQuantity(type: string): number { return this.#cargo[type] ?? 0; }
+  public get cargoTotal(): number { return Object.values(this.#cargo).reduce((total, quantity) => total + quantity, 0); }
+  public removeCargoUnit(type: string): boolean {
+    const quantity = this.cargoQuantity(type);
+    if (quantity <= 0) return false;
+    this.#cargo = copyCargo({ ...this.#cargo, [type]: quantity - 1 });
+    return true;
+  }
   public get route(): ShipRoute | null { return this.#route; }
   public get routeCursor(): number { return this.#routeCursor; }
   public get currentWaypoint(): ShipPosition | null { return this.#route?.at(this.#routeCursor) ?? null; }
   public replaceRoute(route: ShipRoute): void { this.#route = route; this.#routeCursor = 0; }
+  public clearRoute(): void { this.#route = null; this.#routeCursor = 0; }
   public advanceRouteCursor(): void { if (this.#route !== null && this.#routeCursor < this.#route.length) this.#routeCursor += 1; }
 
   public setPosition(position: ShipPosition): void {

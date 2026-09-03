@@ -1,6 +1,7 @@
 import type { ShipModel } from '../ships/ShipModel.ts';
 import {
   occupyReservedDock,
+  releaseDockOccupancy,
   releaseDockReservation,
   reserveDock,
   type DockModel,
@@ -35,4 +36,5 @@ export class DockSystem {
   public occupyReserved(dock: DockModel, shipId: string): boolean {
     return occupyReservedDock(dock, shipId);
   }
+  public releaseOccupancy(dock: DockModel, shipId: string): boolean { return releaseDockOccupancy(dock, shipId); }
 }

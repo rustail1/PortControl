@@ -3,3 +3,4 @@ export { DockCollection, DockModel, type DockDefinition, type DockRuntimeSnapsho
 export { DockSystem, type DockCompatibility, type DockCompatibilityStatus } from './DockSystem.ts';
 export { createDockingConfig, type DockingConfig } from './DockingConfig.ts';
 export { DockingController, type DockApproachCandidate, type DockingControllerOptions, type DockingStepResult } from './DockingController.ts';
+export { CargoSystem, type CargoDomainEvents, type CargoUnloadCandidate, type CargoSystemOptions } from './CargoSystem.ts';

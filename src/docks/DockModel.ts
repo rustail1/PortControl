@@ -84,6 +84,13 @@ export function occupyReservedDock(dock: DockModel, shipId: string): boolean {
   return true;
 }
 
+export function releaseDockOccupancy(dock: DockModel, shipId: string): boolean {
+  const runtime = runtimeByDock.get(dock);
+  if (runtime === undefined || runtime.occupiedBy !== shipId) return false;
+  runtime.occupiedBy = null;
+  return true;
+}
+
 export class DockCollection {
   readonly #byId: ReadonlyMap<string, DockModel>;
 
