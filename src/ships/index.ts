@@ -9,6 +9,7 @@ export {
   type ShipModelInit,
   type ShipModelSnapshot,
   type ShipPosition,
+  type CargoManifest,
 } from './ShipModel.ts';
 export { moveAngleTowardsDeg, ShipMotor, type SteeringTarget } from './ShipMotor.ts';
 export { ShipRoute, type ShipRouteSnapshot } from './ShipRoute.ts';

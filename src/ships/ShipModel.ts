@@ -10,12 +10,15 @@ export interface ShipPosition {
   readonly y: number;
 }
 
+export type CargoManifest = Readonly<Record<string, number>>;
+
 export interface ShipModelInit {
   readonly id: string;
   readonly characteristics: ShipCharacteristics;
   readonly position: ShipPosition;
   readonly rotationDeg: number;
   readonly state: ShipStateValue;
+  readonly cargo?: CargoManifest;
   readonly route?: ShipRouteSnapshot | null;
   readonly routeCursor?: number;
 }
@@ -26,6 +29,7 @@ export interface ShipModelSnapshot {
   readonly position: ShipPosition;
   readonly rotationDeg: number;
   readonly state: ShipStateValue;
+  readonly cargo: CargoManifest;
   readonly route: ShipRouteSnapshot | null;
   readonly routeCursor: number;
 }
@@ -36,6 +40,18 @@ function assertFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) {
     throw new RangeError(`${label} must be finite`);
   }
+}
+
+function copyCargo(cargo: CargoManifest | undefined): CargoManifest {
+  const copied: Record<string, number> = {};
+  for (const [cargoType, quantity] of Object.entries(cargo ?? {})) {
+    assertFinite(quantity, `cargo.${cargoType}`);
+    if (quantity < 0) {
+      throw new RangeError(`cargo.${cargoType} must not be negative`);
+    }
+    copied[cargoType] = quantity;
+  }
+  return Object.freeze(copied);
 }
 
 export function normalizeRotationDeg(rotationDeg: number): number {
@@ -50,6 +66,7 @@ export class ShipModel {
   #y: number;
   #rotationDeg: number;
   #state: ShipStateValue;
+  #cargo: CargoManifest;
   #route: ShipRoute | null;
   #routeCursor: number;
 
@@ -69,6 +86,7 @@ export class ShipModel {
     this.#y = init.position.y;
     this.#rotationDeg = normalizeRotationDeg(init.rotationDeg);
     this.#state = init.state;
+    this.#cargo = copyCargo(init.cargo);
     this.#route = init.route === undefined || init.route === null ? null : ShipRoute.restore(init.route);
     this.#routeCursor = this.#route === null ? 0 : Math.min(init.routeCursor ?? 0, this.#route.length);
   }
@@ -86,6 +104,7 @@ export class ShipModel {
   public get state(): ShipStateValue {
     return this.#state;
   }
+  public get cargo(): CargoManifest { return this.#cargo; }
   public get route(): ShipRoute | null { return this.#route; }
   public get routeCursor(): number { return this.#routeCursor; }
   public get currentWaypoint(): ShipPosition | null { return this.#route?.at(this.#routeCursor) ?? null; }
@@ -120,6 +139,7 @@ export class ShipModel {
       position: this.position,
       rotationDeg: this.rotationDeg,
       state: this.state,
+      cargo: copyCargo(this.#cargo),
       route: this.#route?.toSnapshot() ?? null,
       routeCursor: this.#routeCursor,
     };
@@ -135,6 +155,7 @@ export class ShipModel {
       position: snapshot.position,
       rotationDeg: snapshot.rotationDeg,
       state: snapshot.state,
+      cargo: snapshot.cargo,
       route: snapshot.route,
       routeCursor: snapshot.routeCursor,
     });
