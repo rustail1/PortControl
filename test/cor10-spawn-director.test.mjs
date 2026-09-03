@@ -5,14 +5,15 @@ import test from 'node:test';
 import { readBaselineSource } from './support/readBaselineSource.mjs';
 
 async function subject() {
-  const [spawning, rng, clock, ships, config] = await Promise.all([
+  const [spawning, director, rng, clock, ships, config] = await Promise.all([
     import('../src/spawning/index.ts'),
+    import('../src/spawning/SpawnDirector.ts'),
     import('../src/core/SeededRng.ts'),
     import('../src/core/FixedStepClock.ts'),
     import('../src/ships/index.ts'),
     import('../src/config/validateConfigSource.ts'),
   ]);
-  return { ...spawning, ...rng, ...clock, ...ships, ...config };
+  return { ...spawning, ...director, ...rng, ...clock, ...ships, ...config };
 }
 
 let setupPromise;

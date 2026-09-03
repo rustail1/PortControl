@@ -729,13 +729,20 @@ export class SpawnDirector {
 
     if (event.effectiveInterval === null) {
       const { director } = this.#config.level;
-      const t =
-        event.burstTarget === 1
-          ? 1
-          : event.burstOrdinal / (event.burstTarget - 1);
-      const baseInterval =
-        director.startInterval +
-        (director.minimumInterval - director.startInterval) * t;
+      let baseInterval: number;
+      if (
+        event.burstTarget === 1 ||
+        event.burstOrdinal === event.burstTarget - 1
+      ) {
+        baseInterval = director.minimumInterval;
+      } else if (event.burstOrdinal === 0) {
+        baseInterval = director.startInterval;
+      } else {
+        const t = event.burstOrdinal / (event.burstTarget - 1);
+        baseInterval =
+          director.startInterval +
+          (director.minimumInterval - director.startInterval) * t;
+      }
       const jitterFraction = this.#rng.range(-director.jitter, director.jitter);
       event.effectiveInterval = baseInterval * (1 + jitterFraction);
 
