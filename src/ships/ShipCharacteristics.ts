@@ -6,6 +6,7 @@ export interface ShipCharacteristics {
   readonly turnRateDeg: number;
   readonly collisionRadius: number;
   readonly unloadStepMs: number;
+  readonly warningRadius: number;
 }
 
 interface ShipsDocument {
@@ -17,6 +18,7 @@ interface ShipCharacteristicsSource {
   readonly turnRateDeg: number;
   readonly collisionRadius: number;
   readonly unloadStepMs: number;
+  readonly warningRadius: number;
 }
 
 export class ShipCharacteristicsRegistry {
@@ -50,6 +52,7 @@ export function createShipCharacteristicsRegistry(
         turnRateDeg: source.turnRateDeg,
         collisionRadius: source.collisionRadius,
         unloadStepMs: source.unloadStepMs,
+        warningRadius: source.warningRadius,
       }),
     );
   }
