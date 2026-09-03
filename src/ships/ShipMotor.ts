@@ -34,6 +34,13 @@ export function moveAngleTowardsDeg(
 }
 
 export class ShipMotor {
+  public stepRoute(ship: ShipModel, waypointTolerance: number, deltaSeconds: number): void {
+    const waypoint = ship.currentWaypoint;
+    if (waypoint === null) return;
+    if (Math.hypot(waypoint.x - ship.position.x, waypoint.y - ship.position.y) <= waypointTolerance) { ship.advanceRouteCursor(); return; }
+    this.step(ship, waypoint, deltaSeconds);
+    if (Math.hypot(waypoint.x - ship.position.x, waypoint.y - ship.position.y) <= waypointTolerance) ship.advanceRouteCursor();
+  }
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {
     assertFinite(deltaSeconds, 'deltaSeconds');
     if (deltaSeconds < 0) {

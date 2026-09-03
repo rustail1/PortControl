@@ -3,6 +3,7 @@ import type {
   ShipCharacteristicsRegistry,
 } from './ShipCharacteristics.ts';
 import { ShipState, type ShipState as ShipStateValue } from './ShipState.ts';
+import { ShipRoute, type ShipRouteSnapshot } from './ShipRoute.ts';
 
 export interface ShipPosition {
   readonly x: number;
@@ -15,6 +16,8 @@ export interface ShipModelInit {
   readonly position: ShipPosition;
   readonly rotationDeg: number;
   readonly state: ShipStateValue;
+  readonly route?: ShipRouteSnapshot | null;
+  readonly routeCursor?: number;
 }
 
 export interface ShipModelSnapshot {
@@ -23,6 +26,8 @@ export interface ShipModelSnapshot {
   readonly position: ShipPosition;
   readonly rotationDeg: number;
   readonly state: ShipStateValue;
+  readonly route: ShipRouteSnapshot | null;
+  readonly routeCursor: number;
 }
 
 const shipStates = new Set<string>(Object.values(ShipState));
@@ -44,6 +49,8 @@ export class ShipModel {
   #position: ShipPosition;
   #rotationDeg: number;
   #state: ShipStateValue;
+  #route: ShipRoute | null;
+  #routeCursor: number;
 
   public constructor(init: ShipModelInit) {
     if (!init.id) {
@@ -60,6 +67,8 @@ export class ShipModel {
     this.#position = { ...init.position };
     this.#rotationDeg = normalizeRotationDeg(init.rotationDeg);
     this.#state = init.state;
+    this.#route = init.route === undefined || init.route === null ? null : ShipRoute.restore(init.route);
+    this.#routeCursor = this.#route === null ? 0 : Math.min(init.routeCursor ?? 0, this.#route.length);
   }
 
   public get position(): ShipPosition {
@@ -73,6 +82,11 @@ export class ShipModel {
   public get state(): ShipStateValue {
     return this.#state;
   }
+  public get route(): ShipRoute | null { return this.#route; }
+  public get routeCursor(): number { return this.#routeCursor; }
+  public get currentWaypoint(): ShipPosition | null { return this.#route?.at(this.#routeCursor) ?? null; }
+  public replaceRoute(route: ShipRoute): void { this.#route = route; this.#routeCursor = 0; }
+  public advanceRouteCursor(): void { if (this.#route !== null && this.#routeCursor < this.#route.length) this.#routeCursor += 1; }
 
   public setPosition(position: ShipPosition): void {
     assertFinite(position.x, 'position.x');
@@ -98,6 +112,8 @@ export class ShipModel {
       position: this.position,
       rotationDeg: this.rotationDeg,
       state: this.state,
+      route: this.#route?.toSnapshot() ?? null,
+      routeCursor: this.#routeCursor,
     };
   }
 
@@ -111,6 +127,8 @@ export class ShipModel {
       position: snapshot.position,
       rotationDeg: snapshot.rotationDeg,
       state: snapshot.state,
+      route: snapshot.route,
+      routeCursor: snapshot.routeCursor,
     });
   }
 }
