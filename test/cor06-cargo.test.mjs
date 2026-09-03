@@ -53,3 +53,11 @@ test('30, 60, and 120 partitions preserve cargo, state, occupancy, and event seq
   const run = async (fps) => { const x = await setup({ general: 2 }); const clock = new x.s.FixedStepClock({ fixedHz: 60, maxCatchUpSteps: 6 }); x.cargoSystem.step(active(x.ship, x.dock), 0); for(let i=0;i<fps*2;i++) clock.advance(1000/fps, dt=>x.cargoSystem.step([],dt)); x.events.flush(); return { cargo:x.ship.cargo, state:x.ship.state, dock:x.dock.toRuntimeSnapshot(), events:x.received }; };
   const [a,b,c]=await Promise.all([run(30),run(60),run(120)]); assert.deepEqual(b,a); assert.deepEqual(c,a);
 });
+test('Map iteration processes a second simultaneous unload after the first completes', async () => {
+  const first = await setup(), { s, cargoSystem, docks, events, received } = first;
+  const dock = new s.DockModel({ id: 'dock-2', position: { x: 1, y: 0 }, rotationDeg: 0, dockAngle: 0, snapRadius: 20, acceptedCargoTypes: ['general'], helperFlag: false, visualVariant: 'dock_general' });
+  const ship = new s.ShipModel({ id: 'ship-2', characteristics: first.ship.characteristics, position: { x: 1, y: 0 }, rotationDeg: 0, state: s.ShipState.Unloading, cargo: { general: 1 } });
+  assert.equal(docks.reserve(dock, ship).status, 'eligible'); assert.equal(docks.occupyReserved(dock, ship.id), true);
+  cargoSystem.step([{ ship: first.ship, dock: first.dock }, { ship, dock }], 0); cargoSystem.step([], .8); events.flush();
+  assert.equal(first.ship.state, s.ShipState.ReadyToLeave); assert.equal(ship.state, s.ShipState.ReadyToLeave); assert.equal(received.length, 2);
+});

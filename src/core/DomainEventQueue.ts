@@ -1,4 +1,4 @@
-export type DomainEventMap = Record<string, unknown>;
+export type DomainEventMap = object;
 export type DomainEventListener<Event> = (event: Readonly<Event>) => void;
 export type Unsubscribe = () => void;
 

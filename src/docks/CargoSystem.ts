@@ -3,7 +3,7 @@ import { ShipState, type ShipModel } from '../ships/index.ts';
 import type { DockModel } from './DockModel.ts';
 import type { DockSystem } from './DockSystem.ts';
 
-export interface CargoDomainEvents { readonly [key: string]: unknown; cargo_unloaded: { shipId: string; shipType: string; dockId: string; cargoType: string }; }
+export type CargoDomainEvents = { readonly cargo_unloaded: { shipId: string; shipType: string; dockId: string; cargoType: string }; };
 export interface CargoUnloadCandidate { readonly ship: ShipModel; readonly dock: DockModel; }
 export interface CargoSystemOptions { readonly dockSystem: DockSystem; readonly events: DomainEventQueue<CargoDomainEvents>; readonly resolveUnloadDurationMs?: (base: number, ship: ShipModel) => number; }
 interface Transaction { ship: ShipModel; dock: DockModel; elapsedMs: number; durationMs: number; }
@@ -13,7 +13,7 @@ export class CargoSystem {
   public step(candidates: readonly CargoUnloadCandidate[], deltaSeconds: number): void {
     if (!Number.isFinite(deltaSeconds)||deltaSeconds<0) throw new RangeError('deltaSeconds must be non-negative and finite');
     for (const candidate of candidates) if (!this.#active.has(candidate.ship.id) && candidate.ship.state===ShipState.Unloading && candidate.dock.occupiedBy===candidate.ship.id) { const durationMs=this.#resolve(candidate.ship.characteristics.unloadStepMs,candidate.ship); if(!Number.isFinite(durationMs)||durationMs<=0) throw new RangeError('unload duration must be positive and finite'); this.#active.set(candidate.ship.id,{...candidate,elapsedMs:0,durationMs}); }
-    for (const transaction of [...this.#active.values()]) this.#advance(transaction,deltaSeconds*1000);
+    for (const transaction of this.#active.values()) this.#advance(transaction,deltaSeconds*1000);
   }
   #compatibleType(transaction: Transaction): string | null { return transaction.dock.definition.acceptedCargoTypes.find((type)=>transaction.ship.cargoQuantity(type)>0) ?? null; }
   #advance(transaction: Transaction, deltaMs: number): void {
