@@ -32,6 +32,7 @@ export interface TerminalCollision {
 
 export interface CollisionStepResult {
   readonly terminalCollision: TerminalCollision | null;
+  readonly dangerWarningCount: number;
 }
 
 interface PairState {
@@ -75,7 +76,10 @@ export class DangerPairTracker {
     if (inside) {
       const state = this.#get(normalizedFirstId, normalizedSecondId);
       if (state === undefined) {
-        this.#set(normalizedFirstId, normalizedSecondId, { armed: false, outsideElapsedMs: 0 });
+        this.#set(normalizedFirstId, normalizedSecondId, {
+          armed: false,
+          outsideElapsedMs: 0,
+        });
         return true;
       }
       if (state.armed) {
@@ -170,7 +174,7 @@ export class CollisionSystem {
   ): CollisionStepResult {
     assertNonNegativeFinite(deltaSeconds, 'deltaSeconds');
     if (this.#terminal !== null) {
-      return { terminalCollision: null };
+      return { terminalCollision: null, dangerWarningCount: 0 };
     }
     this.#validateCandidates(candidates);
     this.#dangerFirst.length = 0;
@@ -180,12 +184,20 @@ export class CollisionSystem {
     let winningSecond: CollisionShipCandidate | null = null;
     let winningDistanceSquared = 0;
     const deltaMilliseconds = deltaSeconds * 1000;
-    for (let firstIndex = 0; firstIndex < candidates.length; firstIndex += 1) {
+    for (
+      let firstIndex = 0;
+      firstIndex < candidates.length;
+      firstIndex += 1
+    ) {
       const firstCandidate = candidates[firstIndex];
       if (!participatesInShipCollision(firstCandidate.ship.state)) {
         continue;
       }
-      for (let secondIndex = firstIndex + 1; secondIndex < candidates.length; secondIndex += 1) {
+      for (
+        let secondIndex = firstIndex + 1;
+        secondIndex < candidates.length;
+        secondIndex += 1
+      ) {
         const secondCandidate = candidates[secondIndex];
         if (!participatesInShipCollision(secondCandidate.ship.state)) {
           continue;
@@ -254,30 +266,40 @@ export class CollisionSystem {
         shipBId: terminalCollision.shipBId,
         failReason: 'collision',
       });
-      return { terminalCollision };
+      return { terminalCollision, dangerWarningCount: 0 };
     }
 
-    for (let index = 0; index < this.#dangerFirst.length; index += 1) {
+    const dangerWarningCount = this.#dangerFirst.length;
+    for (let index = 0; index < dangerWarningCount; index += 1) {
       this.#events.emit('danger_warning', {
         shipAId: this.#dangerFirst[index].ship.id,
         shipBId: this.#dangerSecond[index].ship.id,
       });
     }
-    return { terminalCollision: null };
+    return { terminalCollision: null, dangerWarningCount };
   }
 
-  #validateCandidates(candidates: readonly CollisionShipCandidate[]): void {
+  #validateCandidates(
+    candidates: readonly CollisionShipCandidate[],
+  ): void {
     this.#seenShipIds.clear();
     this.#seenSpawnSequences.clear();
     for (const candidate of candidates) {
-      if (!Number.isInteger(candidate.spawnSequence) || candidate.spawnSequence < 0) {
+      if (
+        !Number.isInteger(candidate.spawnSequence) ||
+        candidate.spawnSequence < 0
+      ) {
         throw new RangeError('spawnSequence must be a non-negative integer');
       }
       if (this.#seenShipIds.has(candidate.ship.id)) {
-        throw new RangeError(`Duplicate collision candidate ship: ${candidate.ship.id}`);
+        throw new RangeError(
+          `Duplicate collision candidate ship: ${candidate.ship.id}`,
+        );
       }
       if (this.#seenSpawnSequences.has(candidate.spawnSequence)) {
-        throw new RangeError(`Duplicate collision candidate spawnSequence: ${candidate.spawnSequence}`);
+        throw new RangeError(
+          `Duplicate collision candidate spawnSequence: ${candidate.spawnSequence}`,
+        );
       }
       this.#seenShipIds.add(candidate.ship.id);
       this.#seenSpawnSequences.add(candidate.spawnSequence);
