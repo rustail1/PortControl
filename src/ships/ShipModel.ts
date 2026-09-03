@@ -46,7 +46,8 @@ export function normalizeRotationDeg(rotationDeg: number): number {
 export class ShipModel {
   public readonly id: string;
   public readonly characteristics: ShipCharacteristics;
-  #position: ShipPosition;
+  #x: number;
+  #y: number;
   #rotationDeg: number;
   #state: ShipStateValue;
   #route: ShipRoute | null;
@@ -64,7 +65,8 @@ export class ShipModel {
 
     this.id = init.id;
     this.characteristics = init.characteristics;
-    this.#position = { ...init.position };
+    this.#x = init.position.x;
+    this.#y = init.position.y;
     this.#rotationDeg = normalizeRotationDeg(init.rotationDeg);
     this.#state = init.state;
     this.#route = init.route === undefined || init.route === null ? null : ShipRoute.restore(init.route);
@@ -72,8 +74,10 @@ export class ShipModel {
   }
 
   public get position(): ShipPosition {
-    return { ...this.#position };
+    return { x: this.#x, y: this.#y };
   }
+  public get x(): number { return this.#x; }
+  public get y(): number { return this.#y; }
 
   public get rotationDeg(): number {
     return this.#rotationDeg;
@@ -89,9 +93,13 @@ export class ShipModel {
   public advanceRouteCursor(): void { if (this.#route !== null && this.#routeCursor < this.#route.length) this.#routeCursor += 1; }
 
   public setPosition(position: ShipPosition): void {
-    assertFinite(position.x, 'position.x');
-    assertFinite(position.y, 'position.y');
-    this.#position = { ...position };
+    this.setPositionXY(position.x, position.y);
+  }
+  public setPositionXY(x: number, y: number): void {
+    assertFinite(x, 'position.x');
+    assertFinite(y, 'position.y');
+    this.#x = x;
+    this.#y = y;
   }
 
   public setRotationDeg(rotationDeg: number): void {

@@ -37,9 +37,9 @@ export class ShipMotor {
   public stepRoute(ship: ShipModel, waypointTolerance: number, deltaSeconds: number): void {
     const waypoint = ship.currentWaypoint;
     if (waypoint === null) return;
-    if (Math.hypot(waypoint.x - ship.position.x, waypoint.y - ship.position.y) <= waypointTolerance) { ship.advanceRouteCursor(); return; }
+    if (Math.hypot(waypoint.x - ship.x, waypoint.y - ship.y) <= waypointTolerance) { ship.advanceRouteCursor(); return; }
     this.step(ship, waypoint, deltaSeconds);
-    if (Math.hypot(waypoint.x - ship.position.x, waypoint.y - ship.position.y) <= waypointTolerance) ship.advanceRouteCursor();
+    if (Math.hypot(waypoint.x - ship.x, waypoint.y - ship.y) <= waypointTolerance) ship.advanceRouteCursor();
   }
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {
     assertFinite(deltaSeconds, 'deltaSeconds');
@@ -52,9 +52,8 @@ export class ShipMotor {
       return;
     }
 
-    const position = ship.position;
     const desiredAngleDeg = normalizeRotationDeg(
-      (Math.atan2(target.y - position.y, target.x - position.x) * 180) /
+      (Math.atan2(target.y - ship.y, target.x - ship.x) * 180) /
         Math.PI,
     );
     const rotationDeg = moveAngleTowardsDeg(
@@ -65,9 +64,9 @@ export class ShipMotor {
     const rotationRadians = (rotationDeg * Math.PI) / 180;
 
     ship.setRotationDeg(rotationDeg);
-    ship.setPosition({
-      x: position.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
-      y: position.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,
-    });
+    ship.setPositionXY(
+      ship.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
+      ship.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,
+    );
   }
 }

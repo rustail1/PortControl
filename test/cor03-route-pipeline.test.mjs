@@ -122,6 +122,39 @@ test('fixed clock partitions produce the same route snapshot', async () => {
   assert.deepEqual(await run([100]), await run([1000 / 60, 1000 / 60, 1000 / 60, 1000 / 60, 1000 / 60, 1000 / 60]));
 });
 
+test('ShipMotor hot path updates authoritative scalar coordinates without exposing mutable position', async () => {
+  const { ship } = await setup();
+  ship.setPositionXY(12, 34);
+  const firstRead = ship.position;
+  firstRead.x = 999;
+
+  assert.equal(ship.x, 12);
+  assert.equal(ship.y, 34);
+  assert.deepEqual(ship.position, { x: 12, y: 34 });
+});
+
+test('30, 60 and 120 FPS render partitions reach the same authoritative route outcome', async () => {
+  const run = async (fps) => {
+    const { s, ship, config } = await setup();
+    ship.replaceRoute(new s.ShipRoute([{ x: 900, y: 0 }]));
+    const clock = new s.FixedStepClock({ fixedHz: 60, maxCatchUpSteps: 6 });
+    const motor = new s.ShipMotor();
+    for (let frame = 0; frame < fps * 3; frame += 1) {
+      clock.advance(1000 / fps, (dt) => motor.stepRoute(ship, config.waypointTolerance, dt));
+    }
+    return ship.toSnapshot();
+  };
+  const [at30, at60, at120] = await Promise.all([run(30), run(60), run(120)]);
+  for (const actual of [at60, at120]) {
+    assert.ok(Math.abs(actual.position.x - at30.position.x) < 1e-9);
+    assert.ok(Math.abs(actual.position.y - at30.position.y) < 1e-9);
+    assert.ok(Math.abs(actual.rotationDeg - at30.rotationDeg) < 1e-9);
+    assert.equal(actual.routeCursor, at30.routeCursor);
+    assert.deepEqual(actual.route, at30.route);
+    assert.equal(actual.state, at30.state);
+  }
+});
+
 test('locked ship does not accept a route commit and COR-03 domain has no forbidden runtime dependency', async () => {
   const { s, ship, config } = await setup('Docking');
   const service = new s.RouteCommitService({ navigation: new s.NavigationValidator([]), config });
