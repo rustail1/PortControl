@@ -182,6 +182,58 @@ test('a new drag works after a previous draft finishes', async () => {
   });
 });
 
+test('ApproachingDock cancels an active draft before the next pointer move', async () => {
+  const { subject, ship, controller } = await createController(subjectState('Navigating'));
+  controller.pointerDown(pointer('mouse', 1, 100, 100));
+  ship.setState(subject.ShipState.ApproachingDock);
+
+  assert.deepEqual(controller.pointerMove(pointer('mouse', 1, 200, 100)), { kind: 'cancelled' });
+  assert.equal(controller.selectedShipId, null);
+  assert.equal(controller.activePointerId, null);
+});
+
+test('Docking cancels an active draft before pointerup can finish it', async () => {
+  const { subject, ship, controller } = await createController(subjectState('Navigating'));
+  controller.pointerDown(pointer('mouse', 1, 100, 100));
+  ship.setState(subject.ShipState.Docking);
+
+  assert.deepEqual(controller.pointerUp(pointer('mouse', 1, 200, 100)), { kind: 'cancelled' });
+  assert.equal(controller.selectedShipId, null);
+  assert.equal(controller.activePointerId, null);
+});
+
+test('Unloading cancels an active draft before the next pointer move', async () => {
+  const { subject, ship, controller } = await createController(subjectState('Navigating'));
+  controller.pointerDown(pointer('mouse', 1, 100, 100));
+  ship.setState(subject.ShipState.Unloading);
+
+  assert.deepEqual(controller.pointerMove(pointer('mouse', 1, 200, 100)), { kind: 'cancelled' });
+  assert.equal(controller.selectedShipId, null);
+  assert.equal(controller.activePointerId, null);
+});
+
+test('Destroyed cancels an active draft and clears selection before pointerup', async () => {
+  const { subject, ship, controller } = await createController(subjectState('Navigating'));
+  controller.pointerDown(pointer('mouse', 1, 100, 100));
+  ship.setState(subject.ShipState.Destroyed);
+
+  assert.deepEqual(controller.pointerUp(pointer('mouse', 1, 200, 100)), { kind: 'cancelled' });
+  assert.equal(controller.selectedShipId, null);
+  assert.equal(controller.activePointerId, null);
+});
+
+test('a normal drag can start after a locked-state cancellation', async () => {
+  const { subject, ship, controller } = await createController(subjectState('Navigating'));
+  controller.pointerDown(pointer('mouse', 1, 100, 100));
+  ship.setState(subject.ShipState.Docking);
+  controller.pointerMove(pointer('mouse', 1, 200, 100));
+  ship.setState(subject.ShipState.Navigating);
+
+  assert.deepEqual(controller.pointerDown(pointer('mouse', 2, 100, 100)), {
+    kind: 'started', shipId: 'ship-input',
+  });
+});
+
 test('controller uses the FND-05 square viewport and ignores decorative margins', async () => {
   const { subject, ship } = await createShip(subjectState('Navigating'));
   const controller = new subject.RouteInputController({

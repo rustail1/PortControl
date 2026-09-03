@@ -99,6 +99,10 @@ export class RouteInputController {
     if (!this.#owns(input.pointerId)) {
       return { kind: 'ignored' };
     }
+    const cancellation = this.#cancelIfActiveShipIsInputLocked();
+    if (cancellation !== null) {
+      return cancellation;
+    }
     const worldPoint = this.#toWorld(input);
     if (worldPoint === null) {
       return this.#finish();
@@ -112,6 +116,10 @@ export class RouteInputController {
   public pointerUp(input: NormalizedPointerInput): RouteInputOutcome {
     if (!this.#owns(input.pointerId)) {
       return { kind: 'ignored' };
+    }
+    const cancellation = this.#cancelIfActiveShipIsInputLocked();
+    if (cancellation !== null) {
+      return cancellation;
     }
     const worldPoint = this.#toWorld(input);
     if (worldPoint !== null) {
@@ -153,7 +161,19 @@ export class RouteInputController {
     return true;
   }
 
+  #cancelIfActiveShipIsInputLocked(): RouteInputOutcome | null {
+    if (this.#active !== null && !isRouteInputState(this.#active.ship.state)) {
+      this.#active = null;
+      return { kind: 'cancelled' };
+    }
+    return null;
+  }
+
   #finish(): RouteInputOutcome {
+    const cancellation = this.#cancelIfActiveShipIsInputLocked();
+    if (cancellation !== null) {
+      return cancellation;
+    }
     const active = this.#active;
     if (active === null) {
       return { kind: 'ignored' };
