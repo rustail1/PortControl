@@ -157,11 +157,30 @@ test('Destroyed active snap cancels transaction and releases its reservation wit
   controller.step([candidate(model, 1)], 0);
   controller.step([candidate(model, 1)], 0);
   model.setState(s.ShipState.Destroyed);
-  const result = controller.step([candidate(model, 1)], 1 / 60);
+  const result = controller.step([], 1 / 60);
   assert.deepEqual(result.cancelledShipIds, ['ship']);
   assert.equal(docks.require('dock_a').reservedBy, null);
   assert.equal(docks.require('dock_a').occupiedBy, null);
   assert.equal(model.state, s.ShipState.Destroyed);
+});
+
+test('active transaction progresses and completes when later arbitration candidates are empty', async () => {
+  const { controller, docks, ship, s } = await setup();
+  const model = ship('ship');
+  controller.step([candidate(model, 1)], 0);
+  assert.equal(docks.require('dock_a').reservedBy, model.id);
+  const started = controller.step([], 0);
+  assert.deepEqual(started.startedShipIds, ['ship']);
+  assert.deepEqual(started.invariantShipIds, []);
+  controller.step([], 0.175);
+  assert.ok(model.x > 0 && model.x < 10);
+  const complete = controller.step([], 0.175);
+  assert.deepEqual(complete.invariantShipIds, []);
+  assert.deepEqual(complete.completedShipIds, ['ship']);
+  assert.deepEqual(model.position, { x: 10, y: 0 });
+  assert.equal(docks.require('dock_a').reservedBy, null);
+  assert.equal(docks.require('dock_a').occupiedBy, model.id);
+  assert.equal(model.state, s.ShipState.Unloading);
 });
 
 test('30, 60, and 120 render partitions reach identical docking state, pose, and occupancy', async () => {

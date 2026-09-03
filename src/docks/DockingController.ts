@@ -27,6 +27,7 @@ export interface DockingStepResult {
 interface TransactionIdentity {
   readonly shipId: string;
   readonly dockId: string;
+  readonly ship: ShipModel;
 }
 
 interface AwaitingSnap extends TransactionIdentity {
@@ -88,9 +89,9 @@ export class DockingController {
 
   public step(candidates: readonly DockApproachCandidate[], deltaSeconds: number): DockingStepResult {
     if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) throw new RangeError('deltaSeconds must be non-negative and finite');
-    const ships = this.#indexCandidates(candidates);
+    this.#validateCandidates(candidates);
     const result = { reservedShipIds: [] as string[], startedShipIds: [] as string[], completedShipIds: [] as string[], cancelledShipIds: [] as string[], invariantShipIds: [] as string[] };
-    this.#advanceTransactions(ships, deltaSeconds * 1000, result);
+    this.#advanceTransactions(deltaSeconds * 1000, result);
     this.#arbitrate(candidates, result);
     return Object.freeze({
       reservedShipIds: Object.freeze(result.reservedShipIds),
@@ -109,24 +110,23 @@ export class DockingController {
     return true;
   }
 
-  #indexCandidates(candidates: readonly DockApproachCandidate[]): ReadonlyMap<string, ShipModel> {
-    const ships = new Map<string, ShipModel>();
+  #validateCandidates(candidates: readonly DockApproachCandidate[]): void {
+    const shipIds = new Set<string>();
     const sequences = new Set<number>();
     for (const candidate of candidates) {
       if (!Number.isInteger(candidate.spawnSequence) || candidate.spawnSequence < 0) throw new RangeError('spawnSequence must be a non-negative integer');
-      if (ships.has(candidate.ship.id) || sequences.has(candidate.spawnSequence)) throw new RangeError('candidates must have unique ship ids and spawn sequences');
-      ships.set(candidate.ship.id, candidate.ship);
+      if (shipIds.has(candidate.ship.id) || sequences.has(candidate.spawnSequence)) throw new RangeError('candidates must have unique ship ids and spawn sequences');
+      shipIds.add(candidate.ship.id);
       sequences.add(candidate.spawnSequence);
     }
-    return ships;
   }
 
-  #advanceTransactions(ships: ReadonlyMap<string, ShipModel>, elapsedMs: number, result: { startedShipIds: string[]; completedShipIds: string[]; cancelledShipIds: string[]; invariantShipIds: string[] }): void {
+  #advanceTransactions(elapsedMs: number, result: { startedShipIds: string[]; completedShipIds: string[]; cancelledShipIds: string[]; invariantShipIds: string[] }): void {
     const transactions = [...this.#transactions.values()].sort((left, right) => compareOrdinal(left.shipId, right.shipId));
     for (const transaction of transactions) {
-      const ship = ships.get(transaction.shipId);
+      const ship = transaction.ship;
       const dock = this.#docks.get(transaction.dockId);
-      if (ship === undefined || dock === undefined) {
+      if (dock === undefined) {
         this.#transactions.delete(transaction.shipId);
         result.invariantShipIds.push(transaction.shipId);
         continue;
@@ -146,7 +146,7 @@ export class DockingController {
         const durationMs = this.#resolveSnapDurationMs(this.#config.baseSnapDurationMs);
         if (!Number.isFinite(durationMs) || durationMs <= 0) throw new RangeError('effective snap duration must be positive and finite');
         const snapping: Snapping = {
-          phase: 'snapping', shipId: ship.id, dockId: dock.id, startX: ship.x, startY: ship.y,
+          phase: 'snapping', shipId: ship.id, dockId: dock.id, ship, startX: ship.x, startY: ship.y,
           startRotationDeg: ship.rotationDeg, elapsedMs: 0, durationMs,
         };
         this.#transactions.set(ship.id, snapping);
@@ -205,7 +205,7 @@ export class DockingController {
     for (const winner of [...winnersByDock.values()].sort((left, right) => compareOrdinal(left.dock.id, right.dock.id))) {
       if (this.#dockSystem.reserve(winner.dock, winner.candidate.ship).status !== 'eligible') continue;
       winner.candidate.ship.setState(ShipState.ApproachingDock);
-      this.#transactions.set(winner.candidate.ship.id, { phase: 'awaiting_snap', shipId: winner.candidate.ship.id, dockId: winner.dock.id });
+      this.#transactions.set(winner.candidate.ship.id, { phase: 'awaiting_snap', shipId: winner.candidate.ship.id, dockId: winner.dock.id, ship: winner.candidate.ship });
       result.reservedShipIds.push(winner.candidate.ship.id);
     }
   }
