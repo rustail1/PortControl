@@ -1,4 +1,12 @@
 import type { Size } from '../camera/SquareWorldViewport.ts';
+import type { Point } from '../camera/SquareWorldViewport.ts';
+
+export const HARBOR_UI_CSS = Object.freeze({
+  hudFontSize: 16,
+  terminalTitleFontSize: 26,
+  terminalActionFontSize: 20,
+  terminalActionPaddingY: 14,
+});
 
 export interface HarborUiPoint {
   readonly x: number;
@@ -44,4 +52,40 @@ export function createHarborUiLayout(viewport: Size): HarborUiLayout {
       y: Math.min(viewport.height - margin - 24, centerY + actionOffset),
     }),
   });
+}
+
+export function clipRoutePolyline(
+  start: Point,
+  routePoints: readonly Point[],
+  maximumLength: number,
+): readonly Point[] {
+  if (!Number.isFinite(maximumLength) || maximumLength < 0) {
+    throw new RangeError('maximumLength must be a non-negative finite number');
+  }
+  const clipped: Point[] = [{ ...start }];
+  let previous = start;
+  let remaining = maximumLength;
+
+  for (const point of routePoints) {
+    const segmentLength = Math.hypot(point.x - previous.x, point.y - previous.y);
+    if (segmentLength === 0) {
+      previous = point;
+      continue;
+    }
+    if (segmentLength <= remaining) {
+      clipped.push({ ...point });
+      remaining -= segmentLength;
+      previous = point;
+      if (remaining === 0) break;
+      continue;
+    }
+    const ratio = remaining / segmentLength;
+    clipped.push({
+      x: previous.x + (point.x - previous.x) * ratio,
+      y: previous.y + (point.y - previous.y) * ratio,
+    });
+    break;
+  }
+
+  return Object.freeze(clipped.map((point) => Object.freeze(point)));
 }

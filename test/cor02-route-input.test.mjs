@@ -49,7 +49,13 @@ async function createController(state, sampling) {
 }
 
 function pointer(source, pointerId, x, y, viewport = { width: 1000, height: 1000 }) {
-  return { source, pointerId, screenPosition: { x, y }, viewport };
+  return {
+    source,
+    pointerId,
+    screenPosition: { x, y },
+    internalViewport: viewport,
+    worldToCssPixelScale: Math.min(viewport.width, viewport.height) / 1000,
+  };
 }
 
 for (const state of ['Entering', 'Navigating', 'ReadyToLeave', 'Leaving']) {

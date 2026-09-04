@@ -94,7 +94,7 @@ test('snap starts once, blocks route input by state, and completes with exact po
     viewport: new s.SquareWorldViewport({ width: 1000, height: 1000 }),
     sampling: { sampleDistance: 8, maxRawPoints: 8 }, hitTest: () => model,
   });
-  assert.deepEqual(input.pointerDown({ source: 'mouse', pointerId: 1, screenPosition: { x: 0, y: 0 }, viewport: { width: 1000, height: 1000 } }), { kind: 'ignored' });
+  assert.deepEqual(input.pointerDown({ source: 'mouse', pointerId: 1, screenPosition: { x: 0, y: 0 }, internalViewport: { width: 1000, height: 1000 }, worldToCssPixelScale: 1 }), { kind: 'ignored' });
   assert.equal(controller.step([candidate(model, 1)], 0.175).startedShipIds.length, 0);
   assert.ok(model.x > 0 && model.x < 10);
   assert.ok(model.rotationDeg > 359 && model.rotationDeg < 360);

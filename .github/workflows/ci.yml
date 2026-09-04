@@ -52,9 +52,7 @@ jobs:
         run: npm run build
 
       - name: Install Playwright Chromium
-        run: |
-          npm install --no-save --no-package-lock playwright@1.55.0
-          npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run COR-12 browser smoke
         run: npm run test:browser

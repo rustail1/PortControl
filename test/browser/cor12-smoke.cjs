@@ -2,14 +2,14 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
 const { chromium } = require('playwright');
+const {
+  buildViteLaunch,
+  terminateOwnedProcess,
+} = require('./browser-runner.cjs');
 
 const HOST = '127.0.0.1';
 const PORT = 4173;
 const URL = `http://${HOST}:${PORT}`;
-
-function npmCommand() {
-  return process.platform === 'win32' ? 'npm.cmd' : 'npm';
-}
 
 function waitForServer(timeoutMs = 20000) {
   const started = Date.now();
@@ -36,15 +36,6 @@ function waitForServer(timeoutMs = 20000) {
   });
 }
 
-function pointInside(point, viewport) {
-  return (
-    point.x >= 0 &&
-    point.y >= 0 &&
-    point.x <= viewport.width &&
-    point.y <= viewport.height
-  );
-}
-
 function rectInside(rect, viewport) {
   return (
     rect !== null &&
@@ -57,11 +48,21 @@ function rectInside(rect, viewport) {
   );
 }
 
+function assertCenteredHorizontally(rect, viewport) {
+  assert.ok(rect);
+  assert.ok(Math.abs(rect.x + rect.width / 2 - viewport.width / 2) <= 1);
+}
+
 async function main() {
+  const launch = buildViteLaunch({ host: HOST, port: PORT });
   const server = spawn(
-    npmCommand(),
-    ['run', 'dev', '--', '--host', HOST, '--port', String(PORT), '--strictPort'],
-    { stdio: ['ignore', 'pipe', 'pipe'] },
+    launch.command,
+    launch.args,
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: launch.detached,
+      windowsHide: true,
+    },
   );
   let serverError = '';
   server.stderr.on('data', (chunk) => {
@@ -69,10 +70,13 @@ async function main() {
   });
 
   let browser;
+  let context;
+  let page;
   try {
     await waitForServer();
     browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+    context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+    page = await context.newPage();
     const uncaught = [];
     page.on('pageerror', (error) => uncaught.push(String(error)));
 
@@ -108,38 +112,63 @@ async function main() {
       assert.equal(snapshot.sceneRunning, true);
     });
 
+    if (process.env.PORT_CONTROL_SMOKE_FORCE_FAILURE === '1') {
+      throw new Error('Forced browser smoke failure for cleanup verification');
+    }
+
     await check('BROWSER-04 desktop 1600x900 HUD is visible inside viewport', async () => {
       const snapshot = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const viewport = { width: 1600, height: 900 };
       assert.equal(snapshot.hudVisible, true);
-      assert.ok(rectInside(snapshot.hudBounds, { width: 1600, height: 900 }));
-      assert.equal(snapshot.uiViewport.width, 1600);
-      assert.equal(snapshot.uiViewport.height, 900);
+      assert.ok(rectInside(snapshot.canvasCssBounds, viewport));
+      assert.ok(rectInside(snapshot.hudCssBounds, viewport));
+      assert.ok(snapshot.hudCssFontPixels >= 14);
+      assert.ok(rectInside(snapshot.worldViewportCss, viewport));
+      assert.ok(Math.abs(snapshot.worldViewportCss.width - snapshot.worldViewportCss.height) <= 1);
+      assert.ok(Math.abs(snapshot.worldViewportCss.height - 900) <= 1);
+      assert.notEqual(snapshot.internalGameSize.width, viewport.width);
+      assert.deepEqual(uncaught, []);
     });
 
     await check('BROWSER-05 portrait 390x844 HUD is visible inside viewport', async () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.waitForTimeout(150);
       const snapshot = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const viewport = { width: 390, height: 844 };
       assert.equal(snapshot.hudVisible, true);
-      assert.ok(rectInside(snapshot.hudBounds, { width: 390, height: 844 }));
-      assert.equal(snapshot.uiViewport.width, 390);
-      assert.equal(snapshot.uiViewport.height, 844);
+      assert.ok(rectInside(snapshot.canvasCssBounds, viewport));
+      assert.ok(rectInside(snapshot.hudCssBounds, viewport));
+      assert.ok(snapshot.hudCssFontPixels >= 14);
+      assert.ok(rectInside(snapshot.worldViewportCss, viewport));
+      assert.ok(Math.abs(snapshot.worldViewportCss.width - snapshot.worldViewportCss.height) <= 1);
+      assert.ok(Math.abs(snapshot.worldViewportCss.width - 390) <= 1);
+      assert.notEqual(snapshot.internalGameSize.height, viewport.height);
+      assert.deepEqual(uncaught, []);
     });
 
     await check('BROWSER-06 terminal layout center and action stay in viewport', async () => {
       const snapshot = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       const viewport = { width: 390, height: 844 };
-      assert.ok(pointInside(snapshot.terminalTitlePoint, viewport));
-      assert.ok(pointInside(snapshot.terminalActionPoint, viewport));
-      assert.ok(Math.abs(snapshot.terminalTitlePoint.x - viewport.width / 2) <= 1);
-      assert.ok(Math.abs(snapshot.terminalActionPoint.x - viewport.width / 2) <= 1);
+      assert.ok(rectInside(snapshot.terminalTitleCssBounds, viewport));
+      assert.ok(rectInside(snapshot.terminalActionCssBounds, viewport));
+      assertCenteredHorizontally(snapshot.terminalTitleCssBounds, viewport);
+      assertCenteredHorizontally(snapshot.terminalActionCssBounds, viewport);
+      assert.ok(snapshot.terminalActionCssBounds.height >= 48);
+      assert.ok(snapshot.terminalActionCssFontPixels >= 18);
+      assert.equal(snapshot.terminalActionInteractive, true);
     });
 
     await check('BROWSER-07 resize does not crash scene', async () => {
+      const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       await page.setViewportSize({ width: 1000, height: 1000 });
-      await page.waitForTimeout(150);
+      await page.waitForFunction(
+        () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().canvasCssBounds.width === 1000,
+      );
       const snapshot = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       assert.equal(snapshot.sceneRunning, true);
+      assert.equal(snapshot.levelId, before.levelId);
+      assert.equal(snapshot.attemptSeed, before.attemptSeed);
+      assert.ok(snapshot.simulationTime >= before.simulationTime);
       assert.deepEqual(uncaught, []);
     });
 
@@ -171,10 +200,19 @@ async function main() {
 
     console.log(`Browser smoke: PASS (${passed}/8)`);
   } finally {
-    await browser?.close();
-    server.kill('SIGTERM');
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    if (server.exitCode === null) server.kill('SIGKILL');
+    try {
+      await page?.close();
+    } finally {
+      try {
+        await context?.close();
+      } finally {
+        try {
+          await browser?.close();
+        } finally {
+          await terminateOwnedProcess(server);
+        }
+      }
+    }
   }
 
   if (serverError.includes('error when starting dev server')) {

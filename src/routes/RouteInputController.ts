@@ -12,7 +12,8 @@ export interface NormalizedPointerInput {
   readonly source: 'mouse' | 'touch';
   readonly pointerId: number;
   readonly screenPosition: Point;
-  readonly viewport: Size;
+  readonly internalViewport: Size;
+  readonly worldToCssPixelScale: number;
 }
 
 export interface RawRouteDraft {
@@ -29,7 +30,7 @@ export interface ActiveRouteDraftSnapshot {
 export interface RouteInputControllerOptions {
   readonly viewport: SquareWorldViewport;
   readonly sampling: RouteSamplingConfig;
-  readonly hitTest: (worldPoint: Point, viewport: Size) => ShipModel | null;
+  readonly hitTest: (worldPoint: Point, worldToCssPixelScale: number) => ShipModel | null;
 }
 
 export type RouteInputOutcome =
@@ -71,7 +72,7 @@ export function isRouteInputState(state: ShipModel['state']): boolean {
 export class RouteInputController {
   readonly #viewport: SquareWorldViewport;
   readonly #sampling: RouteSamplingConfig;
-  readonly #hitTest: (worldPoint: Point, viewport: Size) => ShipModel | null;
+  readonly #hitTest: (worldPoint: Point, worldToCssPixelScale: number) => ShipModel | null;
   #active: ActiveRouteDraft | null = null;
 
   public constructor(options: RouteInputControllerOptions) {
@@ -116,7 +117,7 @@ export class RouteInputController {
     if (worldPoint === null) {
       return { kind: 'ignored' };
     }
-    const ship = this.#hitTest(worldPoint, input.viewport);
+    const ship = this.#hitTest(worldPoint, input.worldToCssPixelScale);
     if (ship === null || !isRouteInputState(ship.state)) {
       return { kind: 'ignored' };
     }
@@ -167,7 +168,7 @@ export class RouteInputController {
   }
 
   #toWorld(input: NormalizedPointerInput): Point | null {
-    return this.#viewport.screenToWorld(input.screenPosition, input.viewport);
+    return this.#viewport.screenToWorld(input.screenPosition, input.internalViewport);
   }
 
   #owns(pointerId: number): boolean {

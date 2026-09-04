@@ -211,9 +211,9 @@ test('COR-12 #07 pointer completion queues a route command only', async () => {
   const ship = firstShip(snapshot);
   assert.ok(ship);
   const viewport = { width: 1000, height: 1000 };
-  assert.equal(runtime.pointerDown({ source: 'mouse', pointerId: 1, screenPosition: ship.ship.position, viewport }).kind, 'started');
-  runtime.pointerMove({ source: 'mouse', pointerId: 1, screenPosition: { x: 400, y: 500 }, viewport });
-  assert.equal(runtime.pointerUp({ source: 'mouse', pointerId: 1, screenPosition: { x: 500, y: 500 }, viewport }).kind, 'finished');
+  assert.equal(runtime.pointerDown({ source: 'mouse', pointerId: 1, screenPosition: ship.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 }).kind, 'started');
+  runtime.pointerMove({ source: 'mouse', pointerId: 1, screenPosition: { x: 400, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
+  assert.equal(runtime.pointerUp({ source: 'mouse', pointerId: 1, screenPosition: { x: 500, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 }).kind, 'finished');
   assert.equal(runtime.queuedRouteCommandCount, 1);
 });
 
@@ -224,9 +224,9 @@ test('COR-12 #08 pointer-finished ship route is unchanged before next fixed step
   const ship = firstShip(snapshot);
   assert.ok(ship);
   const viewport = { width: 1000, height: 1000 };
-  runtime.pointerDown({ source: 'touch', pointerId: 4, screenPosition: ship.ship.position, viewport });
-  runtime.pointerMove({ source: 'touch', pointerId: 4, screenPosition: { x: 400, y: 500 }, viewport });
-  runtime.pointerUp({ source: 'touch', pointerId: 4, screenPosition: { x: 500, y: 500 }, viewport });
+  runtime.pointerDown({ source: 'touch', pointerId: 4, screenPosition: ship.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerMove({ source: 'touch', pointerId: 4, screenPosition: { x: 400, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerUp({ source: 'touch', pointerId: 4, screenPosition: { x: 500, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
   assert.equal(firstShip(runtime.presentationSnapshot())?.ship.route, null);
 });
 
@@ -305,8 +305,8 @@ test('COR-12 #15 cancelling unfinished draft preserves committed route', async (
   const viewport = { width: 1000, height: 1000 };
   const current = firstShip(runtime.presentationSnapshot());
   assert.ok(current);
-  runtime.pointerDown({ source: 'touch', pointerId: 9, screenPosition: current.ship.position, viewport });
-  runtime.pointerMove({ source: 'touch', pointerId: 9, screenPosition: { x: 600, y: 600 }, viewport });
+  runtime.pointerDown({ source: 'touch', pointerId: 9, screenPosition: current.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerMove({ source: 'touch', pointerId: 9, screenPosition: { x: 600, y: 600 }, internalViewport: viewport, worldToCssPixelScale: 1 });
   runtime.cancelActiveDraft();
   assert.deepEqual(firstShip(runtime.presentationSnapshot())?.ship.route, before);
 });

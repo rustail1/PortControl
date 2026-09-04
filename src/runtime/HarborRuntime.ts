@@ -155,6 +155,7 @@ export interface HarborPresentationSnapshot {
   readonly incoming: readonly IncomingIndicatorCommand[];
   readonly dangerPairs: readonly HarborDangerPairSnapshot[];
   readonly cargoRejectPulses: readonly HarborCargoRejectPulseSnapshot[];
+  readonly selectedShipId: string | null;
   readonly activeDraft: ActiveRouteDraftSnapshot | null;
   readonly routePreview: HarborRoutePreviewSnapshot | null;
 }
@@ -294,6 +295,7 @@ export class HarborRuntime {
   #nextSpawnSequence = 0;
   #activeForRenderAdvance = true;
   #lastRouteCommitResult: RouteCommitResult | null = null;
+  #presentationSelectedShipId: string | null = null;
 
   public constructor(options: HarborRuntimeOptions) {
     this.#levelId = options.levelId;
@@ -390,7 +392,8 @@ export class HarborRuntime {
     this.#routeInput = new RouteInputController({
       viewport: this.#viewport,
       sampling: createRouteSamplingConfig(options.bundle),
-      hitTest: (worldPoint, viewport) => this.#hitTestShip(worldPoint, viewport),
+      hitTest: (worldPoint, worldToCssPixelScale) =>
+        this.#hitTestShip(worldPoint, worldToCssPixelScale),
     });
 
     this.#collisionEvents.subscribe('danger_warning', (event) => {
@@ -443,7 +446,11 @@ export class HarborRuntime {
   }
 
   public pointerDown(input: NormalizedPointerInput): RouteInputOutcome {
-    return this.#routeInput.pointerDown(input);
+    const outcome = this.#routeInput.pointerDown(input);
+    if (outcome.kind === 'started') {
+      this.#presentationSelectedShipId = outcome.shipId;
+    }
+    return outcome;
   }
 
   public pointerMove(input: NormalizedPointerInput): RouteInputOutcome {
@@ -455,11 +462,17 @@ export class HarborRuntime {
   }
 
   public pointerCancel(input: NormalizedPointerInput): RouteInputOutcome {
-    return this.#routeInput.pointerCancel(input);
+    const outcome = this.#routeInput.pointerCancel(input);
+    if (outcome.kind === 'cancelled') {
+      this.#presentationSelectedShipId = null;
+    }
+    return outcome;
   }
 
   public cancelActiveDraft(): RouteInputOutcome {
-    return this.#routeInput.cancelActiveDraft();
+    const outcome = this.#routeInput.cancelActiveDraft();
+    this.#presentationSelectedShipId = null;
+    return outcome;
   }
 
   public setPageActive(active: boolean): void {
@@ -493,6 +506,7 @@ export class HarborRuntime {
   }
 
   public presentationSnapshot(): HarborPresentationSnapshot {
+    this.#discardInvalidPresentationSelection();
     const ships = [...this.#active.values()]
       .sort((left, right) => left.spawnSequence - right.spawnSequence)
       .map((record) =>
@@ -530,6 +544,7 @@ export class HarborRuntime {
       ),
       dangerPairs: Object.freeze(dangerPairs),
       cargoRejectPulses: Object.freeze(cargoRejectPulses),
+      selectedShipId: this.#presentationSelectedShipId,
       activeDraft: this.#routeInput.activeDraftSnapshot,
       routePreview: this.#createRoutePreviewSnapshot(),
     });
@@ -563,8 +578,23 @@ export class HarborRuntime {
   #handleRouteInputOutcome(outcome: RouteInputOutcome): RouteInputOutcome {
     if (outcome.kind === 'finished') {
       this.enqueueRouteDraft(outcome.draft);
+    } else if (outcome.kind === 'cancelled') {
+      this.#presentationSelectedShipId = null;
     }
     return outcome;
+  }
+
+  #discardInvalidPresentationSelection(): void {
+    const selectedShipId = this.#presentationSelectedShipId;
+    if (selectedShipId === null) return;
+    const selected = this.#active.get(selectedShipId);
+    if (
+      selected === undefined ||
+      this.#session.state !== SessionState.Active ||
+      !isRouteInputState(selected.ship.state)
+    ) {
+      this.#presentationSelectedShipId = null;
+    }
   }
 
   #createRoutePreviewSnapshot(): HarborRoutePreviewSnapshot | null {
@@ -858,6 +888,9 @@ export class HarborRuntime {
     }
     this.#collision.forgetShip(shipId);
     this.#presentationPulses.forgetShip(shipId);
+    if (this.#presentationSelectedShipId === shipId) {
+      this.#presentationSelectedShipId = null;
+    }
     if (this.#routeInput.selectedShipId === shipId) {
       this.#routeInput.cancelActiveDraft();
     }
@@ -874,11 +907,11 @@ export class HarborRuntime {
     this.#exitEvents.flush();
   }
 
-  #hitTestShip(worldPoint: Point, viewport: Size): ShipModel | null {
+  #hitTestShip(worldPoint: Point, worldToCssPixelScale: number): ShipModel | null {
     return selectRouteInputShip(
       [...this.#active.values()],
       worldPoint,
-      this.#viewport.layout(viewport).scale,
+      worldToCssPixelScale,
     );
   }
 }
