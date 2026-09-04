@@ -18,13 +18,16 @@ import {
   type HarborPresentationSnapshot,
   type HarborShipPresentationSnapshot,
 } from '../runtime/HarborRuntime.ts';
+import { createCargoPipLayout } from '../presentation/VesselFlowPresentation.ts';
 import type { ShipModelSnapshot } from '../ships/ShipModel.ts';
 import { ShipState } from '../ships/ShipState.ts';
 
 interface ShipView {
   readonly body: Phaser.GameObjects.Graphics;
+  readonly cargoPips: Phaser.GameObjects.Graphics;
   readonly route: Phaser.GameObjects.Graphics;
   readonly label: Phaser.GameObjects.Text;
+  cargoPipCount: number;
 }
 
 export interface HarborBrowserSmokeSnapshot {
@@ -50,7 +53,10 @@ export interface HarborBrowserSmokeSnapshot {
   readonly uiViewportInternal: Rect | null;
   readonly queuedRouteCommands: number;
   readonly activeDraft: HarborPresentationSnapshot['activeDraft'];
-  readonly ships: readonly ShipModelSnapshot[];
+  readonly ships: readonly Readonly<ShipModelSnapshot & {
+    remainingRoute: HarborShipPresentationSnapshot['remainingRoute'];
+  }>[];
+  readonly cargoPips: readonly Readonly<{ shipId: string; count: number }>[];
   readonly incoming: HarborPresentationSnapshot['incoming'];
   readonly departures: HarborPresentationSnapshot['departures'];
   readonly docks: HarborPresentationSnapshot['docks'];
@@ -228,7 +234,18 @@ export class HarborScene extends Phaser.Scene {
           : Object.freeze({ x: ui.x, y: ui.y, width: ui.width, height: ui.height }),
       queuedRouteCommands: this.#runtime?.queuedRouteCommandCount ?? 0,
       activeDraft: presentation?.activeDraft ?? null,
-      ships: Object.freeze(presentation?.ships.map((ship) => ship.ship) ?? []),
+      ships: Object.freeze(
+        presentation?.ships.map((ship) => Object.freeze({
+          ...ship.ship,
+          remainingRoute: ship.remainingRoute,
+        })) ?? [],
+      ),
+      cargoPips: Object.freeze(
+        presentation?.ships.map((ship) => Object.freeze({
+          shipId: ship.ship.id,
+          count: this.#shipViews.get(ship.ship.id)?.cargoPipCount ?? 0,
+        })) ?? [],
+      ),
       incoming: presentation?.incoming ?? Object.freeze([]),
       departures: presentation?.departures ?? Object.freeze([]),
       docks: presentation?.docks ?? Object.freeze([]),
@@ -394,6 +411,7 @@ export class HarborScene extends Phaser.Scene {
         0,
       );
       const cargoRejected = cargoRejectIds.has(ship.ship.id);
+      this.#renderCargoPips(view, cargoTotal, x, y, rotation);
       view.label
         .setVisible(true)
         .setPosition(x, y + 28)
@@ -406,17 +424,18 @@ export class HarborScene extends Phaser.Scene {
               : `${ship.ship.shipType} · ${ship.ship.state} · C${cargoTotal}`,
         );
 
-      const routePoints = ship.ship.route?.points.slice(ship.ship.routeCursor) ?? null;
+      const routePoints = ship.remainingRoute;
       const routeSelected = snapshot.selectedShipId === ship.ship.id;
       view.route.clear();
-      if (routePoints !== null && routePoints.length > 0) {
-        const routeStart = { x, y };
+      if (routePoints !== null && routePoints.length > 1) {
+        const routeStart = routePoints[0]!;
+        const remainingPoints = routePoints.slice(1);
         if (routeSelected) {
           view.route.lineStyle(9, 0x17324d, 0.9);
-          this.#strokeRoute(view.route, routeStart, routePoints);
+          this.#strokeRoute(view.route, routeStart, remainingPoints);
         }
         view.route.lineStyle(5, 0xf7fafc, routeSelected ? 1 : 0.55);
-        this.#strokeRoute(view.route, routeStart, routePoints);
+        this.#strokeRoute(view.route, routeStart, remainingPoints);
       }
     }
 
@@ -432,6 +451,8 @@ export class HarborScene extends Phaser.Scene {
         .setPosition(incoming.position.x, incoming.position.y)
         .setRotation(Phaser.Math.DegToRad(incoming.rotationDeg));
       view.route.clear();
+      view.cargoPips.clear().setVisible(false);
+      view.cargoPipCount = 0;
       view.label.setVisible(false);
     }
 
@@ -447,12 +468,15 @@ export class HarborScene extends Phaser.Scene {
         .setPosition(departure.position.x, departure.position.y)
         .setRotation(Phaser.Math.DegToRad(departure.rotationDeg));
       view.route.clear();
+      view.cargoPips.clear().setVisible(false);
+      view.cargoPipCount = 0;
       view.label.setVisible(false);
     }
 
     for (const [shipId, view] of this.#shipViews) {
       if (!alive.has(shipId)) {
         view.body.destroy();
+        view.cargoPips.destroy();
         view.route.destroy();
         view.label.destroy();
         this.#shipViews.delete(shipId);
@@ -463,6 +487,7 @@ export class HarborScene extends Phaser.Scene {
 
   #createShipView(type: string): ShipView {
     const body = this.#markWorld(this.add.graphics().setDepth(10));
+    const cargoPips = this.#markWorld(this.add.graphics().setDepth(11));
     if (type === 'speedboat') {
       body.fillStyle(0xf6f2df, 1);
       body.fillTriangle(18, 0, -14, -7, -14, 7);
@@ -492,7 +517,25 @@ export class HarborScene extends Phaser.Scene {
         .setOrigin(0.5, 0)
         .setDepth(11),
     );
-    return { body, route, label };
+    return { body, cargoPips, route, label, cargoPipCount: 0 };
+  }
+
+  #renderCargoPips(
+    view: ShipView,
+    cargoTotal: number,
+    x: number,
+    y: number,
+    rotationDeg: number,
+  ): void {
+    const layout = createCargoPipLayout(cargoTotal);
+    view.cargoPips
+      .clear()
+      .setVisible(layout.length > 0)
+      .setPosition(x, y)
+      .setRotation(Phaser.Math.DegToRad(rotationDeg));
+    view.cargoPips.fillStyle(0xffd166, 1);
+    for (const pip of layout) view.cargoPips.fillRect(pip.x - 3, pip.y - 3, 6, 6);
+    view.cargoPipCount = layout.length;
   }
 
   #renderOverlay(snapshot: HarborPresentationSnapshot, alpha: number): void {
@@ -539,8 +582,8 @@ export class HarborScene extends Phaser.Scene {
         graphics.strokeCircle(firstPosition.x, firstPosition.y, dangerRadius);
         graphics.strokeCircle(secondPosition.x, secondPosition.y, dangerRadius);
         graphics.lineStyle(7 / worldToCssPixelScale, 0xf5a623, pulse);
-        this.#renderDangerRoute(graphics, first, firstPosition);
-        this.#renderDangerRoute(graphics, second, secondPosition);
+        this.#renderDangerRoute(graphics, first);
+        this.#renderDangerRoute(graphics, second);
       }
     }
 
@@ -653,6 +696,7 @@ export class HarborScene extends Phaser.Scene {
   #destroyShipViews(): void {
     for (const view of this.#shipViews.values()) {
       view.body.destroy();
+      view.cargoPips.destroy();
       view.route.destroy();
       view.label.destroy();
     }
@@ -844,13 +888,12 @@ export class HarborScene extends Phaser.Scene {
   #renderDangerRoute(
     graphics: Phaser.GameObjects.Graphics,
     ship: HarborShipPresentationSnapshot,
-    start: Readonly<{ x: number; y: number }>,
   ): void {
-    const route = ship.ship.route;
-    if (route === null) return;
+    const route = ship.remainingRoute;
+    if (route === null || route.length < 2) return;
     const clipped = clipRoutePolyline(
-      start,
-      route.points.slice(ship.ship.routeCursor),
+      route[0]!,
+      route.slice(1),
       120,
     );
     if (clipped.length < 2) return;

@@ -1,6 +1,20 @@
 import type { Point, Size } from '../camera/SquareWorldViewport.ts';
 import type { IncomingIndicatorCommand } from '../spawning/IncomingSpawnSystem.ts';
 
+export interface CargoPipPosition extends Point {}
+
+export function createCargoPipLayout(cargoTotal: number): readonly CargoPipPosition[] {
+  if (!Number.isInteger(cargoTotal) || cargoTotal < 0) {
+    throw new RangeError('cargoTotal must be a non-negative integer');
+  }
+  return Object.freeze(
+    Array.from({ length: cargoTotal }, (_, index) => Object.freeze({
+      x: (index - (cargoTotal - 1) / 2) * 8,
+      y: 0,
+    })),
+  );
+}
+
 export interface IncomingVesselPresentationSnapshot {
   readonly transactionId: string;
   readonly spawnPointId: string;

@@ -119,6 +119,7 @@ interface ActiveShipRecord {
 
 export interface HarborShipPresentationSnapshot {
   readonly ship: ShipModelSnapshot;
+  readonly remainingRoute: readonly Point[] | null;
   readonly spawnSequence: number;
   readonly previousPosition: Point;
   readonly previousRotationDeg: number;
@@ -538,6 +539,9 @@ export class HarborRuntime {
       .map((record) =>
         Object.freeze({
           ship: record.ship.toSnapshot(),
+          remainingRoute: record.ship.route?.remainingPolyline(
+            record.ship.routeProgress,
+          ) ?? null,
           spawnSequence: record.spawnSequence,
           previousPosition: Object.freeze({ ...record.previousPosition }),
           previousRotationDeg: record.previousRotationDeg,

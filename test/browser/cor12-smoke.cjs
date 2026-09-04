@@ -105,6 +105,12 @@ async function main() {
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
     page = await context.newPage();
+    await page.addInitScript(() => {
+      globalThis.crypto.getRandomValues = (values) => {
+        values[0] = 3333;
+        return values;
+      };
+    });
     const uncaught = [];
     page.on('pageerror', (error) => uncaught.push(String(error)));
 
@@ -294,12 +300,13 @@ async function main() {
     await check('BROWSER-11 tap selects ship without routing', async () => {
       await page.waitForFunction(() =>
         globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships.some((ship) =>
-          ['Entering', 'Navigating', 'ReadyToLeave', 'Leaving'].includes(ship.state) &&
+          ship.state === 'Entering' &&
           ship.position.x >= 30 && ship.position.x <= 970 &&
           ship.position.y >= 30 && ship.position.y <= 970));
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       const ship = before.ships.find((candidate) =>
-        ['Entering', 'Navigating', 'ReadyToLeave', 'Leaving'].includes(candidate.state) &&
+        candidate.state === 'Entering' &&
         candidate.position.x >= 30 && candidate.position.x <= 970 &&
         candidate.position.y >= 30 && candidate.position.y <= 970);
       assert.ok(ship);
@@ -331,6 +338,8 @@ async function main() {
       await page.mouse.down();
       await page.mouse.move(target.x, target.y, { steps: 4 });
       await page.mouse.up();
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await page.waitForTimeout(100);
       await page.waitForFunction((shipId) =>
         globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
           .find((candidate) => candidate.id === shipId)?.route !== null,
@@ -349,6 +358,7 @@ async function main() {
       committedRoute = routed.route;
       assert.ok(committedRoute.points.length >= 1);
       assert.equal(after.queuedRouteCommands, 0);
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
     });
 
     await check('BROWSER-13 Escape cancels activated draft and preserves route', async () => {
@@ -374,7 +384,7 @@ async function main() {
 
     await check('BROWSER-14 right click cancels draft and suppresses context menu', async () => {
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
-      const ship = firstRouteEligibleShip(before);
+      const ship = before.ships.find((candidate) => candidate.id === routedShipId);
       assert.ok(ship);
       const routeBeforeCancel = ship.route;
       const start = worldToCss(before, ship.position);
@@ -402,6 +412,7 @@ async function main() {
         after.snapshot.ships.find((candidate) => candidate.id === ship.id)?.route,
         routeBeforeCancel,
       );
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     });
 
     await check('BROWSER-15 outward drag commits an exact world-edge endpoint', async () => {
@@ -409,15 +420,26 @@ async function main() {
       await page.waitForFunction(
         () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().canvasCssBounds.width === 1600,
       );
+      await page.waitForFunction(() =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships.some((ship) =>
+          ship.state === 'Entering' &&
+          ship.position.x >= 30 && ship.position.x <= 970 &&
+          ship.position.y >= 30 && ship.position.y <= 970));
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
-      const ship = firstRouteEligibleShip(before);
+      const ship = before.ships.find((candidate) =>
+        candidate.state === 'Entering' &&
+        candidate.position.x >= 30 && candidate.position.x <= 970 &&
+        candidate.position.y >= 30 && candidate.position.y <= 970);
       assert.ok(ship);
       const outsideX = ship.position.x < 500 ? -100 : 1100;
       await dragWorldRoute(page, ship.id, [{ x: outsideX, y: ship.position.y + 80 }]);
-      await page.waitForFunction((shipId) =>
-        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
-          .find((candidate) => candidate.id === shipId)?.route !== null,
-        ship.id,
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await page.waitForFunction(({ shipId, edgeX }) => {
+        const route = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+          .find((candidate) => candidate.id === shipId)?.route;
+        return route !== null && route?.points.at(-1)?.x === edgeX;
+      }, { shipId: ship.id, edgeX: outsideX < 0 ? 0 : 1000 },
         { timeout: 5000 },
       );
       const route = await page.evaluate((shipId) =>
@@ -448,7 +470,8 @@ async function main() {
       }
     });
 
-    await check('BROWSER-17 authoritative exit continues fully offscreen before visual removal', async () => {
+    await check('BROWSER-17 stable route, guided dock, cargo pips and short outbound complete once', async () => {
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
       const flowPage = await context.newPage();
       const flowErrors = [];
       flowPage.on('pageerror', (error) => flowErrors.push(String(error)));
@@ -461,13 +484,20 @@ async function main() {
       try {
         await flowPage.goto(`${URL}/?level=calm_01`, { waitUntil: 'networkidle' });
         await flowPage.waitForFunction(
-          () => globalThis.__PORT_CONTROL_SMOKE__?.getSnapshot?.()?.ships.length > 0,
+          () => globalThis.__PORT_CONTROL_SMOKE__?.getSnapshot?.()?.ships.some((ship) =>
+            ['Entering', 'Navigating'].includes(ship.state) &&
+            ship.position.x >= 30 && ship.position.x <= 970 &&
+            ship.position.y >= 30 && ship.position.y <= 970),
           null,
           { timeout: 15000 },
         );
+        await flowPage.evaluate(() => window.dispatchEvent(new Event('blur')));
         let snapshot = await flowPage.evaluate(() =>
           globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
-        const ship = firstRouteEligibleShip(snapshot);
+        const ship = snapshot.ships.find((candidate) =>
+          ['Entering', 'Navigating'].includes(candidate.state) &&
+          candidate.position.x >= 30 && candidate.position.x <= 970 &&
+          candidate.position.y >= 30 && candidate.position.y <= 970);
         assert.ok(ship);
         const dock = [...snapshot.docks].sort(
           (a, b) => Math.abs(a.definition.position.x - ship.position.x) -
@@ -487,6 +517,64 @@ async function main() {
               { x: dockX, y: dock.definition.position.y },
             ];
         await dragWorldRoute(flowPage, ship.id, inbound);
+        await flowPage.evaluate(() => window.dispatchEvent(new Event('focus')));
+        await flowPage.waitForFunction((shipId) => {
+          const candidate = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((current) => current.id === shipId);
+          return candidate?.route !== null && candidate?.remainingRoute?.length > 1;
+        }, ship.id, { timeout: 5000 });
+        const committed = await flowPage.evaluate((shipId) => {
+          const candidate = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((current) => current.id === shipId);
+          return {
+            points: candidate.route.points,
+            rotationDeg: candidate.rotationDeg,
+          };
+        }, ship.id);
+        await flowPage.waitForFunction(({ shipId, rotationDeg }) => {
+          const candidate = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((current) => current.id === shipId);
+          if (candidate === undefined) return false;
+          const delta = Math.abs(((candidate.rotationDeg - rotationDeg + 540) % 360) - 180);
+          return candidate.routeProgress > 20 && delta > 2;
+        }, { shipId: ship.id, rotationDeg: committed.rotationDeg }, { timeout: 15000 });
+        const following = await flowPage.evaluate((shipId) =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId), ship.id);
+        assert.deepEqual(following.route.points, committed.points);
+        assert.deepEqual(
+          following.remainingRoute.slice(1),
+          committed.points.slice(following.routeCursor),
+        );
+        assert.notDeepEqual(following.remainingRoute[0], following.position);
+
+        await flowPage.waitForFunction((shipId) =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId)?.state === 'Unloading',
+          ship.id,
+          { timeout: 30000 },
+        );
+        const unloading = await flowPage.evaluate((shipId) => {
+          const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+          const candidate = current.ships.find((value) => value.id === shipId);
+          return {
+            ship: candidate,
+            pips: current.cargoPips.find((value) => value.shipId === shipId)?.count,
+          };
+        }, ship.id);
+        const cargoBefore = Object.values(unloading.ship.cargo)
+          .reduce((total, quantity) => total + quantity, 0);
+        assert.deepEqual(unloading.ship.position, dock.definition.position);
+        assert.equal(unloading.ship.rotationDeg, dock.definition.dockAngle);
+        assert.equal(unloading.pips, cargoBefore);
+        await flowPage.waitForFunction(({ shipId, cargoBefore }) => {
+          const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+          const candidate = current.ships.find((value) => value.id === shipId);
+          const cargo = Object.values(candidate?.cargo ?? {})
+            .reduce((total, quantity) => total + quantity, 0);
+          const pips = current.cargoPips.find((value) => value.shipId === shipId)?.count;
+          return cargo < cargoBefore && pips === cargo;
+        }, { shipId: ship.id, cargoBefore }, { timeout: 10000 });
         await flowPage.waitForFunction((shipId) =>
           globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
             .find((candidate) => candidate.id === shipId)?.state === 'ReadyToLeave',
@@ -497,25 +585,33 @@ async function main() {
           globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
         const ready = snapshot.ships.find((candidate) => candidate.id === ship.id);
         assert.ok(ready);
-        const goLeft = dockX < 500;
-        const outbound = goLeft
-          ? [{ x: 250, y: 300 }, { x: 100, y: 420 }, { x: -100, y: 500 }]
-          : [{ x: 750, y: 300 }, { x: 900, y: 420 }, { x: 1100, y: 500 }];
-        await dragWorldRoute(flowPage, ship.id, outbound);
+        await flowPage.waitForTimeout(150);
+        const stillReady = await flowPage.evaluate((shipId) =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId), ship.id);
+        assert.equal(stillReady.state, 'ReadyToLeave');
+        assert.deepEqual(stillReady.position, ready.position);
+        const scoreBeforeExit = snapshot.score;
+        await dragWorldRoute(flowPage, ship.id, [{ x: dockX, y: ready.position.y + 60 }]);
         await flowPage.waitForFunction((shipId) =>
-          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().departures
-            .some((departure) => departure.shipId === shipId),
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId)?.state === 'Leaving',
           ship.id,
-          { timeout: 30000 },
+          { timeout: 5000 },
         );
-        const departed = await flowPage.evaluate((shipId) => {
+        const leaving = await flowPage.evaluate((shipId) =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId), ship.id);
+        assert.ok(leaving.route.points.at(-1).y < 1000);
+        const departedHandle = await flowPage.waitForFunction((shipId) => {
           const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
-          return {
-            departure: current.departures.find((candidate) => candidate.shipId === shipId),
-            score: current.score,
-          };
-        }, ship.id);
+          const departure = current.departures.find((candidate) => candidate.shipId === shipId);
+          return departure === undefined ? false : { departure, score: current.score };
+        }, ship.id, { timeout: 30000 });
+        const departed = await departedHandle.jsonValue();
+        await departedHandle.dispose();
         assert.ok(departed.departure);
+        assert.ok(departed.score > scoreBeforeExit);
         await flowPage.waitForFunction(({ shipId, position }) => {
           const departure = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().departures
             .find((candidate) => candidate.shipId === shipId);
@@ -535,6 +631,98 @@ async function main() {
         assert.deepEqual(flowErrors, []);
       } finally {
         await flowPage.close();
+      }
+    });
+
+    await check('BROWSER-18 two stopped dock ships do not stop later incoming traffic', async () => {
+      const pressurePage = await context.newPage();
+      const pressureErrors = [];
+      pressurePage.on('pageerror', (error) => pressureErrors.push(String(error)));
+      await pressurePage.addInitScript(() => {
+        globalThis.crypto.getRandomValues = (values) => {
+          values[0] = 7070;
+          return values;
+        };
+      });
+      const interiorShip = async (excludedIds = []) => {
+        await pressurePage.waitForFunction((excluded) =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships.some((ship) =>
+            !excluded.includes(ship.id) &&
+            ['Entering', 'Navigating'].includes(ship.state) &&
+            ship.position.x >= 30 && ship.position.x <= 970 &&
+            ship.position.y >= 30 && ship.position.y <= 970),
+        excludedIds, { timeout: 20000 });
+        const current = await pressurePage.evaluate(() =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+        return {
+          snapshot: current,
+          ship: current.ships.find((ship) =>
+            !excludedIds.includes(ship.id) &&
+            ['Entering', 'Navigating'].includes(ship.state) &&
+            ship.position.x >= 30 && ship.position.x <= 970 &&
+            ship.position.y >= 30 && ship.position.y <= 970),
+        };
+      };
+      const routeAssignedDock = async (ship, dock) => {
+        await pressurePage.evaluate(() => window.dispatchEvent(new Event('blur')));
+        const current = await pressurePage.evaluate(() =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+        const liveShip = current.ships.find((candidate) => candidate.id === ship.id);
+        assert.ok(liveShip);
+        const points = liveShip.position.y > 700
+          ? [
+              { x: liveShip.position.x, y: 700 },
+              { x: dock.definition.position.x, y: 300 },
+              { ...dock.definition.position },
+            ]
+          : [
+              { x: dock.definition.position.x, y: liveShip.position.y },
+              { x: dock.definition.position.x, y: 300 },
+              { ...dock.definition.position },
+            ];
+        await dragWorldRoute(pressurePage, liveShip.id, points);
+        await pressurePage.evaluate(() => window.dispatchEvent(new Event('focus')));
+        await pressurePage.waitForFunction((shipId) =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId)?.route !== null,
+        liveShip.id, { timeout: 5000 });
+      };
+      try {
+        await pressurePage.goto(`${URL}/?level=calm_01`, { waitUntil: 'networkidle' });
+        const first = await interiorShip();
+        assert.ok(first.ship);
+        const docks = [...first.snapshot.docks]
+          .sort((left, right) => left.definition.position.x - right.definition.position.x);
+        assert.equal(docks.length, 2);
+        const firstDockIndex = Math.abs(first.ship.position.x - docks[0].definition.position.x) <=
+          Math.abs(first.ship.position.x - docks[1].definition.position.x) ? 0 : 1;
+        await routeAssignedDock(first.ship, docks[firstDockIndex]);
+
+        const second = await interiorShip([first.ship.id]);
+        assert.ok(second.ship);
+        await routeAssignedDock(second.ship, docks[1 - firstDockIndex]);
+        const servicedIds = [first.ship.id, second.ship.id];
+        await pressurePage.waitForFunction((ids) => {
+          const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+          return ids.every((id) => current.ships.find((ship) => ship.id === id)?.state === 'ReadyToLeave') &&
+            current.ships.some((ship) => !ids.includes(ship.id));
+        }, servicedIds, { timeout: 30000 });
+        const stopped = await pressurePage.evaluate(() =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+        for (const [index, shipId] of servicedIds.entries()) {
+          const stoppedShip = stopped.ships.find((ship) => ship.id === shipId);
+          assert.ok(stoppedShip);
+          assert.deepEqual(stoppedShip.position, docks[index === 0 ? firstDockIndex : 1 - firstDockIndex].definition.position);
+        }
+        const existingIds = stopped.ships.map((ship) => ship.id);
+        await pressurePage.waitForFunction((ids) => {
+          const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+          return current.incoming.some((incoming) => !ids.includes(incoming.shipId)) ||
+            current.ships.some((ship) => !ids.includes(ship.id));
+        }, existingIds, { timeout: 15000 });
+        assert.deepEqual(pressureErrors, []);
+      } finally {
+        await pressurePage.close();
       }
     });
 

@@ -39,6 +39,10 @@ interface Snapping extends TransactionIdentity {
   readonly startX: number;
   readonly startY: number;
   readonly startRotationDeg: number;
+  readonly control1X: number;
+  readonly control1Y: number;
+  readonly control2X: number;
+  readonly control2Y: number;
   readonly elapsedMs: number;
   readonly durationMs: number;
 }
@@ -65,6 +69,14 @@ function interpolateRotation(startDeg: number, targetDeg: number, progress: numb
   const target = normalizeRotationDeg(targetDeg);
   const delta = ((target - start + 540) % 360) - 180;
   return normalizeRotationDeg(start + delta * progress);
+}
+
+function cubicBezier(start: number, control1: number, control2: number, end: number, t: number): number {
+  const inverse = 1 - t;
+  return inverse ** 3 * start +
+    3 * inverse ** 2 * t * control1 +
+    3 * inverse * t ** 2 * control2 +
+    t ** 3 * end;
 }
 
 function distanceSquared(ship: ShipModel, dock: DockModel): number {
@@ -145,9 +157,20 @@ export class DockingController {
       if (transaction.phase === 'awaiting_snap') {
         const durationMs = this.#resolveSnapDurationMs(this.#config.baseSnapDurationMs);
         if (!Number.isFinite(durationMs) || durationMs <= 0) throw new RangeError('effective snap duration must be positive and finite');
+        const deltaX = dock.definition.position.x - ship.x;
+        const deltaY = dock.definition.position.y - ship.y;
+        const distance = Math.hypot(deltaX, deltaY);
+        const startRadians = ship.rotationDeg * Math.PI / 180;
+        const approachX = distance === 0 ? Math.cos(startRadians) : deltaX / distance;
+        const approachY = distance === 0 ? Math.sin(startRadians) : deltaY / distance;
         const snapping: Snapping = {
           phase: 'snapping', shipId: ship.id, dockId: dock.id, ship, startX: ship.x, startY: ship.y,
-          startRotationDeg: ship.rotationDeg, elapsedMs: 0, durationMs,
+          startRotationDeg: ship.rotationDeg,
+          control1X: ship.x + Math.cos(startRadians) * distance * 0.35,
+          control1Y: ship.y + Math.sin(startRadians) * distance * 0.35,
+          control2X: dock.definition.position.x - approachX * distance * 0.25,
+          control2Y: dock.definition.position.y - approachY * distance * 0.25,
+          elapsedMs: 0, durationMs,
         };
         this.#transactions.set(ship.id, snapping);
         ship.setState(ShipState.Docking);
@@ -162,11 +185,28 @@ export class DockingController {
   #advanceSnap(transaction: Snapping, ship: ShipModel, dock: DockModel, deltaMs: number, result: { completedShipIds: string[]; invariantShipIds: string[] }): void {
     const elapsedMs = transaction.elapsedMs + deltaMs;
     const progress = Math.min(Math.max(elapsedMs / transaction.durationMs, 0), 1);
+    const easedRotationProgress = progress * progress * (3 - 2 * progress);
     ship.setPositionXY(
-      transaction.startX + (dock.definition.position.x - transaction.startX) * progress,
-      transaction.startY + (dock.definition.position.y - transaction.startY) * progress,
+      cubicBezier(
+        transaction.startX,
+        transaction.control1X,
+        transaction.control2X,
+        dock.definition.position.x,
+        progress,
+      ),
+      cubicBezier(
+        transaction.startY,
+        transaction.control1Y,
+        transaction.control2Y,
+        dock.definition.position.y,
+        progress,
+      ),
     );
-    ship.setRotationDeg(interpolateRotation(transaction.startRotationDeg, dock.definition.dockAngle, progress));
+    ship.setRotationDeg(interpolateRotation(
+      transaction.startRotationDeg,
+      dock.definition.dockAngle,
+      easedRotationProgress,
+    ));
     if (progress < 1) {
       this.#transactions.set(ship.id, { ...transaction, elapsedMs });
       return;

@@ -13,4 +13,8 @@ export {
 } from './ShipModel.ts';
 export { moveAngleTowardsDeg, ShipMotor, type SteeringTarget } from './ShipMotor.ts';
 export { ShipRoute, type ShipRouteSnapshot } from './ShipRoute.ts';
-export { ShipState, type ShipState as ShipStateValue } from './ShipState.ts';
+export {
+  participatesInSpawnTrafficPressure,
+  ShipState,
+  type ShipState as ShipStateValue,
+} from './ShipState.ts';

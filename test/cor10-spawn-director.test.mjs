@@ -300,10 +300,14 @@ cases.push([9, 'pressure sums every active ship pressureWeight', async () => {
   assert.equal(result.pressure, characteristics.require('speedboat').pressureWeight + characteristics.require('cargo_boat').pressureWeight);
 }]);
 for (const [number, stateName, counted] of [
-  [10, 'Unloading', true],
-  [11, 'ReadyToLeave', true],
+  [10, 'Unloading', false],
+  [11, 'ReadyToLeave', false],
   [12, 'Leaving', true],
   [13, 'Destroyed', false],
+  [91, 'Entering', true],
+  [92, 'Navigating', true],
+  [93, 'ApproachingDock', true],
+  [94, 'Docking', true],
 ]) {
   cases.push([number, `${stateName} pressure participation is correct`, async () => {
     const { s, characteristics, config } = await setup();
@@ -1027,6 +1031,33 @@ cases.push([90, 'IncomingSpawnSystem exposes read-only pending owner lookup used
   });
   assert.equal(result.ok, true);
   assert.equal(incoming.getSpawnPointOwner(points[0].id), 'owner-check');
+}]);
+cases.push([95, 'two occupied stopped ships do not consume moving slots or permanently block due traffic', async () => {
+  const { s, config, points, characteristics } = await setup();
+  const stopped = [
+    activeShip(s, characteristics, { id: 'dock-a-ship', state: s.ShipState.ReadyToLeave, x: 350, y: 150 }),
+    activeShip(s, characteristics, { id: 'dock-b-ship', state: s.ShipState.Unloading, x: 650, y: 150 }),
+  ];
+  const permissivePressure = copyConfig(config, {
+    level: { director: { pressureCap: 999 } },
+  });
+  const director = makeDirector({
+    s,
+    config: permissivePressure,
+    points,
+    characteristics,
+    rng: countingRng(0),
+  });
+  const result = director.step(makeInput({
+    activeShips: stopped,
+    occupiedDockCount: 2,
+  }));
+  assert.equal(result.kind, 'schedule_incoming');
+  assert.equal(result.activeShips, 0);
+  assert.equal(
+    result.pressure,
+    2 * permissivePressure.balance.occupiedDockPressureWeight,
+  );
 }]);
 
 for (const [number, name, fn] of cases) {

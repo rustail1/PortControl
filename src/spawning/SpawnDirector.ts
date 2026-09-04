@@ -2,7 +2,7 @@ import type { ConfigBundle } from '../config/types.ts';
 import type { IRng } from '../core/SeededRng.ts';
 import { participatesInShipCollision } from '../collision/CollisionSystem.ts';
 import {
-  ShipState,
+  participatesInSpawnTrafficPressure,
   type CargoManifest,
   type ShipCharacteristicsRegistry,
   type ShipModel,
@@ -323,7 +323,7 @@ export function calculateSpawnPressure(
   let pressure = 0;
   let activeShipCount = 0;
   for (const candidate of activeShips) {
-    if (candidate.ship.state === ShipState.Destroyed) {
+    if (!participatesInSpawnTrafficPressure(candidate.ship.state)) {
       continue;
     }
     activeShipCount += 1;

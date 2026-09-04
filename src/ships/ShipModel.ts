@@ -21,6 +21,7 @@ export interface ShipModelInit {
   readonly cargo?: CargoManifest;
   readonly route?: ShipRouteSnapshot | null;
   readonly routeCursor?: number;
+  readonly routeProgress?: number;
 }
 
 export interface ShipModelSnapshot {
@@ -32,6 +33,7 @@ export interface ShipModelSnapshot {
   readonly cargo: CargoManifest;
   readonly route: ShipRouteSnapshot | null;
   readonly routeCursor: number;
+  readonly routeProgress: number;
 }
 
 const shipStates = new Set<string>(Object.values(ShipState));
@@ -69,6 +71,7 @@ export class ShipModel {
   #cargo: CargoManifest;
   #route: ShipRoute | null;
   #routeCursor: number;
+  #routeProgress: number;
 
   public constructor(init: ShipModelInit) {
     if (!init.id) {
@@ -90,7 +93,16 @@ export class ShipModel {
     this.#route = init.route === undefined || init.route === null
       ? null
       : ShipRoute.restore(init.route, init.position);
-    this.#routeCursor = this.#route === null ? 0 : Math.min(init.routeCursor ?? 0, this.#route.length);
+    this.#routeProgress = this.#route === null
+      ? 0
+      : Math.min(
+          Math.max(
+            init.routeProgress ?? this.#route.distanceAtCursor(init.routeCursor ?? 0),
+            0,
+          ),
+          this.#route.totalLength,
+        );
+    this.#routeCursor = this.#route?.cursorAtDistance(this.#routeProgress) ?? 0;
   }
 
   public get position(): ShipPosition {
@@ -117,13 +129,27 @@ export class ShipModel {
   }
   public get route(): ShipRoute | null { return this.#route; }
   public get routeCursor(): number { return this.#routeCursor; }
+  public get routeProgress(): number { return this.#routeProgress; }
   public get currentWaypoint(): ShipPosition | null { return this.#route?.at(this.#routeCursor) ?? null; }
   public replaceRoute(route: ShipRoute): void {
     this.#route = route.withStart(this.position);
     this.#routeCursor = 0;
+    this.#routeProgress = 0;
   }
-  public clearRoute(): void { this.#route = null; this.#routeCursor = 0; }
-  public advanceRouteCursor(): void { if (this.#route !== null && this.#routeCursor < this.#route.length) this.#routeCursor += 1; }
+  public clearRoute(): void { this.#route = null; this.#routeCursor = 0; this.#routeProgress = 0; }
+  public advanceRouteCursor(): void {
+    if (this.#route === null || this.#routeCursor >= this.#route.length) return;
+    this.advanceRouteProgress(this.#route.distanceAtCursor(this.#routeCursor + 1));
+  }
+  public advanceRouteProgress(progress: number): void {
+    if (this.#route === null) return;
+    if (!Number.isFinite(progress)) throw new RangeError('route progress must be finite');
+    this.#routeProgress = Math.min(
+      Math.max(this.#routeProgress, progress),
+      this.#route.totalLength,
+    );
+    this.#routeCursor = this.#route.cursorAtDistance(this.#routeProgress);
+  }
 
   public setPosition(position: ShipPosition): void {
     this.setPositionXY(position.x, position.y);
@@ -156,6 +182,7 @@ export class ShipModel {
       cargo: copyCargo(this.#cargo),
       route: this.#route?.toSnapshot() ?? null,
       routeCursor: this.#routeCursor,
+      routeProgress: this.#routeProgress,
     };
   }
 
@@ -172,6 +199,7 @@ export class ShipModel {
       cargo: snapshot.cargo,
       route: snapshot.route,
       routeCursor: snapshot.routeCursor,
+      routeProgress: snapshot.routeProgress,
     });
   }
 }
