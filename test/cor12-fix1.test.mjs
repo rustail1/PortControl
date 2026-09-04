@@ -50,6 +50,7 @@ function pointer(ship, screenPosition, pointerId = 1, viewport = { width: 1000, 
     source: 'mouse',
     pointerId,
     screenPosition,
+    cssPosition: screenPosition,
     internalViewport: viewport,
     worldToCssPixelScale: Math.min(viewport.width, viewport.height) / 1000,
   };

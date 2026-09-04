@@ -18,6 +18,7 @@ import {
   type HarborPresentationSnapshot,
   type HarborShipPresentationSnapshot,
 } from '../runtime/HarborRuntime.ts';
+import type { ShipModelSnapshot } from '../ships/ShipModel.ts';
 import { ShipState } from '../ships/ShipState.ts';
 
 interface ShipView {
@@ -46,6 +47,9 @@ export interface HarborBrowserSmokeSnapshot {
   readonly worldViewportInternal: Rect;
   readonly worldViewportCss: Rect;
   readonly uiViewportInternal: Rect | null;
+  readonly queuedRouteCommands: number;
+  readonly activeDraft: HarborPresentationSnapshot['activeDraft'];
+  readonly ships: readonly ShipModelSnapshot[];
 }
 
 const PROTOTYPE_LEVEL_ID = 'calm_07';
@@ -131,6 +135,8 @@ export class HarborScene extends Phaser.Scene {
     document.addEventListener('visibilitychange', this.#onVisibilityChange);
     window.addEventListener('blur', this.#onWindowBlur);
     window.addEventListener('focus', this.#onWindowFocus);
+    window.addEventListener('keydown', this.#onWindowKeyDown);
+    this.game.canvas.addEventListener('contextmenu', this.#onCanvasContextMenu);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.#onResize, this);
@@ -141,6 +147,8 @@ export class HarborScene extends Phaser.Scene {
       document.removeEventListener('visibilitychange', this.#onVisibilityChange);
       window.removeEventListener('blur', this.#onWindowBlur);
       window.removeEventListener('focus', this.#onWindowFocus);
+      window.removeEventListener('keydown', this.#onWindowKeyDown);
+      this.game.canvas.removeEventListener('contextmenu', this.#onCanvasContextMenu);
       this.#destroyShipViews();
       this.#destroyBusyDockLabels();
     });
@@ -157,6 +165,7 @@ export class HarborScene extends Phaser.Scene {
 
   public browserSmokeSnapshot(): HarborBrowserSmokeSnapshot {
     const display = this.#displayCoordinates();
+    const presentation = this.#runtime?.presentationSnapshot() ?? null;
     const hudBounds = this.#hud?.getBounds() ?? null;
     const terminalTitleBounds = this.#terminalTitle?.getBounds() ?? null;
     const terminalActionBounds = this.#terminalButton?.getBounds() ?? null;
@@ -172,9 +181,9 @@ export class HarborScene extends Phaser.Scene {
       levelId: this.#levelId,
       attemptSeed: this.#runtime?.attemptSeed ?? 0,
       sceneRunning: this.scene.isActive(this.sys.settings.key),
-      simulationTime: this.#runtime?.presentationSnapshot().simulationTime ?? 0,
+      simulationTime: presentation?.simulationTime ?? 0,
       hudVisible: this.#hud?.visible === true,
-      selectedShipId: this.#runtime?.presentationSnapshot().selectedShipId ?? null,
+      selectedShipId: presentation?.selectedShipId ?? null,
       internalGameSize: display.internalGameSize,
       canvasCssBounds: display.canvasCssBounds,
       internalToCssScale: display.internalToCssScale,
@@ -210,6 +219,9 @@ export class HarborScene extends Phaser.Scene {
         ui === null
           ? null
           : Object.freeze({ x: ui.x, y: ui.y, width: ui.width, height: ui.height }),
+      queuedRouteCommands: this.#runtime?.queuedRouteCommandCount ?? 0,
+      activeDraft: presentation?.activeDraft ?? null,
+      ships: Object.freeze(presentation?.ships.map((ship) => ship.ship) ?? []),
     });
   }
 
@@ -624,15 +636,18 @@ export class HarborScene extends Phaser.Scene {
   }
 
   #pointerInput(pointer: Phaser.Input.Pointer) {
+    const display = this.#displayCoordinates();
+    const screenPosition = { x: pointer.x, y: pointer.y };
     return {
       source: pointer.wasTouch ? ('touch' as const) : ('mouse' as const),
       pointerId: pointer.id,
-      screenPosition: { x: pointer.x, y: pointer.y },
+      screenPosition,
+      cssPosition: display.internalPointToCss(screenPosition),
       internalViewport: {
         width: this.scale.gameSize.width,
         height: this.scale.gameSize.height,
       },
-      worldToCssPixelScale: this.#displayCoordinates().worldToCssPixelScale(
+      worldToCssPixelScale: display.worldToCssPixelScale(
         this.cameras.main.zoom,
       ),
     };
@@ -641,6 +656,10 @@ export class HarborScene extends Phaser.Scene {
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
     const runtime = this.#runtime;
     if (runtime === null || runtime.presentationSnapshot().result !== null) {
+      return;
+    }
+    if (pointer.rightButtonDown()) {
+      this.#cancelActivatedDraft();
       return;
     }
     runtime.pointerDown(this.#pointerInput(pointer));
@@ -701,6 +720,16 @@ export class HarborScene extends Phaser.Scene {
       }
       graphics.strokePath();
     }
+  }
+
+  #cancelActivatedDraft(): boolean {
+    const runtime = this.#runtime;
+    if (runtime === null || runtime.presentationSnapshot().activeDraft === null) {
+      return false;
+    }
+    runtime.cancelActiveDraft();
+    this.#draftGraphics?.clear();
+    return true;
   }
 
   #onResize(gameSize: Phaser.Structs.Size): void {
@@ -829,5 +858,15 @@ export class HarborScene extends Phaser.Scene {
     if (!document.hidden) {
       this.#runtime?.setPageActive(true);
     }
+  };
+
+  readonly #onWindowKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape' && this.#cancelActivatedDraft()) {
+      event.preventDefault();
+    }
+  };
+
+  readonly #onCanvasContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
   };
 }

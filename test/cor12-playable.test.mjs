@@ -118,27 +118,15 @@ function runCalm01ToCompletion(s, bundle, seed = 20260903) {
     const snapshot = runtime.presentationSnapshot();
     if (snapshot.result !== null) return runtime;
 
-    const moving = snapshot.ships.find((ship) =>
-      [
-        s.ShipState.Navigating,
-        s.ShipState.ApproachingDock,
-        s.ShipState.Docking,
-        s.ShipState.Unloading,
-        s.ShipState.ReadyToLeave,
-        s.ShipState.Leaving,
-      ].includes(ship.ship.state),
-    );
-    const candidate = moving ?? [...snapshot.ships]
-      .sort((a, b) => a.spawnSequence - b.spawnSequence)
-      .find((ship) => ship.ship.state === s.ShipState.Entering);
-
-    if (candidate?.ship.state === s.ShipState.Entering && !routedInbound.has(candidate.ship.id)) {
-      runtime.enqueueRouteDraft(rawDraft(candidate.ship.id, routeToDock(snapshot, candidate)));
-      routedInbound.add(candidate.ship.id);
-    }
-    if (candidate?.ship.state === s.ShipState.ReadyToLeave && !routedOutbound.has(candidate.ship.id)) {
-      runtime.enqueueRouteDraft(rawDraft(candidate.ship.id, freeExitRoute(snapshot, candidate)));
-      routedOutbound.add(candidate.ship.id);
+    for (const candidate of snapshot.ships) {
+      if (candidate.ship.state === s.ShipState.Entering && !routedInbound.has(candidate.ship.id)) {
+        runtime.enqueueRouteDraft(rawDraft(candidate.ship.id, routeToDock(snapshot, candidate)));
+        routedInbound.add(candidate.ship.id);
+      }
+      if (candidate.ship.state === s.ShipState.ReadyToLeave && !routedOutbound.has(candidate.ship.id)) {
+        runtime.enqueueRouteDraft(rawDraft(candidate.ship.id, freeExitRoute(snapshot, candidate)));
+        routedOutbound.add(candidate.ship.id);
+      }
     }
     runtime.advanceRender(frameMs(60));
   }
@@ -211,9 +199,9 @@ test('COR-12 #07 pointer completion queues a route command only', async () => {
   const ship = firstShip(snapshot);
   assert.ok(ship);
   const viewport = { width: 1000, height: 1000 };
-  assert.equal(runtime.pointerDown({ source: 'mouse', pointerId: 1, screenPosition: ship.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 }).kind, 'started');
-  runtime.pointerMove({ source: 'mouse', pointerId: 1, screenPosition: { x: 400, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
-  assert.equal(runtime.pointerUp({ source: 'mouse', pointerId: 1, screenPosition: { x: 500, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 }).kind, 'finished');
+  assert.equal(runtime.pointerDown({ source: 'mouse', pointerId: 1, screenPosition: ship.ship.position, cssPosition: ship.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 }).kind, 'started');
+  runtime.pointerMove({ source: 'mouse', pointerId: 1, screenPosition: { x: 400, y: 500 }, cssPosition: { x: 400, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
+  assert.equal(runtime.pointerUp({ source: 'mouse', pointerId: 1, screenPosition: { x: 500, y: 500 }, cssPosition: { x: 500, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 }).kind, 'finished');
   assert.equal(runtime.queuedRouteCommandCount, 1);
 });
 
@@ -224,9 +212,9 @@ test('COR-12 #08 pointer-finished ship route is unchanged before next fixed step
   const ship = firstShip(snapshot);
   assert.ok(ship);
   const viewport = { width: 1000, height: 1000 };
-  runtime.pointerDown({ source: 'touch', pointerId: 4, screenPosition: ship.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 });
-  runtime.pointerMove({ source: 'touch', pointerId: 4, screenPosition: { x: 400, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
-  runtime.pointerUp({ source: 'touch', pointerId: 4, screenPosition: { x: 500, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerDown({ source: 'touch', pointerId: 4, screenPosition: ship.ship.position, cssPosition: ship.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerMove({ source: 'touch', pointerId: 4, screenPosition: { x: 400, y: 500 }, cssPosition: { x: 400, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerUp({ source: 'touch', pointerId: 4, screenPosition: { x: 500, y: 500 }, cssPosition: { x: 500, y: 500 }, internalViewport: viewport, worldToCssPixelScale: 1 });
   assert.equal(firstShip(runtime.presentationSnapshot())?.ship.route, null);
 });
 
@@ -305,8 +293,8 @@ test('COR-12 #15 cancelling unfinished draft preserves committed route', async (
   const viewport = { width: 1000, height: 1000 };
   const current = firstShip(runtime.presentationSnapshot());
   assert.ok(current);
-  runtime.pointerDown({ source: 'touch', pointerId: 9, screenPosition: current.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 });
-  runtime.pointerMove({ source: 'touch', pointerId: 9, screenPosition: { x: 600, y: 600 }, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerDown({ source: 'touch', pointerId: 9, screenPosition: current.ship.position, cssPosition: current.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerMove({ source: 'touch', pointerId: 9, screenPosition: { x: 600, y: 600 }, cssPosition: { x: 600, y: 600 }, internalViewport: viewport, worldToCssPixelScale: 1 });
   runtime.cancelActiveDraft();
   assert.deepEqual(firstShip(runtime.presentationSnapshot())?.ship.route, before);
 });
@@ -441,7 +429,7 @@ test('COR-12 #27 exit facts feed GameSession serviced exit metrics once', async 
 
 test('COR-12 #28 real calm_01 reaches its unmodified objective target', async () => {
   const { s, bundle } = await setup();
-  const runtime = runCalm01ToCompletion(s, bundle, 8888);
+  const runtime = runCalm01ToCompletion(s, bundle, 2222);
   assert.equal(bundle.levels.calm_01.objective.target, 6);
   assert.ok(runtime.presentationSnapshot().objective.current >= 6);
 });

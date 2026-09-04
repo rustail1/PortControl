@@ -53,6 +53,20 @@ function assertCenteredHorizontally(rect, viewport) {
   assert.ok(Math.abs(rect.x + rect.width / 2 - viewport.width / 2) <= 1);
 }
 
+function worldToCss(snapshot, point) {
+  const scale = snapshot.worldViewportCss.width / 1000;
+  return {
+    x: snapshot.worldViewportCss.x + point.x * scale,
+    y: snapshot.worldViewportCss.y + point.y * scale,
+  };
+}
+
+function firstRouteEligibleShip(snapshot) {
+  return snapshot.ships.find((ship) =>
+    ['Entering', 'Navigating', 'ReadyToLeave', 'Leaving'].includes(ship.state),
+  );
+}
+
 async function main() {
   const launch = buildViteLaunch({ host: HOST, port: PORT });
   const server = spawn(
@@ -198,7 +212,135 @@ async function main() {
       assert.equal(result.touchAction, 'none');
     });
 
-    console.log(`Browser smoke: PASS (${passed}/8)`);
+    await check('BROWSER-09 route-less Entering ship visibly moves', async () => {
+      await page.waitForFunction(
+        () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+          .some((ship) => ship.state === 'Entering' && ship.route === null),
+        null,
+        { timeout: 15000 },
+      );
+      const before = await page.evaluate(() => {
+        const snapshot = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+        return snapshot.ships.find((ship) => ship.state === 'Entering' && ship.route === null);
+      });
+      assert.ok(before);
+      await page.waitForTimeout(150);
+      const after = await page.evaluate((shipId) =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+          .find((ship) => ship.id === shipId), before.id);
+      assert.ok(after);
+      assert.equal(after.state, 'Entering');
+      assert.equal(after.route, null);
+      assert.ok(Math.hypot(
+        after.position.x - before.position.x,
+        after.position.y - before.position.y,
+      ) > 0.1);
+    });
+
+    await check('BROWSER-10 tap selects ship without routing', async () => {
+      const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const ship = firstRouteEligibleShip(before);
+      assert.ok(ship);
+      const point = worldToCss(before, ship.position);
+      await page.mouse.click(point.x, point.y);
+      const after = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const sameShip = after.ships.find((candidate) => candidate.id === ship.id);
+      assert.ok(sameShip);
+      assert.equal(after.selectedShipId, ship.id);
+      assert.equal(after.queuedRouteCommands, 0);
+      assert.deepEqual(sameShip.route, ship.route);
+    });
+
+    let routedShipId;
+    let committedRoute;
+    await check('BROWSER-11 real 12px-plus drag commits a route', async () => {
+      const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const ship = firstRouteEligibleShip(before);
+      assert.ok(ship);
+      routedShipId = ship.id;
+      const start = worldToCss(before, ship.position);
+      const heading = ship.rotationDeg * Math.PI / 180;
+      const target = worldToCss(before, {
+        x: ship.position.x + Math.cos(heading) * 80,
+        y: ship.position.y + Math.sin(heading) * 80,
+      });
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(target.x, target.y, { steps: 4 });
+      await page.mouse.up();
+      await page.waitForFunction((shipId) =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+          .find((candidate) => candidate.id === shipId)?.route !== null,
+        routedShipId,
+        { timeout: 5000 },
+      );
+      const after = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const routed = after.ships.find((ship) => ship.id === routedShipId);
+      assert.ok(routed);
+      assert.notEqual(routed.route, null, JSON.stringify({
+        beforeState: ship.state,
+        afterState: routed.state,
+        activeDraft: after.activeDraft,
+        queuedRouteCommands: after.queuedRouteCommands,
+      }));
+      committedRoute = routed.route;
+      assert.ok(committedRoute.points.length >= 1);
+      assert.equal(after.queuedRouteCommands, 0);
+    });
+
+    await check('BROWSER-12 Escape cancels activated draft and preserves route', async () => {
+      const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const ship = before.ships.find((candidate) => candidate.id === routedShipId);
+      assert.ok(ship);
+      const start = worldToCss(before, ship.position);
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(start.x, start.y + 40, { steps: 2 });
+      await page.waitForFunction(() =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().activeDraft !== null);
+      await page.keyboard.press('Escape');
+      await page.mouse.up();
+      const after = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      assert.equal(after.activeDraft, null);
+      assert.equal(after.queuedRouteCommands, 0);
+      assert.deepEqual(
+        after.ships.find((candidate) => candidate.id === routedShipId)?.route,
+        committedRoute,
+      );
+    });
+
+    await check('BROWSER-13 right click cancels draft and suppresses context menu', async () => {
+      const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const ship = before.ships.find((candidate) => candidate.id === routedShipId);
+      assert.ok(ship);
+      const start = worldToCss(before, ship.position);
+      await page.evaluate(() => {
+        globalThis.__PORT_CONTROL_CONTEXT_PREVENTED__ = false;
+        document.querySelector('canvas').addEventListener('contextmenu', (event) => {
+          globalThis.__PORT_CONTROL_CONTEXT_PREVENTED__ = event.defaultPrevented;
+        }, { once: true });
+      });
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(start.x, start.y + 40, { steps: 2 });
+      await page.waitForFunction(() =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().activeDraft !== null);
+      await page.mouse.click(start.x, start.y, { button: 'right' });
+      await page.mouse.up();
+      const after = await page.evaluate(() => ({
+        snapshot: globalThis.__PORT_CONTROL_SMOKE__.getSnapshot(),
+        contextPrevented: globalThis.__PORT_CONTROL_CONTEXT_PREVENTED__,
+      }));
+      assert.equal(after.snapshot.activeDraft, null);
+      assert.equal(after.snapshot.queuedRouteCommands, 0);
+      assert.equal(after.contextPrevented, true);
+      assert.deepEqual(
+        after.snapshot.ships.find((candidate) => candidate.id === routedShipId)?.route,
+        committedRoute,
+      );
+    });
+
+    console.log(`Browser smoke: PASS (${passed}/13)`);
   } finally {
     try {
       await page?.close();

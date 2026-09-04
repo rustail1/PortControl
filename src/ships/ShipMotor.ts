@@ -42,7 +42,12 @@ export class ShipMotor {
       ship.state !== ShipState.Leaving
     ) return;
     const waypoint = ship.currentWaypoint;
-    if (waypoint === null) return;
+    if (waypoint === null) {
+      if (ship.state === ShipState.Entering) {
+        this.#stepForward(ship, deltaSeconds);
+      }
+      return;
+    }
     if (Math.hypot(waypoint.x - ship.x, waypoint.y - ship.y) <= waypointTolerance) { ship.advanceRouteCursor(); return; }
     this.step(ship, waypoint, deltaSeconds);
     if (Math.hypot(waypoint.x - ship.x, waypoint.y - ship.y) <= waypointTolerance) ship.advanceRouteCursor();
@@ -70,6 +75,18 @@ export class ShipMotor {
     const rotationRadians = (rotationDeg * Math.PI) / 180;
 
     ship.setRotationDeg(rotationDeg);
+    ship.setPositionXY(
+      ship.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
+      ship.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,
+    );
+  }
+
+  #stepForward(ship: ShipModel, deltaSeconds: number): void {
+    assertFinite(deltaSeconds, 'deltaSeconds');
+    if (deltaSeconds < 0) {
+      throw new RangeError('deltaSeconds must be non-negative');
+    }
+    const rotationRadians = (ship.rotationDeg * Math.PI) / 180;
     ship.setPositionXY(
       ship.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
       ship.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,

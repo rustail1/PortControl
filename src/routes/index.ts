@@ -1,5 +1,6 @@
 export {
   isRouteInputState,
+  ROUTE_DRAG_ACTIVATION_CSS_PX,
   RouteInputController,
   type NormalizedPointerInput,
   type RawRouteDraft,

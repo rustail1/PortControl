@@ -12,9 +12,12 @@ export interface NormalizedPointerInput {
   readonly source: 'mouse' | 'touch';
   readonly pointerId: number;
   readonly screenPosition: Point;
+  readonly cssPosition: Point;
   readonly internalViewport: Size;
   readonly worldToCssPixelScale: number;
 }
+
+export const ROUTE_DRAG_ACTIVATION_CSS_PX = 12;
 
 export interface RawRouteDraft {
   readonly shipId: string;
@@ -36,14 +39,17 @@ export interface RouteInputControllerOptions {
 export type RouteInputOutcome =
   | { readonly kind: 'ignored' }
   | { readonly kind: 'started'; readonly shipId: string }
+  | { readonly kind: 'tapped'; readonly shipId: string }
   | { readonly kind: 'updated'; readonly pointCount: number }
   | { readonly kind: 'finished'; readonly draft: RawRouteDraft }
   | { readonly kind: 'cancelled' };
 
-interface ActiveRouteDraft {
+interface ActiveRouteInteraction {
   readonly pointerId: number;
   readonly ship: ShipModel;
+  readonly initialCssPosition: Point;
   readonly points: Point[];
+  activated: boolean;
 }
 
 function assertSamplingConfig(sampling: RouteSamplingConfig): RouteSamplingConfig {
@@ -73,7 +79,7 @@ export class RouteInputController {
   readonly #viewport: SquareWorldViewport;
   readonly #sampling: RouteSamplingConfig;
   readonly #hitTest: (worldPoint: Point, worldToCssPixelScale: number) => ShipModel | null;
-  #active: ActiveRouteDraft | null = null;
+  #active: ActiveRouteInteraction | null = null;
 
   public constructor(options: RouteInputControllerOptions) {
     this.#viewport = options.viewport;
@@ -91,7 +97,7 @@ export class RouteInputController {
 
   public get activeDraftSnapshot(): ActiveRouteDraftSnapshot | null {
     const active = this.#active;
-    if (active === null) {
+    if (active === null || !active.activated) {
       return null;
     }
     return Object.freeze({
@@ -122,7 +128,13 @@ export class RouteInputController {
       return { kind: 'ignored' };
     }
 
-    this.#active = { pointerId: input.pointerId, ship, points: [] };
+    this.#active = {
+      pointerId: input.pointerId,
+      ship,
+      initialCssPosition: { ...input.cssPosition },
+      points: [],
+      activated: false,
+    };
     return { kind: 'started', shipId: ship.id };
   }
 
@@ -136,7 +148,14 @@ export class RouteInputController {
     }
     const worldPoint = this.#toWorld(input);
     if (worldPoint === null) {
-      return this.#finish();
+      if (this.#active?.activated === true) {
+        return this.#finish();
+      }
+      this.#active = null;
+      return { kind: 'cancelled' };
+    }
+    if (!this.#activateIfThresholdReached(input)) {
+      return { kind: 'ignored' };
     }
     if (!this.#sample(worldPoint)) {
       return { kind: 'ignored' };
@@ -153,9 +172,21 @@ export class RouteInputController {
       return cancellation;
     }
     const worldPoint = this.#toWorld(input);
-    if (worldPoint !== null) {
-      this.#sample(worldPoint);
+    if (worldPoint === null) {
+      if (this.#active?.activated === true) {
+        return this.#finish();
+      }
+      this.#active = null;
+      return { kind: 'cancelled' };
     }
+    if (!this.#activateIfThresholdReached(input)) {
+      const active = this.#active;
+      this.#active = null;
+      return active === null
+        ? { kind: 'ignored' }
+        : { kind: 'tapped', shipId: active.ship.id };
+    }
+    this.#sample(worldPoint);
     return this.#finish();
   }
 
@@ -173,6 +204,22 @@ export class RouteInputController {
 
   #owns(pointerId: number): boolean {
     return this.#active?.pointerId === pointerId;
+  }
+
+  #activateIfThresholdReached(input: NormalizedPointerInput): boolean {
+    const active = this.#active;
+    if (active === null) return false;
+    if (active.activated) return true;
+    const deltaX = input.cssPosition.x - active.initialCssPosition.x;
+    const deltaY = input.cssPosition.y - active.initialCssPosition.y;
+    if (
+      deltaX * deltaX + deltaY * deltaY <
+      ROUTE_DRAG_ACTIVATION_CSS_PX ** 2
+    ) {
+      return false;
+    }
+    active.activated = true;
+    return true;
   }
 
   #sample(point: Point): boolean {

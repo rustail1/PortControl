@@ -123,6 +123,7 @@ test('COR-12 HUMAN RouteInputController forwards CSS world scale to hit testing'
     source: 'touch',
     pointerId: 1,
     screenPosition: { x: 500, y: 1082 },
+    cssPosition: { x: 195, y: 422 },
     internalViewport: { width: 1000, height: 844 / 0.39 },
     worldToCssPixelScale: 0.39,
   });
@@ -171,11 +172,20 @@ test('COR-12 HUMAN selected ship persists after commit and clears with draft can
     source: 'mouse',
     pointerId: 1,
     screenPosition,
+    cssPosition: screenPosition,
     internalViewport: { width: 1000, height: 1000 },
     worldToCssPixelScale: 1,
   });
   runtime.pointerDown(input(ship.ship.position));
-  runtime.pointerUp(input({ x: ship.ship.position.x + 100, y: ship.ship.position.y }));
+  const headingRadians = ship.ship.rotationDeg * Math.PI / 180;
+  runtime.pointerMove(input({
+    x: ship.ship.position.x + Math.cos(headingRadians) * 100,
+    y: ship.ship.position.y + Math.sin(headingRadians) * 100,
+  }));
+  runtime.pointerUp(input({
+    x: ship.ship.position.x + Math.cos(headingRadians) * 140,
+    y: ship.ship.position.y + Math.sin(headingRadians) * 140,
+  }));
   assert.equal(runtime.presentationSnapshot().selectedShipId, ship.ship.id);
 
   runtime.pointerDown(input(ship.ship.position));

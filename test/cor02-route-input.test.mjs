@@ -53,6 +53,7 @@ function pointer(source, pointerId, x, y, viewport = { width: 1000, height: 1000
     source,
     pointerId,
     screenPosition: { x, y },
+    cssPosition: { x, y },
     internalViewport: viewport,
     worldToCssPixelScale: Math.min(viewport.width, viewport.height) / 1000,
   };
