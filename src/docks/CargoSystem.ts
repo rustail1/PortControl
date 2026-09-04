@@ -107,6 +107,22 @@ export class CargoSystem {
     unloadedFacts: CargoUnloadFact[],
   ): void {
     if (
+      transaction.ship.state === ShipState.ReadyToLeave &&
+      transaction.dock.occupiedBy === transaction.ship.id
+    ) {
+      return;
+    }
+    if (transaction.ship.state === ShipState.Leaving) {
+      if (transaction.dock.occupiedBy === transaction.ship.id) {
+        this.#dockSystem.releaseOccupancy(
+          transaction.dock,
+          transaction.ship.id,
+        );
+      }
+      this.#active.delete(transaction.ship.id);
+      return;
+    }
+    if (
       transaction.ship.state !== ShipState.Unloading ||
       transaction.dock.occupiedBy !== transaction.ship.id
     ) {
@@ -145,6 +161,12 @@ export class CargoSystem {
   }
 
   #finish(transaction: Transaction): void {
+    transaction.ship.clearRoute();
+    if (transaction.ship.cargoTotal === 0) {
+      transaction.ship.setState(ShipState.ReadyToLeave);
+      return;
+    }
+
     this.#active.delete(transaction.ship.id);
     if (
       !this.#dockSystem.releaseOccupancy(
@@ -154,11 +176,6 @@ export class CargoSystem {
     ) {
       return;
     }
-    transaction.ship.clearRoute();
-    transaction.ship.setState(
-      transaction.ship.cargoTotal === 0
-        ? ShipState.ReadyToLeave
-        : ShipState.Navigating,
-    );
+    transaction.ship.setState(ShipState.Navigating);
   }
 }

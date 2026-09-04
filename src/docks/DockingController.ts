@@ -161,15 +161,16 @@ export class DockingController {
         const deltaY = dock.definition.position.y - ship.y;
         const distance = Math.hypot(deltaX, deltaY);
         const startRadians = ship.rotationDeg * Math.PI / 180;
-        const approachX = distance === 0 ? Math.cos(startRadians) : deltaX / distance;
-        const approachY = distance === 0 ? Math.sin(startRadians) : deltaY / distance;
+        const dockRadians = dock.definition.dockAngle * Math.PI / 180;
+        const outwardX = Math.cos(dockRadians);
+        const outwardY = Math.sin(dockRadians);
         const snapping: Snapping = {
           phase: 'snapping', shipId: ship.id, dockId: dock.id, ship, startX: ship.x, startY: ship.y,
           startRotationDeg: ship.rotationDeg,
           control1X: ship.x + Math.cos(startRadians) * distance * 0.35,
           control1Y: ship.y + Math.sin(startRadians) * distance * 0.35,
-          control2X: dock.definition.position.x - approachX * distance * 0.25,
-          control2Y: dock.definition.position.y - approachY * distance * 0.25,
+          control2X: dock.definition.position.x + outwardX * distance * 0.25,
+          control2Y: dock.definition.position.y + outwardY * distance * 0.25,
           elapsedMs: 0, durationMs,
         };
         this.#transactions.set(ship.id, snapping);
