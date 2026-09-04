@@ -33,6 +33,32 @@ function shipOf(s, registry, init = {}) {
   });
 }
 
+function dockOf(s, init = {}) {
+  return new s.DockModel({
+    id: 'dock',
+    position: { x: 0, y: 0 },
+    rotationDeg: 90,
+    dockAngle: 90,
+    snapRadius: 58,
+    acceptedCargoTypes: ['general'],
+    helperFlag: false,
+    visualVariant: 'dock_general',
+    ...init,
+  });
+}
+
+function occupy(dockSystem, dock, ship) {
+  assert.equal(dockSystem.reserve(dock, ship).status, 'eligible');
+  assert.equal(dockSystem.occupyReserved(dock, ship.id), true);
+}
+
+function routeService(s, bundle) {
+  return new s.RouteCommitService({
+    navigation: new s.NavigationValidator([]),
+    config: s.createRouteProcessingConfig(bundle),
+  });
+}
+
 for (const dockAngle of [0, 90, 180, 270]) {
   test(`COR-12 FIX-3A off-axis docking ends tangent to authored ${dockAngle} degree dock axis`, async () => {
     const { s, bundle, registry } = await setup();
@@ -95,17 +121,11 @@ test('COR-12 FIX-3A ReadyToLeave keeps its dock busy while another dock stays in
   const { s, registry } = await setup();
   const dockSystem = new s.DockSystem();
   const events = new s.DomainEventQueue();
-  const dock = new s.DockModel({
-    id: 'dock-a', position: { x: 0, y: 0 }, rotationDeg: 90, dockAngle: 90,
-    snapRadius: 58, acceptedCargoTypes: ['general'], helperFlag: false, visualVariant: 'dock_general',
-  });
-  const otherDock = new s.DockModel({
-    id: 'dock-b', position: { x: 100, y: 0 }, rotationDeg: 90, dockAngle: 90,
-    snapRadius: 58, acceptedCargoTypes: ['general'], helperFlag: false, visualVariant: 'dock_general',
-  });
+  const dock = dockOf(s, { id: 'dock-a' });
+  const otherDock = dockOf(s, { id: 'dock-b', position: { x: 100, y: 0 } });
   const ship = shipOf(s, registry, { state: s.ShipState.Unloading });
-  assert.equal(dockSystem.reserve(dock, ship).status, 'eligible');
-  assert.equal(dockSystem.occupyReserved(dock, ship.id), true);
+  occupy(dockSystem, dock, ship);
+
   const cargo = new s.CargoSystem({ dockSystem, events });
   cargo.step([{ ship, dock }], 0);
   cargo.step([], 0.8);
@@ -120,28 +140,57 @@ test('COR-12 FIX-3A ReadyToLeave keeps its dock busy while another dock stays in
   assert.equal(dockSystem.classify(otherDock, waiting).status, 'eligible');
 });
 
-test('COR-12 FIX-3A rejected outbound route does not release ReadyToLeave occupancy', async () => {
+test('COR-12 FIX-3A rejected outbound route keeps ReadyToLeave occupancy through the cargo phase', async () => {
   const { s, bundle, registry } = await setup();
   const dockSystem = new s.DockSystem();
-  const dock = new s.DockModel({
-    id: 'dock', position: { x: 0, y: 0 }, rotationDeg: 90, dockAngle: 90,
-    snapRadius: 58, acceptedCargoTypes: ['general'], helperFlag: false, visualVariant: 'dock_general',
-  });
-  const ship = shipOf(s, registry, { state: s.ShipState.ReadyToLeave, cargo: {} });
-  const reservingView = { id: ship.id, cargo: { general: 1 } };
-  assert.equal(dockSystem.reserve(dock, reservingView).status, 'eligible');
-  assert.equal(dockSystem.occupyReserved(dock, ship.id), true);
+  const events = new s.DomainEventQueue();
+  const dock = dockOf(s);
+  const ship = shipOf(s, registry, { state: s.ShipState.Unloading });
+  occupy(dockSystem, dock, ship);
 
-  const service = new s.RouteCommitService({
-    navigation: new s.NavigationValidator([]),
-    config: s.createRouteProcessingConfig(bundle),
-  });
-  const result = service.commit({
+  const cargo = new s.CargoSystem({ dockSystem, events });
+  cargo.step([{ ship, dock }], 0);
+  cargo.step([], 0.8);
+  assert.equal(ship.state, s.ShipState.ReadyToLeave);
+  assert.equal(dock.occupiedBy, ship.id);
+
+  const result = routeService(s, bundle).commit({
     ship,
     draft: { shipId: ship.id, points: [{ x: 1, y: 0 }] },
   });
-
   assert.equal(result.kind, 'rejected_too_short');
+
+  cargo.step([], 0);
   assert.equal(ship.state, s.ShipState.ReadyToLeave);
   assert.equal(dock.occupiedBy, ship.id);
+});
+
+test('COR-12 FIX-3A successful outbound route releases ReadyToLeave occupancy exactly once', async () => {
+  const { s, bundle, registry } = await setup();
+  const dockSystem = new s.DockSystem();
+  const events = new s.DomainEventQueue();
+  const dock = dockOf(s);
+  const ship = shipOf(s, registry, { state: s.ShipState.Unloading });
+  occupy(dockSystem, dock, ship);
+
+  const cargo = new s.CargoSystem({ dockSystem, events });
+  cargo.step([{ ship, dock }], 0);
+  cargo.step([], 0.8);
+  assert.equal(ship.state, s.ShipState.ReadyToLeave);
+  assert.equal(dock.occupiedBy, ship.id);
+
+  const result = routeService(s, bundle).commit({
+    ship,
+    draft: { shipId: ship.id, points: [{ x: 20, y: 0 }] },
+  });
+  assert.equal(result.kind, 'committed');
+  assert.equal(ship.state, s.ShipState.Leaving);
+
+  cargo.step([], 0);
+  assert.equal(dock.occupiedBy, null);
+
+  // The retained unload transaction is consumed by the first Leaving phase.
+  // Re-running the cargo phase cannot release the berth a second time.
+  cargo.step([], 0);
+  assert.equal(dock.occupiedBy, null);
 });
