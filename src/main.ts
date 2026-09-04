@@ -27,16 +27,17 @@ const config: Phaser.Types.Core.GameConfig = {
 
 async function bootstrap(): Promise<void> {
   await platform.init();
-  new Phaser.Game(config);
+  const game = new Phaser.Game(config);
 
   if (import.meta.env.DEV) {
-    const { DebugOverlay, unavailableDebugSnapshot } = await import(
-      './debug/DebugOverlay.ts'
-    );
-    const debugOverlay = new DebugOverlay({
-      getDebugSnapshot: () => unavailableDebugSnapshot,
+    Object.assign(globalThis, {
+      __PORT_CONTROL_SMOKE__: Object.freeze({
+        getSnapshot: () => {
+          const scene = game.scene.getScene('HarborScene');
+          return scene instanceof HarborScene ? scene.browserSmokeSnapshot() : null;
+        },
+      }),
     });
-    debugOverlay.mount();
   }
 
   await platform.gameReady();

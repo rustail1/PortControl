@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import type { Size } from '../camera/SquareWorldViewport.ts';
 import { SquareWorldViewport } from '../camera/SquareWorldViewport.ts';
 import type { ConfigBundle } from '../config/types.ts';
+import { createHarborUiLayout } from '../presentation/HarborUiLayout.ts';
 import {
   HarborRuntime,
   selectNextAttemptSeed,
@@ -17,6 +18,17 @@ interface ShipView {
   readonly route: Phaser.GameObjects.Graphics;
   readonly label: Phaser.GameObjects.Text;
   routePoints: readonly { readonly x: number; readonly y: number }[] | null;
+}
+
+export interface HarborBrowserSmokeSnapshot {
+  readonly levelId: string;
+  readonly sceneRunning: boolean;
+  readonly hudVisible: boolean;
+  readonly hudBounds: Readonly<{ x: number; y: number; width: number; height: number }> | null;
+  readonly terminalTitlePoint: Readonly<{ x: number; y: number }>;
+  readonly terminalActionPoint: Readonly<{ x: number; y: number }>;
+  readonly worldViewport: Readonly<{ x: number; y: number; width: number; height: number }>;
+  readonly uiViewport: Readonly<{ x: number; y: number; width: number; height: number }> | null;
 }
 
 const PROTOTYPE_LEVEL_ID = 'calm_07';
@@ -52,6 +64,7 @@ export class HarborScene extends Phaser.Scene {
   readonly #seedProvider: AttemptSeedProvider;
   readonly #squareViewport: SquareWorldViewport;
   readonly #shipViews = new Map<string, ShipView>();
+  readonly #busyDockLabels = new Map<string, Phaser.GameObjects.Text>();
   #runtime: HarborRuntime | null = null;
   #staticGraphics: Phaser.GameObjects.Graphics | null = null;
   #overlayGraphics: Phaser.GameObjects.Graphics | null = null;
@@ -59,6 +72,7 @@ export class HarborScene extends Phaser.Scene {
   #hud: Phaser.GameObjects.Text | null = null;
   #terminalTitle: Phaser.GameObjects.Text | null = null;
   #terminalButton: Phaser.GameObjects.Text | null = null;
+  #uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   #pageBestScore = 0;
   #terminalResultSeen = false;
 
@@ -80,6 +94,15 @@ export class HarborScene extends Phaser.Scene {
     const { width, height } = this.#logicalWorld;
     this.cameras.main.setBounds(0, 0, width, height);
     this.#resizeCamera(this.scale.gameSize);
+    this.#uiCamera = this.cameras.add(
+      0,
+      0,
+      this.scale.gameSize.width,
+      this.scale.gameSize.height,
+      false,
+      'ui',
+    );
+    this.#uiCamera.setScroll(0, 0).setZoom(1);
     this.#startAttempt(this.#seedProvider());
 
     this.scale.on(Phaser.Scale.Events.RESIZE, this.#onResize, this);
@@ -102,6 +125,7 @@ export class HarborScene extends Phaser.Scene {
       window.removeEventListener('blur', this.#onWindowBlur);
       window.removeEventListener('focus', this.#onWindowFocus);
       this.#destroyShipViews();
+      this.#destroyBusyDockLabels();
     });
   }
 
@@ -114,8 +138,46 @@ export class HarborScene extends Phaser.Scene {
     this.#render(runtime.presentationSnapshot(), advance.interpolationAlpha);
   }
 
+  public browserSmokeSnapshot(): HarborBrowserSmokeSnapshot {
+    const viewport = {
+      width: this.scale.gameSize.width,
+      height: this.scale.gameSize.height,
+    };
+    const layout = createHarborUiLayout(viewport);
+    const hudBounds = this.#hud?.getBounds() ?? null;
+    const world = this.cameras.main;
+    const ui = this.#uiCamera;
+    return Object.freeze({
+      levelId: this.#levelId,
+      sceneRunning: this.scene.isActive(this.sys.settings.key),
+      hudVisible: this.#hud?.visible === true,
+      hudBounds:
+        hudBounds === null
+          ? null
+          : Object.freeze({
+              x: hudBounds.x,
+              y: hudBounds.y,
+              width: hudBounds.width,
+              height: hudBounds.height,
+            }),
+      terminalTitlePoint: layout.terminalTitle,
+      terminalActionPoint: layout.terminalAction,
+      worldViewport: Object.freeze({
+        x: world.x,
+        y: world.y,
+        width: world.width,
+        height: world.height,
+      }),
+      uiViewport:
+        ui === null
+          ? null
+          : Object.freeze({ x: ui.x, y: ui.y, width: ui.width, height: ui.height }),
+    });
+  }
+
   #startAttempt(seed: number): void {
     this.#destroyShipViews();
+    this.#destroyBusyDockLabels();
     this.#clearTerminal();
     this.#terminalResultSeen = false;
     this.#runtime = new HarborRuntime({
@@ -124,23 +186,42 @@ export class HarborScene extends Phaser.Scene {
       attemptSeed: seed,
     });
     this.#rebuildStaticWorld(this.#runtime.presentationSnapshot());
-    this.#overlayGraphics ??= this.add.graphics().setDepth(20);
-    this.#draftGraphics ??= this.add.graphics().setDepth(15);
-    this.#hud ??= this.add
-      .text(16, 16, '', {
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        color: '#ffffff',
-        backgroundColor: '#17324dcc',
-        padding: { x: 8, y: 6 },
-      })
-      .setScrollFactor(0)
-      .setDepth(100);
+    if (this.#overlayGraphics === null) {
+      this.#overlayGraphics = this.#markWorld(this.add.graphics().setDepth(20));
+    }
+    if (this.#draftGraphics === null) {
+      this.#draftGraphics = this.#markWorld(this.add.graphics().setDepth(15));
+    }
+    if (this.#hud === null) {
+      this.#hud = this.#markUi(
+        this.add
+          .text(0, 0, '', {
+            fontFamily: 'monospace',
+            fontSize: '16px',
+            color: '#ffffff',
+            backgroundColor: '#17324dcc',
+            padding: { x: 8, y: 6 },
+          })
+          .setScrollFactor(0)
+          .setDepth(100),
+      );
+    }
+    this.#layoutUi();
+  }
+
+  #markWorld<T extends Phaser.GameObjects.GameObject>(object: T): T {
+    this.#uiCamera?.ignore(object);
+    return object;
+  }
+
+  #markUi<T extends Phaser.GameObjects.GameObject>(object: T): T {
+    this.cameras.main.ignore(object);
+    return object;
   }
 
   #rebuildStaticWorld(snapshot: HarborPresentationSnapshot): void {
     this.#staticGraphics?.destroy();
-    const graphics = this.add.graphics().setDepth(0);
+    const graphics = this.#markWorld(this.add.graphics().setDepth(0));
     const visual = this.#bundle.configs['balance.json'] as {
       readonly visual?: { readonly worldBackground?: string };
     };
@@ -173,6 +254,20 @@ export class HarborScene extends Phaser.Scene {
       const { position } = dock.definition;
       graphics.strokeRect(position.x - 34, position.y - 18, 68, 36);
       graphics.lineBetween(position.x, position.y, position.x, position.y - 28);
+      const busyLabel = this.#markWorld(
+        this.add
+          .text(position.x, position.y - 44, 'BUSY', {
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: '#ffffff',
+            backgroundColor: '#b33434dd',
+            padding: { x: 4, y: 2 },
+          })
+          .setOrigin(0.5)
+          .setDepth(25)
+          .setVisible(false),
+      );
+      this.#busyDockLabels.set(dock.definition.id, busyLabel);
     }
 
     graphics.lineStyle(2, 0xffffff, 0.45);
@@ -190,11 +285,14 @@ export class HarborScene extends Phaser.Scene {
       graphics.strokeCircle(spawnPoint.x, spawnPoint.y, 8);
     }
     this.#staticGraphics = graphics;
+    this.#refreshWorldTextScale();
   }
 
   #render(snapshot: HarborPresentationSnapshot, alpha: number): void {
     this.#renderShips(snapshot, alpha);
     this.#renderOverlay(snapshot);
+    this.#renderActiveDraft(snapshot);
+    this.#renderBusyDocks(snapshot);
     this.#renderHud(snapshot);
     if (snapshot.result !== null && !this.#terminalResultSeen) {
       this.#terminalResultSeen = true;
@@ -205,6 +303,7 @@ export class HarborScene extends Phaser.Scene {
 
   #renderShips(snapshot: HarborPresentationSnapshot, alpha: number): void {
     const alive = new Set<string>();
+    const cargoRejectIds = new Set(snapshot.cargoRejectPulses.map((pulse) => pulse.shipId));
     for (const ship of snapshot.ships) {
       alive.add(ship.ship.id);
       let view = this.#shipViews.get(ship.ship.id);
@@ -212,9 +311,11 @@ export class HarborScene extends Phaser.Scene {
         view = this.#createShipView(ship);
         this.#shipViews.set(ship.ship.id, view);
       }
-      const x = ship.previousPosition.x +
+      const x =
+        ship.previousPosition.x +
         (ship.ship.position.x - ship.previousPosition.x) * alpha;
-      const y = ship.previousPosition.y +
+      const y =
+        ship.previousPosition.y +
         (ship.ship.position.y - ship.previousPosition.y) * alpha;
       const rotation = interpolateAngleDegrees(
         ship.previousRotationDeg,
@@ -226,12 +327,16 @@ export class HarborScene extends Phaser.Scene {
         (total, quantity) => total + quantity,
         0,
       );
+      const cargoRejected = cargoRejectIds.has(ship.ship.id);
       view.label
         .setPosition(x, y + 28)
+        .setColor(cargoRejected ? '#ff8b8b' : '#ffffff')
         .setText(
-          ship.ship.state === ShipState.ReadyToLeave
-            ? `OUT · ${ship.ship.shipType}`
-            : `${ship.ship.shipType} · ${ship.ship.state} · C${cargoTotal}`,
+          cargoRejected
+            ? `CARGO! · ${ship.ship.shipType}`
+            : ship.ship.state === ShipState.ReadyToLeave
+              ? `OUT · ${ship.ship.shipType}`
+              : `${ship.ship.shipType} · ${ship.ship.state} · C${cargoTotal}`,
         );
 
       const routePoints = ship.ship.route?.points ?? null;
@@ -258,10 +363,11 @@ export class HarborScene extends Phaser.Scene {
         this.#shipViews.delete(shipId);
       }
     }
+    this.#refreshWorldTextScale();
   }
 
   #createShipView(ship: HarborShipPresentationSnapshot): ShipView {
-    const body = this.add.graphics().setDepth(10);
+    const body = this.#markWorld(this.add.graphics().setDepth(10));
     const type = ship.ship.shipType;
     if (type === 'speedboat') {
       body.fillStyle(0xf6f2df, 1);
@@ -280,16 +386,18 @@ export class HarborScene extends Phaser.Scene {
     body.fillStyle(0x17324d, 1);
     body.fillCircle(10, 0, 2.5);
 
-    const route = this.add.graphics().setDepth(5);
-    const label = this.add
-      .text(0, 0, '', {
-        fontFamily: 'monospace',
-        fontSize: '10px',
-        color: '#ffffff',
-        backgroundColor: '#17324d99',
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(11);
+    const route = this.#markWorld(this.add.graphics().setDepth(5));
+    const label = this.#markWorld(
+      this.add
+        .text(0, 0, '', {
+          fontFamily: 'monospace',
+          fontSize: '10px',
+          color: '#ffffff',
+          backgroundColor: '#17324d99',
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(11),
+    );
     return { body, route, label, routePoints: null };
   }
 
@@ -300,19 +408,20 @@ export class HarborScene extends Phaser.Scene {
     }
     graphics.clear();
 
-    graphics.lineStyle(3, 0xf5a623, 0.95);
     for (const pair of snapshot.dangerPairs) {
       const first = snapshot.ships.find((ship) => ship.ship.id === pair.shipAId);
       const second = snapshot.ships.find((ship) => ship.ship.id === pair.shipBId);
       if (first !== undefined && second !== undefined) {
+        const pulse = 0.72 + Math.sin(snapshot.simulationTime * 30) * 0.2;
+        graphics.lineStyle(4, 0xf5a623, pulse);
         graphics.lineBetween(
           first.ship.position.x,
           first.ship.position.y,
           second.ship.position.x,
           second.ship.position.y,
         );
-        graphics.strokeCircle(first.ship.position.x, first.ship.position.y, 24);
-        graphics.strokeCircle(second.ship.position.x, second.ship.position.y, 24);
+        graphics.strokeCircle(first.ship.position.x, first.ship.position.y, 27);
+        graphics.strokeCircle(second.ship.position.x, second.ship.position.y, 27);
       }
     }
 
@@ -330,10 +439,16 @@ export class HarborScene extends Phaser.Scene {
 
     graphics.fillStyle(0x17324d, 0.65);
     for (const dock of snapshot.docks) {
-      if (dock.runtime.occupiedBy !== null || dock.runtime.reservedBy !== null) {
+      if (dock.busy) {
         const { position } = dock.definition;
         graphics.fillRect(position.x - 30, position.y - 14, 60, 28);
       }
+    }
+  }
+
+  #renderBusyDocks(snapshot: HarborPresentationSnapshot): void {
+    for (const dock of snapshot.docks) {
+      this.#busyDockLabels.get(dock.definition.id)?.setVisible(dock.busy);
     }
   }
 
@@ -356,36 +471,38 @@ export class HarborScene extends Phaser.Scene {
     if (result === null) {
       return;
     }
-    const width = this.scale.gameSize.width;
-    const height = this.scale.gameSize.height;
     const failed = result.kind === 'failed';
     const title = failed
       ? `GAME OVER\n${result.failReason.toUpperCase()}\nScore ${result.score}`
       : `COMPLETED\nStars ${result.earnedStars}/3\nScore ${result.score}`;
-    this.#terminalTitle = this.add
-      .text(width / 2, height / 2 - 45, title, {
-        fontFamily: 'monospace',
-        fontSize: '26px',
-        align: 'center',
-        color: '#ffffff',
-        backgroundColor: '#17324de6',
-        padding: { x: 22, y: 18 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(200);
-    this.#terminalButton = this.add
-      .text(width / 2, height / 2 + 65, failed ? 'RESTART' : 'PLAY AGAIN', {
-        fontFamily: 'monospace',
-        fontSize: '20px',
-        color: '#17324d',
-        backgroundColor: '#f7f3e9',
-        padding: { x: 18, y: 10 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(201)
-      .setInteractive({ useHandCursor: true });
+    this.#terminalTitle = this.#markUi(
+      this.add
+        .text(0, 0, title, {
+          fontFamily: 'monospace',
+          fontSize: '26px',
+          align: 'center',
+          color: '#ffffff',
+          backgroundColor: '#17324de6',
+          padding: { x: 22, y: 18 },
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(200),
+    );
+    this.#terminalButton = this.#markUi(
+      this.add
+        .text(0, 0, failed ? 'RESTART' : 'PLAY AGAIN', {
+          fontFamily: 'monospace',
+          fontSize: '20px',
+          color: '#17324d',
+          backgroundColor: '#f7f3e9',
+          padding: { x: 18, y: 10 },
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(201)
+        .setInteractive({ useHandCursor: true }),
+    );
     this.#terminalButton.on(
       'pointerdown',
       (
@@ -407,6 +524,7 @@ export class HarborScene extends Phaser.Scene {
         this.#startAttempt(nextSeed);
       },
     );
+    this.#layoutUi();
   }
 
   #clearTerminal(): void {
@@ -427,6 +545,13 @@ export class HarborScene extends Phaser.Scene {
     this.#overlayGraphics?.clear();
   }
 
+  #destroyBusyDockLabels(): void {
+    for (const label of this.#busyDockLabels.values()) {
+      label.destroy();
+    }
+    this.#busyDockLabels.clear();
+  }
+
   #pointerInput(pointer: Phaser.Input.Pointer) {
     return {
       source: pointer.wasTouch ? ('touch' as const) : ('mouse' as const),
@@ -445,7 +570,7 @@ export class HarborScene extends Phaser.Scene {
       return;
     }
     runtime.pointerDown(this.#pointerInput(pointer));
-    this.#renderActiveDraft();
+    this.#renderActiveDraft(runtime.presentationSnapshot());
   }
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
@@ -454,7 +579,7 @@ export class HarborScene extends Phaser.Scene {
       return;
     }
     runtime.pointerMove(this.#pointerInput(pointer));
-    this.#renderActiveDraft();
+    this.#renderActiveDraft(runtime.presentationSnapshot());
   }
 
   #onPointerUp(pointer: Phaser.Input.Pointer): void {
@@ -463,39 +588,54 @@ export class HarborScene extends Phaser.Scene {
       return;
     }
     runtime.pointerUp(this.#pointerInput(pointer));
-    this.#renderActiveDraft();
+    this.#renderActiveDraft(runtime.presentationSnapshot());
   }
 
-  #renderActiveDraft(): void {
+  #renderActiveDraft(snapshot: HarborPresentationSnapshot): void {
     const graphics = this.#draftGraphics;
-    const runtime = this.#runtime;
-    if (graphics === null || runtime === null) {
+    if (graphics === null) {
       return;
     }
     graphics.clear();
-    const draft = runtime.presentationSnapshot().activeDraft;
-    if (draft === null || draft.points.length === 0) {
+    const preview = snapshot.routePreview;
+    if (preview === null) {
       return;
     }
-    const selected = runtime
-      .presentationSnapshot()
-      .ships.find((ship) => ship.ship.id === draft.shipId);
+    const selected = snapshot.ships.find((ship) => ship.ship.id === preview.shipId);
     if (selected === undefined) {
       return;
     }
-    graphics.lineStyle(5, 0xfff0a6, 1);
-    graphics.beginPath();
-    graphics.moveTo(selected.ship.position.x, selected.ship.position.y);
-    for (const point of draft.points) {
-      graphics.lineTo(point.x, point.y);
+
+    let anchor = selected.ship.position;
+    if (preview.validPoints.length > 0) {
+      graphics.lineStyle(5, 0xfff0a6, 1);
+      graphics.beginPath();
+      graphics.moveTo(anchor.x, anchor.y);
+      for (const point of preview.validPoints) {
+        graphics.lineTo(point.x, point.y);
+        anchor = point;
+      }
+      graphics.strokePath();
     }
-    graphics.strokePath();
+
+    if (preview.rejectedPoints.length > 0) {
+      graphics.lineStyle(6, 0xff4d4d, 0.98);
+      graphics.beginPath();
+      graphics.moveTo(anchor.x, anchor.y);
+      for (const point of preview.rejectedPoints) {
+        graphics.lineTo(point.x, point.y);
+      }
+      graphics.strokePath();
+    }
   }
 
   #onResize(gameSize: Phaser.Structs.Size): void {
     this.#runtime?.cancelActiveDraft();
     this.#draftGraphics?.clear();
     this.#resizeCamera(gameSize);
+    this.#uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
+    this.#layoutUi();
+    this.#refreshWorldTextScale();
   }
 
   #resizeCamera(gameSize: Phaser.Structs.Size): void {
@@ -504,6 +644,34 @@ export class HarborScene extends Phaser.Scene {
     camera.setViewport(layout.x, layout.y, layout.size, layout.size);
     camera.setZoom(layout.scale);
     camera.centerOn(this.#logicalWorld.width / 2, this.#logicalWorld.height / 2);
+  }
+
+  #layoutUi(): void {
+    const layout = createHarborUiLayout({
+      width: this.scale.gameSize.width,
+      height: this.scale.gameSize.height,
+    });
+    this.#hud
+      ?.setPosition(layout.hud.x, layout.hud.y)
+      .setWordWrapWidth(layout.hudMaxWidth, true);
+    this.#terminalTitle?.setPosition(
+      layout.terminalTitle.x,
+      layout.terminalTitle.y,
+    );
+    this.#terminalButton?.setPosition(
+      layout.terminalAction.x,
+      layout.terminalAction.y,
+    );
+  }
+
+  #refreshWorldTextScale(): void {
+    const inverseZoom = 1 / this.cameras.main.zoom;
+    for (const view of this.#shipViews.values()) {
+      view.label.setScale(inverseZoom);
+    }
+    for (const label of this.#busyDockLabels.values()) {
+      label.setScale(inverseZoom);
+    }
   }
 
   readonly #onVisibilityChange = (): void => {
