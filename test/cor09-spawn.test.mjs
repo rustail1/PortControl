@@ -429,6 +429,8 @@ test('IncomingIndicator command carries exact authored point and effective lead 
   assert.deepEqual(result.indicator, {
     transactionId: 'tx-1',
     spawnPointId: a.spawnPoint.id,
+    shipId: 'incoming-ship',
+    shipType: 'speedboat',
     x: a.spawnPoint.x,
     y: a.spawnPoint.y,
     directionDeg: a.spawnPoint.directionDeg,

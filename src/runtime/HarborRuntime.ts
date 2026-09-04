@@ -82,6 +82,17 @@ import {
 import { createSpawnPointsForValidatedLevel } from '../spawning/SpawnPointFactory.ts';
 import type { SpawnPoint } from '../spawning/SpawnPoint.ts';
 import { PresentationPulseStore } from '../presentation/PresentationPulseStore.ts';
+import {
+  createIncomingVesselPresentation,
+  DeparturePresentationStore,
+  type DeparturePresentationSnapshot,
+  type IncomingVesselPresentationSnapshot,
+} from '../presentation/VesselFlowPresentation.ts';
+
+export {
+  createIncomingVesselPresentation,
+  DeparturePresentationStore,
+} from '../presentation/VesselFlowPresentation.ts';
 
 const DANGER_VISUAL_TTL_SECONDS = 0.45;
 const CARGO_REJECT_VISUAL_TTL_SECONDS = 0.65;
@@ -111,6 +122,11 @@ export interface HarborShipPresentationSnapshot {
   readonly spawnSequence: number;
   readonly previousPosition: Point;
   readonly previousRotationDeg: number;
+}
+
+interface IncomingPresentationRecord {
+  readonly indicator: IncomingIndicatorCommand;
+  readonly startedAtSeconds: number;
 }
 
 export interface HarborDockPresentationSnapshot {
@@ -152,7 +168,8 @@ export interface HarborPresentationSnapshot {
   readonly exits: readonly ExitZoneDefinition[];
   readonly land: readonly LandClearancePolygon[];
   readonly spawnPoints: readonly SpawnPoint[];
-  readonly incoming: readonly IncomingIndicatorCommand[];
+  readonly incoming: readonly IncomingVesselPresentationSnapshot[];
+  readonly departures: readonly DeparturePresentationSnapshot[];
   readonly dangerPairs: readonly HarborDangerPairSnapshot[];
   readonly cargoRejectPulses: readonly HarborCargoRejectPulseSnapshot[];
   readonly selectedShipId: string | null;
@@ -287,7 +304,8 @@ export class HarborRuntime {
   readonly #session: ReturnType<typeof createGameSessionFromConfig>;
   readonly #active = new Map<string, ActiveShipRecord>();
   readonly #routeCommands: RawRouteDraft[] = [];
-  readonly #incomingIndicators = new Map<string, IncomingIndicatorCommand>();
+  readonly #incomingIndicators = new Map<string, IncomingPresentationRecord>();
+  readonly #departures: DeparturePresentationStore;
   readonly #presentationPulses = new PresentationPulseStore();
   readonly #spawnCandidates: SpawnDirectorActiveShip[] = [];
   readonly #collisionCandidates: CollisionShipCandidate[] = [];
@@ -331,6 +349,7 @@ export class HarborRuntime {
       width: logicalWorld[0],
       height: logicalWorld[1],
     });
+    this.#departures = new DeparturePresentationStore(this.#viewport.logicalWorld);
 
     this.#rng = new SeededRng(options.attemptSeed);
     this.#characteristics = createShipCharacteristicsRegistry(options.bundle);
@@ -494,10 +513,14 @@ export class HarborRuntime {
         'renderDeltaMilliseconds must be a non-negative finite number',
       );
     }
-    if (
-      !this.#activeForRenderAdvance ||
-      this.#session.state !== SessionState.Active
-    ) {
+    if (!this.#activeForRenderAdvance) {
+      return Object.freeze({
+        steps: 0,
+        interpolationAlpha: this.#clock.interpolationAlpha,
+      });
+    }
+    this.#departures.advance(renderDeltaMilliseconds / 1000);
+    if (this.#session.state !== SessionState.Active) {
       return Object.freeze({
         steps: 0,
         interpolationAlpha: this.#clock.interpolationAlpha,
@@ -543,8 +566,19 @@ export class HarborRuntime {
       land: this.#landGeometry.polygons,
       spawnPoints: this.#spawnPoints,
       incoming: Object.freeze(
-        [...this.#incomingIndicators.values()].map(cloneIndicator),
+        [...this.#incomingIndicators.values()].map((record) => {
+          const characteristics = this.#characteristics.require(
+            record.indicator.shipType,
+          );
+          return createIncomingVesselPresentation({
+            indicator: record.indicator,
+            elapsedSeconds: this.#session.simulationTime - record.startedAtSeconds,
+            speed: characteristics.speed,
+            collisionRadius: characteristics.collisionRadius,
+          });
+        }),
       ),
+      departures: this.#departures.snapshot(),
       dangerPairs: Object.freeze(dangerPairs),
       cargoRejectPulses: Object.freeze(cargoRejectPulses),
       selectedShipId: this.#presentationSelectedShipId,
@@ -667,6 +701,17 @@ export class HarborRuntime {
       );
     }
     for (const shipId of exit.despawnedShipIds) {
+      const record = this.#active.get(shipId);
+      if (record !== undefined) {
+        this.#departures.add({
+          shipId,
+          shipType: record.ship.characteristics.type,
+          position: record.ship.position,
+          rotationDeg: record.ship.rotationDeg,
+          speed: record.ship.characteristics.speed,
+          collisionRadius: record.ship.characteristics.collisionRadius,
+        });
+      }
       this.#removeActiveShip(shipId);
     }
 
@@ -727,7 +772,10 @@ export class HarborRuntime {
     }
 
     for (const indicator of this.#incoming.consumeIndicatorCommands()) {
-      this.#incomingIndicators.set(indicator.transactionId, indicator);
+      this.#incomingIndicators.set(indicator.transactionId, {
+        indicator: cloneIndicator(indicator),
+        startedAtSeconds: simulationTime + deltaSeconds,
+      });
     }
   }
 

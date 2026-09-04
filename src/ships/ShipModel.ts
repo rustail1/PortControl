@@ -87,7 +87,9 @@ export class ShipModel {
     this.#rotationDeg = normalizeRotationDeg(init.rotationDeg);
     this.#state = init.state;
     this.#cargo = copyCargo(init.cargo);
-    this.#route = init.route === undefined || init.route === null ? null : ShipRoute.restore(init.route);
+    this.#route = init.route === undefined || init.route === null
+      ? null
+      : ShipRoute.restore(init.route, init.position);
     this.#routeCursor = this.#route === null ? 0 : Math.min(init.routeCursor ?? 0, this.#route.length);
   }
 
@@ -116,7 +118,10 @@ export class ShipModel {
   public get route(): ShipRoute | null { return this.#route; }
   public get routeCursor(): number { return this.#routeCursor; }
   public get currentWaypoint(): ShipPosition | null { return this.#route?.at(this.#routeCursor) ?? null; }
-  public replaceRoute(route: ShipRoute): void { this.#route = route; this.#routeCursor = 0; }
+  public replaceRoute(route: ShipRoute): void {
+    this.#route = route.withStart(this.position);
+    this.#routeCursor = 0;
+  }
   public clearRoute(): void { this.#route = null; this.#routeCursor = 0; }
   public advanceRouteCursor(): void { if (this.#route !== null && this.#routeCursor < this.#route.length) this.#routeCursor += 1; }
 

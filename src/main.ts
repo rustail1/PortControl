@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { getLogicalWorldSize } from './config/getLogicalWorldSize.ts';
 import { loadBundledConfig } from './config/loadBundledConfig.ts';
 import { LocalPlatformAdapter } from './platform/LocalPlatformAdapter.ts';
+import { resolveDevelopmentLevelId } from './scenes/HarborLevelSelection.ts';
 import { HarborScene } from './scenes/HarborScene.ts';
 import './styles.css';
 
@@ -10,6 +11,7 @@ const configBundle = loadBundledConfig();
 const logicalWorld = getLogicalWorldSize(configBundle);
 
 const platform = new LocalPlatformAdapter();
+const levelId = resolveDevelopmentLevelId(globalThis.location.search, configBundle.levels);
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -22,7 +24,7 @@ const config: Phaser.Types.Core.GameConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     expandParent: true,
   },
-  scene: [new HarborScene(logicalWorld, configBundle, 'calm_07')],
+  scene: [new HarborScene(logicalWorld, configBundle, levelId)],
 };
 
 async function bootstrap(): Promise<void> {

@@ -49,6 +49,7 @@ interface ActiveRouteInteraction {
   readonly ship: ShipModel;
   readonly initialCssPosition: Point;
   readonly points: Point[];
+  lastWorldPosition: Point;
   activated: boolean;
 }
 
@@ -133,6 +134,7 @@ export class RouteInputController {
       ship,
       initialCssPosition: { ...input.cssPosition },
       points: [],
+      lastWorldPosition: { ...worldPoint },
       activated: false,
     };
     return { kind: 'started', shipId: ship.id };
@@ -148,15 +150,13 @@ export class RouteInputController {
     }
     const worldPoint = this.#toWorld(input);
     if (worldPoint === null) {
-      if (this.#active?.activated === true) {
-        return this.#finish();
-      }
-      this.#active = null;
-      return { kind: 'cancelled' };
+      return this.#finishAtWorldBoundary(input);
     }
     if (!this.#activateIfThresholdReached(input)) {
+      if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
       return { kind: 'ignored' };
     }
+    if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
     if (!this.#sample(worldPoint)) {
       return { kind: 'ignored' };
     }
@@ -173,11 +173,7 @@ export class RouteInputController {
     }
     const worldPoint = this.#toWorld(input);
     if (worldPoint === null) {
-      if (this.#active?.activated === true) {
-        return this.#finish();
-      }
-      this.#active = null;
-      return { kind: 'cancelled' };
+      return this.#finishAtWorldBoundary(input);
     }
     if (!this.#activateIfThresholdReached(input)) {
       const active = this.#active;
@@ -200,6 +196,14 @@ export class RouteInputController {
 
   #toWorld(input: NormalizedPointerInput): Point | null {
     return this.#viewport.screenToWorld(input.screenPosition, input.internalViewport);
+  }
+
+  #toUnboundedWorld(input: NormalizedPointerInput): Point {
+    const layout = this.#viewport.layout(input.internalViewport);
+    return {
+      x: ((input.screenPosition.x - layout.x) * this.#viewport.logicalWorld.width) / layout.size,
+      y: ((input.screenPosition.y - layout.y) * this.#viewport.logicalWorld.height) / layout.size,
+    };
   }
 
   #owns(pointerId: number): boolean {
@@ -240,6 +244,65 @@ export class RouteInputController {
     }
     active.points.push({ ...point });
     return true;
+  }
+
+  #finishAtWorldBoundary(input: NormalizedPointerInput): RouteInputOutcome {
+    const active = this.#active;
+    if (active === null) return { kind: 'ignored' };
+    if (!this.#activateIfThresholdReached(input)) {
+      this.#active = null;
+      return { kind: 'cancelled' };
+    }
+    const boundaryPoint = this.#worldBoundaryIntersection(
+      active.lastWorldPosition,
+      this.#toUnboundedWorld(input),
+    );
+    if (boundaryPoint !== null) this.#appendBoundaryPoint(boundaryPoint);
+    return this.#finish();
+  }
+
+  #appendBoundaryPoint(point: Point): void {
+    const active = this.#active;
+    if (active === null) return;
+    const previous = active.points.at(-1);
+    if (previous?.x === point.x && previous.y === point.y) return;
+    if (active.points.length < this.#sampling.maxRawPoints) {
+      active.points.push({ ...point });
+    } else if (active.points.length > 0) {
+      active.points[active.points.length - 1] = { ...point };
+    }
+  }
+
+  #worldBoundaryIntersection(from: Point, to: Point): Point | null {
+    const width = this.#viewport.logicalWorld.width;
+    const height = this.#viewport.logicalWorld.height;
+    const deltaX = to.x - from.x;
+    const deltaY = to.y - from.y;
+    const candidates: { t: number; point: Point }[] = [];
+    const addCandidate = (t: number, x: number, y: number): void => {
+      if (t < 0 || t > 1 || x < 0 || x > width || y < 0 || y > height) return;
+      candidates.push({
+        t,
+        point: {
+          x: Math.min(Math.max(x, 0), width),
+          y: Math.min(Math.max(y, 0), height),
+        },
+      });
+    };
+    if (deltaX !== 0) {
+      for (const x of [0, width]) {
+        const t = (x - from.x) / deltaX;
+        addCandidate(t, x, from.y + deltaY * t);
+      }
+    }
+    if (deltaY !== 0) {
+      for (const y of [0, height]) {
+        const t = (y - from.y) / deltaY;
+        addCandidate(t, from.x + deltaX * t, y);
+      }
+    }
+    candidates.sort((left, right) => left.t - right.t);
+    return candidates[0]?.point ?? null;
   }
 
   #cancelIfActiveShipIsInputLocked(): RouteInputOutcome | null {

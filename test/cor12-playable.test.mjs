@@ -631,6 +631,48 @@ test('COR-12 #49 despawned ship has no route or draft reference in presentation 
   assert.equal(runtime.presentationSnapshot().ships.some((ship) => exited.includes(ship.ship.id)), false);
 });
 
+test('COR-12 FIX-2B authoritative despawn leaves only a moving presentation departure', async () => {
+  const { s, bundle } = await setup();
+  const runtime = new s.HarborRuntime({ bundle, levelId: 'calm_01', attemptSeed: 3333 });
+  let snapshot = advanceUntil(runtime, (state) => state.ships.length > 0);
+  const ship = firstShip(snapshot);
+  assert.ok(ship);
+  runtime.enqueueRouteDraft(rawDraft(ship.ship.id, routeToDock(snapshot, ship)));
+  snapshot = advanceUntil(runtime, (state) => state.ships.some(
+    (candidate) => candidate.ship.id === ship.ship.id &&
+      candidate.ship.state === s.ShipState.ReadyToLeave,
+  ), 7000);
+  const ready = snapshot.ships.find((candidate) => candidate.ship.id === ship.ship.id);
+  assert.ok(ready);
+  runtime.enqueueRouteDraft(rawDraft(ship.ship.id, freeExitRoute(snapshot, ready)));
+  advanceUntil(runtime, (state) => state.departures.some(
+    (departure) => departure.shipId === ship.ship.id,
+  ), 7000);
+  const beforeSession = runtime.sessionSnapshot();
+  const before = runtime.presentationSnapshot().departures
+    .find((departure) => departure.shipId === ship.ship.id);
+  assert.ok(before);
+  assert.equal(Object.hasOwn(runtime.authoritativeSnapshot(), 'departures'), false);
+
+  runtime.advanceRender(1);
+  const after = runtime.presentationSnapshot().departures
+    .find((departure) => departure.shipId === before.shipId);
+  assert.ok(after);
+  assert.notDeepEqual(after.position, before.position);
+  assert.deepEqual(runtime.sessionSnapshot(), beforeSession);
+
+  for (let frame = 0; frame < 1200 && runtime.presentationSnapshot().departures.length > 0; frame += 1) {
+    runtime.advanceRender(1000 / 60);
+  }
+  assert.equal(runtime.presentationSnapshot().departures.length, 0);
+  const afterDeparture = runtime.sessionSnapshot();
+  assert.equal(afterDeparture.score.score, beforeSession.score.score);
+  assert.deepEqual(
+    afterDeparture.metrics.countedExitShipIds,
+    beforeSession.metrics.countedExitShipIds,
+  );
+});
+
 test('COR-12 #50 new runtime restart starts clean with no active ships or queued route commands', async () => {
   const { s, bundle } = await setup();
   const oldRuntime = new s.HarborRuntime({ bundle, levelId: 'calm_01', attemptSeed: 222 });

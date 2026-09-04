@@ -67,6 +67,20 @@ function firstRouteEligibleShip(snapshot) {
   );
 }
 
+async function dragWorldRoute(page, shipId, worldPoints) {
+  const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+  const ship = before.ships.find((candidate) => candidate.id === shipId);
+  assert.ok(ship);
+  const start = worldToCss(before, ship.position);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (const point of worldPoints) {
+    const cssPoint = worldToCss(before, point);
+    await page.mouse.move(cssPoint.x, cssPoint.y, { steps: 4 });
+  }
+  await page.mouse.up();
+}
+
 async function main() {
   const launch = buildViteLaunch({ host: HOST, port: PORT });
   const server = spawn(
@@ -102,7 +116,7 @@ async function main() {
     }
 
     await check('BROWSER-01 app opens without uncaught exception', async () => {
-      await page.goto(URL, { waitUntil: 'networkidle' });
+      await page.goto(`${URL}/?level=calm_01`, { waitUntil: 'networkidle' });
       await page.waitForFunction(
         () => globalThis.__PORT_CONTROL_SMOKE__?.getSnapshot?.()?.sceneRunning === true,
         null,
@@ -120,17 +134,56 @@ async function main() {
       assert.ok(box.height > 0);
     });
 
-    await check('BROWSER-03 calm_07 HarborScene is running', async () => {
+    await check('BROWSER-03 generic Human Feel launch runs calm_01 without island', async () => {
       const snapshot = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
-      assert.equal(snapshot.levelId, 'calm_07');
+      assert.equal(snapshot.levelId, 'calm_01');
       assert.equal(snapshot.sceneRunning, true);
+      assert.equal(snapshot.land.length, 1);
     });
 
     if (process.env.PORT_CONTROL_SMOKE_FORCE_FAILURE === '1') {
       throw new Error('Forced browser smoke failure for cleanup verification');
     }
 
-    await check('BROWSER-04 desktop 1600x900 HUD is visible inside viewport', async () => {
+    await check('BROWSER-04 incoming vessel moves from fully offscreen toward its spawn', async () => {
+      await page.waitForFunction(
+        () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incoming.length > 0,
+        null,
+        { timeout: 5000 },
+      );
+      const before = await page.evaluate(() =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incoming[0]);
+      assert.ok(before);
+      assert.ok(
+        before.originPosition.x + before.collisionRadius < 0 ||
+        before.originPosition.x - before.collisionRadius > 1000 ||
+        before.originPosition.y + before.collisionRadius < 0 ||
+        before.originPosition.y - before.collisionRadius > 1000,
+      );
+      const beforeDistance = Math.hypot(
+        before.spawnPosition.x - before.position.x,
+        before.spawnPosition.y - before.position.y,
+      );
+      await page.waitForFunction(({ shipId, beforePosition, beforeDistance }) => {
+        const incoming = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incoming
+          .find((candidate) => candidate.shipId === shipId);
+        return incoming !== undefined &&
+          Math.hypot(
+            incoming.position.x - beforePosition.x,
+            incoming.position.y - beforePosition.y,
+          ) > 0.1 &&
+          Math.hypot(
+            incoming.spawnPosition.x - incoming.position.x,
+            incoming.spawnPosition.y - incoming.position.y,
+          ) < beforeDistance;
+      }, {
+        shipId: before.shipId,
+        beforePosition: before.position,
+        beforeDistance,
+      }, { timeout: 2000 });
+    });
+
+    await check('BROWSER-05 desktop 1600x900 HUD is visible inside viewport', async () => {
       const snapshot = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       const viewport = { width: 1600, height: 900 };
       assert.equal(snapshot.hudVisible, true);
@@ -144,7 +197,7 @@ async function main() {
       assert.deepEqual(uncaught, []);
     });
 
-    await check('BROWSER-05 portrait 390x844 HUD is visible inside viewport', async () => {
+    await check('BROWSER-06 portrait 390x844 HUD is visible inside viewport', async () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.waitForTimeout(150);
       const snapshot = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
@@ -160,7 +213,7 @@ async function main() {
       assert.deepEqual(uncaught, []);
     });
 
-    await check('BROWSER-06 terminal layout center and action stay in viewport', async () => {
+    await check('BROWSER-07 terminal layout center and action stay in viewport', async () => {
       const snapshot = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       const viewport = { width: 390, height: 844 };
       assert.ok(rectInside(snapshot.terminalTitleCssBounds, viewport));
@@ -172,7 +225,7 @@ async function main() {
       assert.equal(snapshot.terminalActionInteractive, true);
     });
 
-    await check('BROWSER-07 resize does not crash scene', async () => {
+    await check('BROWSER-08 resize does not crash scene', async () => {
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       await page.setViewportSize({ width: 1000, height: 1000 });
       await page.waitForFunction(
@@ -186,7 +239,7 @@ async function main() {
       assert.deepEqual(uncaught, []);
     });
 
-    await check('BROWSER-08 pointer enters gameplay surface without page scrolling', async () => {
+    await check('BROWSER-09 pointer enters gameplay surface without page scrolling', async () => {
       const canvas = page.locator('canvas');
       const box = await canvas.boundingBox();
       assert.ok(box);
@@ -212,7 +265,7 @@ async function main() {
       assert.equal(result.touchAction, 'none');
     });
 
-    await check('BROWSER-09 route-less Entering ship visibly moves', async () => {
+    await check('BROWSER-10 route-less Entering ship visibly moves', async () => {
       await page.waitForFunction(
         () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
           .some((ship) => ship.state === 'Entering' && ship.route === null),
@@ -237,10 +290,20 @@ async function main() {
       ) > 0.1);
     });
 
-    await check('BROWSER-10 tap selects ship without routing', async () => {
+    let tappedShipId;
+    await check('BROWSER-11 tap selects ship without routing', async () => {
+      await page.waitForFunction(() =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships.some((ship) =>
+          ['Entering', 'Navigating', 'ReadyToLeave', 'Leaving'].includes(ship.state) &&
+          ship.position.x >= 30 && ship.position.x <= 970 &&
+          ship.position.y >= 30 && ship.position.y <= 970));
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
-      const ship = firstRouteEligibleShip(before);
+      const ship = before.ships.find((candidate) =>
+        ['Entering', 'Navigating', 'ReadyToLeave', 'Leaving'].includes(candidate.state) &&
+        candidate.position.x >= 30 && candidate.position.x <= 970 &&
+        candidate.position.y >= 30 && candidate.position.y <= 970);
       assert.ok(ship);
+      tappedShipId = ship.id;
       const point = worldToCss(before, ship.position);
       await page.mouse.click(point.x, point.y);
       const after = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
@@ -253,16 +316,16 @@ async function main() {
 
     let routedShipId;
     let committedRoute;
-    await check('BROWSER-11 real 12px-plus drag commits a route', async () => {
+    await check('BROWSER-12 real 12px-plus drag commits a route', async () => {
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
-      const ship = firstRouteEligibleShip(before);
+      const ship = before.ships.find((candidate) => candidate.id === tappedShipId);
       assert.ok(ship);
       routedShipId = ship.id;
       const start = worldToCss(before, ship.position);
       const heading = ship.rotationDeg * Math.PI / 180;
       const target = worldToCss(before, {
-        x: ship.position.x + Math.cos(heading) * 80,
-        y: ship.position.y + Math.sin(heading) * 80,
+        x: ship.position.x + Math.cos(heading) * 120,
+        y: ship.position.y + Math.sin(heading) * 120,
       });
       await page.mouse.move(start.x, start.y);
       await page.mouse.down();
@@ -288,7 +351,7 @@ async function main() {
       assert.equal(after.queuedRouteCommands, 0);
     });
 
-    await check('BROWSER-12 Escape cancels activated draft and preserves route', async () => {
+    await check('BROWSER-13 Escape cancels activated draft and preserves route', async () => {
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       const ship = before.ships.find((candidate) => candidate.id === routedShipId);
       assert.ok(ship);
@@ -309,10 +372,11 @@ async function main() {
       );
     });
 
-    await check('BROWSER-13 right click cancels draft and suppresses context menu', async () => {
+    await check('BROWSER-14 right click cancels draft and suppresses context menu', async () => {
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
-      const ship = before.ships.find((candidate) => candidate.id === routedShipId);
+      const ship = firstRouteEligibleShip(before);
       assert.ok(ship);
+      const routeBeforeCancel = ship.route;
       const start = worldToCss(before, ship.position);
       await page.evaluate(() => {
         globalThis.__PORT_CONTROL_CONTEXT_PREVENTED__ = false;
@@ -335,12 +399,146 @@ async function main() {
       assert.equal(after.snapshot.queuedRouteCommands, 0);
       assert.equal(after.contextPrevented, true);
       assert.deepEqual(
-        after.snapshot.ships.find((candidate) => candidate.id === routedShipId)?.route,
-        committedRoute,
+        after.snapshot.ships.find((candidate) => candidate.id === ship.id)?.route,
+        routeBeforeCancel,
       );
     });
 
-    console.log(`Browser smoke: PASS (${passed}/13)`);
+    await check('BROWSER-15 outward drag commits an exact world-edge endpoint', async () => {
+      await page.setViewportSize({ width: 1600, height: 900 });
+      await page.waitForFunction(
+        () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().canvasCssBounds.width === 1600,
+      );
+      const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+      const ship = firstRouteEligibleShip(before);
+      assert.ok(ship);
+      const outsideX = ship.position.x < 500 ? -100 : 1100;
+      await dragWorldRoute(page, ship.id, [{ x: outsideX, y: ship.position.y + 80 }]);
+      await page.waitForFunction((shipId) =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+          .find((candidate) => candidate.id === shipId)?.route !== null,
+        ship.id,
+        { timeout: 5000 },
+      );
+      const route = await page.evaluate((shipId) =>
+        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+          .find((candidate) => candidate.id === shipId)?.route, ship.id);
+      assert.ok(route);
+      const endpoint = route.points.at(-1);
+      assert.ok(endpoint);
+      assert.equal(endpoint.x, outsideX < 0 ? 0 : 1000);
+      assert.ok(endpoint.y >= 0 && endpoint.y <= 1000);
+    });
+
+    await check('BROWSER-16 explicit calm_07 launch preserves its island layout', async () => {
+      const calm07Page = await context.newPage();
+      try {
+        await calm07Page.goto(`${URL}/?level=calm_07`, { waitUntil: 'networkidle' });
+        await calm07Page.waitForFunction(
+          () => globalThis.__PORT_CONTROL_SMOKE__?.getSnapshot?.()?.sceneRunning === true,
+          null,
+          { timeout: 15000 },
+        );
+        const snapshot = await calm07Page.evaluate(() =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+        assert.equal(snapshot.levelId, 'calm_07');
+        assert.equal(snapshot.land.length, 2);
+      } finally {
+        await calm07Page.close();
+      }
+    });
+
+    await check('BROWSER-17 authoritative exit continues fully offscreen before visual removal', async () => {
+      const flowPage = await context.newPage();
+      const flowErrors = [];
+      flowPage.on('pageerror', (error) => flowErrors.push(String(error)));
+      await flowPage.addInitScript(() => {
+        globalThis.crypto.getRandomValues = (values) => {
+          values[0] = 3333;
+          return values;
+        };
+      });
+      try {
+        await flowPage.goto(`${URL}/?level=calm_01`, { waitUntil: 'networkidle' });
+        await flowPage.waitForFunction(
+          () => globalThis.__PORT_CONTROL_SMOKE__?.getSnapshot?.()?.ships.length > 0,
+          null,
+          { timeout: 15000 },
+        );
+        let snapshot = await flowPage.evaluate(() =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+        const ship = firstRouteEligibleShip(snapshot);
+        assert.ok(ship);
+        const dock = [...snapshot.docks].sort(
+          (a, b) => Math.abs(a.definition.position.x - ship.position.x) -
+            Math.abs(b.definition.position.x - ship.position.x),
+        )[0];
+        assert.ok(dock);
+        const dockX = dock.definition.position.x;
+        const inbound = ship.position.y > 700
+          ? [
+              { x: ship.position.x, y: 700 },
+              { x: dockX, y: 300 },
+              { x: dockX, y: dock.definition.position.y },
+            ]
+          : [
+              { x: ship.position.x < 500 ? 180 : 820, y: ship.position.y },
+              { x: dockX, y: 300 },
+              { x: dockX, y: dock.definition.position.y },
+            ];
+        await dragWorldRoute(flowPage, ship.id, inbound);
+        await flowPage.waitForFunction((shipId) =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId)?.state === 'ReadyToLeave',
+          ship.id,
+          { timeout: 30000 },
+        );
+        snapshot = await flowPage.evaluate(() =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+        const ready = snapshot.ships.find((candidate) => candidate.id === ship.id);
+        assert.ok(ready);
+        const goLeft = dockX < 500;
+        const outbound = goLeft
+          ? [{ x: 250, y: 300 }, { x: 100, y: 420 }, { x: -100, y: 500 }]
+          : [{ x: 750, y: 300 }, { x: 900, y: 420 }, { x: 1100, y: 500 }];
+        await dragWorldRoute(flowPage, ship.id, outbound);
+        await flowPage.waitForFunction((shipId) =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().departures
+            .some((departure) => departure.shipId === shipId),
+          ship.id,
+          { timeout: 30000 },
+        );
+        const departed = await flowPage.evaluate((shipId) => {
+          const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+          return {
+            departure: current.departures.find((candidate) => candidate.shipId === shipId),
+            score: current.score,
+          };
+        }, ship.id);
+        assert.ok(departed.departure);
+        await flowPage.waitForFunction(({ shipId, position }) => {
+          const departure = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().departures
+            .find((candidate) => candidate.shipId === shipId);
+          return departure !== undefined && Math.hypot(
+            departure.position.x - position.x,
+            departure.position.y - position.y,
+          ) > 0.1;
+        }, { shipId: ship.id, position: departed.departure.position }, { timeout: 2000 });
+        await flowPage.waitForFunction((shipId) => {
+          const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+          return !current.ships.some((candidate) => candidate.id === shipId) &&
+            !current.departures.some((candidate) => candidate.shipId === shipId);
+        }, ship.id, { timeout: 5000 });
+        const after = await flowPage.evaluate(() =>
+          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+        assert.equal(after.score, departed.score);
+        assert.deepEqual(flowErrors, []);
+      } finally {
+        await flowPage.close();
+      }
+    });
+
+    console.log(`Browser smoke: PASS (${passed}/${passed})`);
   } finally {
     try {
       await page?.close();

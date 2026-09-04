@@ -18,6 +18,8 @@ export interface IncomingSpawnRequest {
 export interface IncomingIndicatorCommand {
   readonly transactionId: string;
   readonly spawnPointId: string;
+  readonly shipId: string;
+  readonly shipType: string;
   readonly x: number;
   readonly y: number;
   readonly directionDeg: number;
@@ -189,6 +191,8 @@ export class IncomingSpawnSystem {
     const indicator = Object.freeze({
       transactionId: request.transactionId,
       spawnPointId: request.spawnPoint.id,
+      shipId: request.payload.shipId,
+      shipType: request.payload.shipType,
       x: request.spawnPoint.x,
       y: request.spawnPoint.y,
       directionDeg: request.spawnPoint.directionDeg,

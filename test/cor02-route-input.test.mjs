@@ -154,14 +154,17 @@ test('pointerup and pointercancel clear route ownership', async () => {
   assert.equal(controller.activePointerId, null);
 });
 
-test('leaving the playfield finishes at the last valid world point', async () => {
+test('leaving the playfield finishes at the exact world-edge intersection', async () => {
   const { controller } = await createController(subjectState('Navigating'));
   controller.pointerDown(pointer('mouse', 1, 100, 100));
   controller.pointerMove(pointer('mouse', 1, 200, 100));
 
   assert.deepEqual(controller.pointerMove(pointer('mouse', 1, 1100, 100)), {
     kind: 'finished',
-    draft: { shipId: 'ship-input', points: [{ x: 200, y: 100 }] },
+    draft: {
+      shipId: 'ship-input',
+      points: [{ x: 200, y: 100 }, { x: 1000, y: 100 }],
+    },
   });
   assert.equal(controller.selectedShipId, null);
   assert.equal(controller.activePointerId, null);

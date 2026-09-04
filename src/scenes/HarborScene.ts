@@ -32,6 +32,7 @@ export interface HarborBrowserSmokeSnapshot {
   readonly attemptSeed: number;
   readonly sceneRunning: boolean;
   readonly simulationTime: number;
+  readonly score: number;
   readonly hudVisible: boolean;
   readonly selectedShipId: string | null;
   readonly internalGameSize: Size;
@@ -50,6 +51,11 @@ export interface HarborBrowserSmokeSnapshot {
   readonly queuedRouteCommands: number;
   readonly activeDraft: HarborPresentationSnapshot['activeDraft'];
   readonly ships: readonly ShipModelSnapshot[];
+  readonly incoming: HarborPresentationSnapshot['incoming'];
+  readonly departures: HarborPresentationSnapshot['departures'];
+  readonly docks: HarborPresentationSnapshot['docks'];
+  readonly exits: HarborPresentationSnapshot['exits'];
+  readonly land: HarborPresentationSnapshot['land'];
 }
 
 const PROTOTYPE_LEVEL_ID = 'calm_07';
@@ -182,6 +188,7 @@ export class HarborScene extends Phaser.Scene {
       attemptSeed: this.#runtime?.attemptSeed ?? 0,
       sceneRunning: this.scene.isActive(this.sys.settings.key),
       simulationTime: presentation?.simulationTime ?? 0,
+      score: presentation?.score ?? 0,
       hudVisible: this.#hud?.visible === true,
       selectedShipId: presentation?.selectedShipId ?? null,
       internalGameSize: display.internalGameSize,
@@ -222,6 +229,11 @@ export class HarborScene extends Phaser.Scene {
       queuedRouteCommands: this.#runtime?.queuedRouteCommandCount ?? 0,
       activeDraft: presentation?.activeDraft ?? null,
       ships: Object.freeze(presentation?.ships.map((ship) => ship.ship) ?? []),
+      incoming: presentation?.incoming ?? Object.freeze([]),
+      departures: presentation?.departures ?? Object.freeze([]),
+      docks: presentation?.docks ?? Object.freeze([]),
+      exits: presentation?.exits ?? Object.freeze([]),
+      land: presentation?.land ?? Object.freeze([]),
     });
   }
 
@@ -359,7 +371,7 @@ export class HarborScene extends Phaser.Scene {
       alive.add(ship.ship.id);
       let view = this.#shipViews.get(ship.ship.id);
       if (view === undefined) {
-        view = this.#createShipView(ship);
+        view = this.#createShipView(ship.ship.shipType);
         this.#shipViews.set(ship.ship.id, view);
       }
       const x =
@@ -373,13 +385,17 @@ export class HarborScene extends Phaser.Scene {
         ship.ship.rotationDeg,
         alpha,
       );
-      view.body.setPosition(x, y).setRotation(Phaser.Math.DegToRad(rotation));
+      view.body
+        .setAlpha(1)
+        .setPosition(x, y)
+        .setRotation(Phaser.Math.DegToRad(rotation));
       const cargoTotal = Object.values(ship.ship.cargo).reduce(
         (total, quantity) => total + quantity,
         0,
       );
       const cargoRejected = cargoRejectIds.has(ship.ship.id);
       view.label
+        .setVisible(true)
         .setPosition(x, y + 28)
         .setColor(cargoRejected ? '#ff8b8b' : '#ffffff')
         .setText(
@@ -404,6 +420,36 @@ export class HarborScene extends Phaser.Scene {
       }
     }
 
+    for (const incoming of snapshot.incoming) {
+      alive.add(incoming.shipId);
+      let view = this.#shipViews.get(incoming.shipId);
+      if (view === undefined) {
+        view = this.#createShipView(incoming.shipType);
+        this.#shipViews.set(incoming.shipId, view);
+      }
+      view.body
+        .setAlpha(0.7)
+        .setPosition(incoming.position.x, incoming.position.y)
+        .setRotation(Phaser.Math.DegToRad(incoming.rotationDeg));
+      view.route.clear();
+      view.label.setVisible(false);
+    }
+
+    for (const departure of snapshot.departures) {
+      alive.add(departure.shipId);
+      let view = this.#shipViews.get(departure.shipId);
+      if (view === undefined) {
+        view = this.#createShipView(departure.shipType);
+        this.#shipViews.set(departure.shipId, view);
+      }
+      view.body
+        .setAlpha(0.85)
+        .setPosition(departure.position.x, departure.position.y)
+        .setRotation(Phaser.Math.DegToRad(departure.rotationDeg));
+      view.route.clear();
+      view.label.setVisible(false);
+    }
+
     for (const [shipId, view] of this.#shipViews) {
       if (!alive.has(shipId)) {
         view.body.destroy();
@@ -415,9 +461,8 @@ export class HarborScene extends Phaser.Scene {
     this.#refreshWorldTextScale();
   }
 
-  #createShipView(ship: HarborShipPresentationSnapshot): ShipView {
+  #createShipView(type: string): ShipView {
     const body = this.#markWorld(this.add.graphics().setDepth(10));
-    const type = ship.ship.shipType;
     if (type === 'speedboat') {
       body.fillStyle(0xf6f2df, 1);
       body.fillTriangle(18, 0, -14, -7, -14, 7);
@@ -497,18 +542,6 @@ export class HarborScene extends Phaser.Scene {
         this.#renderDangerRoute(graphics, first, firstPosition);
         this.#renderDangerRoute(graphics, second, secondPosition);
       }
-    }
-
-    graphics.lineStyle(3, 0xffffff, 0.85);
-    for (const incoming of snapshot.incoming) {
-      graphics.strokeCircle(incoming.x, incoming.y, 18);
-      const radians = Phaser.Math.DegToRad(incoming.directionDeg);
-      graphics.lineBetween(
-        incoming.x,
-        incoming.y,
-        incoming.x + Math.cos(radians) * 34,
-        incoming.y + Math.sin(radians) * 34,
-      );
     }
 
     graphics.fillStyle(0x17324d, 0.65);

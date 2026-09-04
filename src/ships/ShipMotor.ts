@@ -43,14 +43,22 @@ export class ShipMotor {
     ) return;
     const waypoint = ship.currentWaypoint;
     if (waypoint === null) {
-      if (ship.state === ShipState.Entering) {
+      if (
+        ship.state === ShipState.Entering ||
+        ship.state === ShipState.Navigating ||
+        ship.state === ShipState.Leaving
+      ) {
         this.#stepForward(ship, deltaSeconds);
       }
       return;
     }
+    const segmentStart = ship.route?.segmentStartAt(ship.routeCursor) ?? null;
     if (Math.hypot(waypoint.x - ship.x, waypoint.y - ship.y) <= waypointTolerance) { ship.advanceRouteCursor(); return; }
     this.step(ship, waypoint, deltaSeconds);
-    if (Math.hypot(waypoint.x - ship.x, waypoint.y - ship.y) <= waypointTolerance) ship.advanceRouteCursor();
+    if (
+      Math.hypot(waypoint.x - ship.x, waypoint.y - ship.y) <= waypointTolerance ||
+      (segmentStart !== null && this.#hasPassedSegmentEnd(segmentStart, waypoint, ship.position))
+    ) ship.advanceRouteCursor();
   }
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {
     assertFinite(deltaSeconds, 'deltaSeconds');
@@ -91,5 +99,15 @@ export class ShipMotor {
       ship.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
       ship.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,
     );
+  }
+
+  #hasPassedSegmentEnd(start: SteeringTarget, end: SteeringTarget, position: SteeringTarget): boolean {
+    const segmentX = end.x - start.x;
+    const segmentY = end.y - start.y;
+    const lengthSquared = segmentX * segmentX + segmentY * segmentY;
+    if (lengthSquared === 0) return true;
+    const progressX = position.x - start.x;
+    const progressY = position.y - start.y;
+    return progressX * segmentX + progressY * segmentY >= lengthSquared;
   }
 }

@@ -157,7 +157,12 @@ test('COR-12 FIX-2 micro-drag cannot create a waypoint orbit', async () => {
     motor.stepRoute(ship, 8, 1 / 60);
   }
 
-  assert.deepEqual(ship.toSnapshot(), before);
+  assert.equal(ship.route, null);
+  assert.equal(ship.routeCursor, before.routeCursor);
+  assert.equal(ship.state, before.state);
+  assert.equal(ship.rotationDeg, before.rotationDeg);
+  assert.ok(ship.x > before.position.x);
+  assert.equal(ship.y, before.position.y);
 });
 
 test('COR-12 FIX-2 route-less Entering moves exactly speed times dt at cardinal headings', async () => {
@@ -244,6 +249,7 @@ test('COR-12 FIX-2 committed user route takes ownership after Entering auto-moti
   assert.ok(ship.x > afterAutomaticEntry.x);
   assert.deepEqual(ship.route.toSnapshot(), {
     points: [{ x: afterAutomaticEntry.x + 100, y: afterAutomaticEntry.y }],
+    start: afterAutomaticEntry,
   });
 });
 
