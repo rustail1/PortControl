@@ -32,9 +32,9 @@ test('unload threshold removes exactly one unit and emits exactly one event', as
   cargoSystem.step([], 0.001); events.flush(); assert.equal(ship.cargoQuantity('general'), 1); assert.equal(received.length, 1); assert.deepEqual(received[0], { shipId: 'ship', shipType: 'speedboat', dockId: 'dock', cargoType: 'general' });
   cargoSystem.step([], 0); assert.equal(ship.cargoQuantity('general'), 1); assert.equal(received.length, 1);
 });
-test('empty cargo releases occupancy, clears inbound route, and becomes ReadyToLeave', async () => {
+test('empty cargo keeps occupancy, clears inbound route, and becomes ReadyToLeave', async () => {
   const { s, cargoSystem, ship, dock, received, events } = await setup(); ship.replaceRoute(new s.ShipRoute([{ x: 50, y: 0 }])); cargoSystem.step(active(ship, dock), 0); cargoSystem.step([], .8); events.flush();
-  assert.equal(received.length, 1); assert.equal(dock.occupiedBy, null); assert.equal(ship.state, s.ShipState.ReadyToLeave); assert.equal(ship.route, null); assert.equal(ship.cargoTotal, 0);
+  assert.equal(received.length, 1); assert.equal(dock.occupiedBy, ship.id); assert.equal(ship.state, s.ShipState.ReadyToLeave); assert.equal(ship.route, null); assert.equal(ship.cargoTotal, 0);
 });
 test('mixed cargo leaves incompatible units, releases dock, and returns to Navigating', async () => {
   const { cargoSystem, ship, dock, received, events } = await setup({ general: 1, container: 1 }); cargoSystem.step(active(ship, dock), 0); cargoSystem.step([], .8); events.flush();
@@ -42,7 +42,7 @@ test('mixed cargo leaves incompatible units, releases dock, and returns to Navig
 });
 test('multi-accept dock uses authored cargo type order and accumulator emits once per unit', async () => {
   const { cargoSystem, ship, dock, received, events } = await setup({ general: 1, container: 1 }, ['container', 'general']); cargoSystem.step(active(ship, dock), 0); cargoSystem.step([], 1.6); events.flush();
-  assert.deepEqual(received.map((event) => event.cargoType), ['container', 'general']); assert.equal(ship.cargoTotal, 0); assert.equal(dock.occupiedBy, null);
+  assert.deepEqual(received.map((event) => event.cargoType), ['container', 'general']); assert.equal(ship.cargoTotal, 0); assert.equal(dock.occupiedBy, ship.id);
 });
 test('Destroyed or lost occupancy stops unload without zombie mutation', async () => {
   const { s, cargoSystem, ship, dock, docks, received } = await setup({ general: 2 }); cargoSystem.step(active(ship, dock), 0); ship.setState(s.ShipState.Destroyed); cargoSystem.step([], 2);
@@ -59,5 +59,5 @@ test('Map iteration processes a second simultaneous unload after the first compl
   const ship = new s.ShipModel({ id: 'ship-2', characteristics: first.ship.characteristics, position: { x: 1, y: 0 }, rotationDeg: 0, state: s.ShipState.Unloading, cargo: { general: 1 } });
   assert.equal(docks.reserve(dock, ship).status, 'eligible'); assert.equal(docks.occupyReserved(dock, ship.id), true);
   cargoSystem.step([{ ship: first.ship, dock: first.dock }, { ship, dock }], 0); cargoSystem.step([], .8); events.flush();
-  assert.equal(first.ship.state, s.ShipState.ReadyToLeave); assert.equal(ship.state, s.ShipState.ReadyToLeave); assert.equal(received.length, 2);
+  assert.equal(first.ship.state, s.ShipState.ReadyToLeave); assert.equal(ship.state, s.ShipState.ReadyToLeave); assert.equal(first.dock.occupiedBy, first.ship.id); assert.equal(dock.occupiedBy, ship.id); assert.equal(received.length, 2);
 });
