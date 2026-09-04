@@ -183,10 +183,13 @@ export interface RouteSelectableShip {
 export function selectRouteInputShip(
   candidates: readonly RouteSelectableShip[],
   worldPoint: Point,
-  currentWorldToScreenScale: number,
+  effectiveWorldToCssPixelScale: number,
 ): ShipModel | null {
-  if (!Number.isFinite(currentWorldToScreenScale) || currentWorldToScreenScale <= 0) {
-    throw new RangeError('currentWorldToScreenScale must be a positive finite number');
+  if (
+    !Number.isFinite(effectiveWorldToCssPixelScale) ||
+    effectiveWorldToCssPixelScale <= 0
+  ) {
+    throw new RangeError('effectiveWorldToCssPixelScale must be positive and finite');
   }
   let winner: RouteSelectableShip | null = null;
   let winnerDistanceSquared = Number.POSITIVE_INFINITY;
@@ -196,7 +199,7 @@ export function selectRouteInputShip(
     }
     const selectionRadius = Math.max(
       candidate.ship.characteristics.collisionRadius,
-      24 / currentWorldToScreenScale,
+      24 / effectiveWorldToCssPixelScale,
     );
     const dx = worldPoint.x - candidate.ship.x;
     const dy = worldPoint.y - candidate.ship.y;
