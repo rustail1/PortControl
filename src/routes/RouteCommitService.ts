@@ -44,13 +44,20 @@ export class RouteCommitService {
   public commit(input: {
     readonly ship: ShipModel;
     readonly draft: RawRouteDraft;
+    readonly routeStart?: { readonly x: number; readonly y: number } | null;
   }): RouteCommitResult {
     const { ship, draft } = input;
     if (draft.shipId !== ship.id || !isRouteInputState(ship.state)) {
       return { kind: 'rejected_locked' };
     }
+    const routeStart = input.routeStart ?? ship.position;
     const simplified = simplifyRouteDraft(draft, this.#config);
-    const validated = this.#navigation.validate(ship, simplified, this.#config);
+    const validated = this.#navigation.validate(
+      ship,
+      simplified,
+      this.#config,
+      routeStart,
+    );
     if (validated.validPoints.length === 0) {
       return { kind: 'rejected_invalid' };
     }
@@ -61,7 +68,7 @@ export class RouteCommitService {
       return { kind: 'rejected_too_short' };
     }
 
-    ship.replaceRoute(new ShipRoute(validated.validPoints));
+    ship.replaceRoute(new ShipRoute(validated.validPoints, routeStart), routeStart);
     const initialTangent = ship.route?.tangentAtDistance(0) ?? null;
     if (initialTangent !== null) {
       ship.setRotationDeg(

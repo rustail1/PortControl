@@ -143,8 +143,8 @@ export class ShipModel {
   public get routeMotionHeld(): boolean { return this.#routeMotionHeld; }
   public get routeRecoveryHeadingDeg(): number | null { return this.#routeRecoveryHeadingDeg; }
   public get currentWaypoint(): ShipPosition | null { return this.#route?.at(this.#routeCursor) ?? null; }
-  public replaceRoute(route: ShipRoute): void {
-    this.#route = route.withStart(this.position);
+  public replaceRoute(route: ShipRoute, start: ShipPosition = this.position): void {
+    this.#route = route.withStart(start);
     this.#routeCursor = 0;
     this.#routeProgress = 0;
     this.#routeMotionHeld = false;
@@ -164,6 +164,22 @@ export class ShipModel {
   public finishRouteRecovery(): void {
     this.#routeRecoveryHeadingDeg = null;
     this.#routeMotionHeld = false;
+  }
+  public holdRouteMotion(): void {
+    if (this.#route !== null) this.#routeMotionHeld = true;
+  }
+  public resumeHeldRouteAtCurrentPosition(): boolean {
+    if (this.#route === null) {
+      this.#routeMotionHeld = false;
+      return false;
+    }
+    const expected = this.#route.pointAtDistance(this.#routeProgress);
+    if (Math.hypot(expected.x - this.#x, expected.y - this.#y) > 1e-6) {
+      return false;
+    }
+    this.#routeMotionHeld = false;
+    this.#routeRecoveryHeadingDeg = null;
+    return true;
   }
   public advanceRouteCursor(): void {
     if (this.#route === null || this.#routeCursor >= this.#route.length) return;

@@ -131,8 +131,8 @@ test('COR-12 visual heading uses shortest wrap and equivalent elapsed time', asy
 
 test('COR-12 docked vessel unloads bow-first into the berth', async () => {
   const { resolveShipVisualHeading } = await import('../src/presentation/ShipHeadingPresentation.ts');
-  assert.deepEqual(resolveShipVisualHeading('Docking', 90, 90), {
-    targetHeading: 270, snap: false,
+  assert.deepEqual(resolveShipVisualHeading('Docking', 45, 90), {
+    targetHeading: 45, snap: false,
   });
   assert.deepEqual(resolveShipVisualHeading('Unloading', 90, 90), {
     targetHeading: 270, snap: false,

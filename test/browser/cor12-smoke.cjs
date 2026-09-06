@@ -589,7 +589,22 @@ async function main() {
               Math.hypot(right.x - selected.position.x, right.y - selected.position.y))[0];
           const heading = ((body.rotation * 180 / Math.PI) % 360 + 360) % 360;
           return Math.abs(((heading - targetHeading + 540) % 360) - 180) < 5;
-        }, { shipId: ship.id, targetHeading: (dock.definition.dockAngle + 180) % 360 });
+        }, { shipId: ship.id, targetHeading: (dock.definition.dockAngle + 180) % 360 }).catch(async error => {
+          const evidence = await flowPage.evaluate((shipId) => {
+            const selected = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+              .find((candidate) => candidate.id === shipId);
+            const bodies = globalThis.__FLOW_SCENE__.children.list
+              .filter((object) => object.type === 'Graphics' && object.depth === 10 && object.alpha === 1)
+              .map((body) => ({
+                x: body.x,
+                y: body.y,
+                heading: ((body.rotation * 180 / Math.PI) % 360 + 360) % 360,
+              }));
+            return { selected, bodies };
+          }, ship.id);
+          console.error('Dock heading wait evidence:', JSON.stringify(evidence));
+          throw error;
+        });
         const unloading = await flowPage.evaluate((shipId) => {
           const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
           const candidate = current.ships.find((value) => value.id === shipId);

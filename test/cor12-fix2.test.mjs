@@ -394,10 +394,12 @@ test('COR-12 FIX-2 ignored route-less Entering remains collision and grounding e
     geometry: { blocksSegment: () => true },
     navigationClearanceExtra: 4,
   });
-  assert.notEqual(
-    grounding.resolve([{ ship, spawnSequence: 0, previousPosition }]).terminalGrounding,
-    null,
-  );
+  const groundingResult = grounding.resolve([
+    { ship, spawnSequence: 0, previousPosition },
+  ]);
+  assert.equal(groundingResult.terminalGrounding, null);
+  assert.deepEqual(groundingResult.avoidedShipIds, [ship.id]);
+  assert.notEqual(ship.routeRecoveryHeadingDeg, null);
 });
 
 for (const shipType of ['speedboat', 'cargo_boat', 'freighter']) {

@@ -64,6 +64,7 @@ import { createRouteSamplingConfig } from '../routes/RouteSamplingConfig.ts';
 import { simplifyRouteDraft } from '../routes/RouteSimplifier.ts';
 import {
   createShipCharacteristicsRegistry,
+  ShipState,
   type ShipModel,
   type ShipModelSnapshot,
 } from '../ships/index.ts';
@@ -370,6 +371,8 @@ export class HarborRuntime {
       docks: this.#docks,
       dockSystem: this.#dockSystem,
       config: createDockingConfig(options.bundle),
+      landGeometry: this.#landGeometry,
+      navigationClearanceExtra: this.#routeConfig.navigationClearanceExtra,
     });
     this.#cargo = new CargoSystem({
       dockSystem: this.#dockSystem,
@@ -656,6 +659,7 @@ export class HarborRuntime {
       record.ship,
       simplifyRouteDraft(draft, this.#routeConfig),
       this.#routeConfig,
+      this.#routeStartFor(record.ship),
     );
     return Object.freeze({
       shipId: draft.shipId,
@@ -747,11 +751,25 @@ export class HarborRuntime {
       if (record === undefined) {
         continue;
       }
+      const wasReadyToLeave = record.ship.state === ShipState.ReadyToLeave;
       this.#lastRouteCommitResult = this.#routeCommit.commit({
         ship: record.ship,
         draft,
+        routeStart: this.#routeStartFor(record.ship),
       });
+      if (
+        wasReadyToLeave &&
+        (this.#lastRouteCommitResult.kind === 'committed' ||
+          this.#lastRouteCommitResult.kind === 'partial_prefix_committed')
+      ) {
+        this.#docking.beginDeparture(record.ship);
+      }
     }
+  }
+
+  #routeStartFor(ship: ShipModel): Point {
+    if (ship.state !== ShipState.ReadyToLeave) return ship.position;
+    return this.#docking.departureRouteStart(ship) ?? ship.position;
   }
 
   #spawnPhase(deltaSeconds: number): void {
@@ -911,7 +929,9 @@ export class HarborRuntime {
   #buildGroundingCandidates(): void {
     this.#groundingCandidates.length = 0;
     for (const record of this.#active.values()) {
-      this.#groundingCandidates.push(record.groundingCandidate);
+      if (!this.#docking.isShipInManeuver(record.ship.id)) {
+        this.#groundingCandidates.push(record.groundingCandidate);
+      }
     }
   }
 
@@ -970,7 +990,9 @@ export class HarborRuntime {
 
   #hitTestShip(worldPoint: Point, worldToCssPixelScale: number): ShipModel | null {
     return selectRouteInputShip(
-      [...this.#active.values()],
+      [...this.#active.values()].filter(
+        (record) => !this.#docking.isShipInManeuver(record.ship.id),
+      ),
       worldPoint,
       worldToCssPixelScale,
     );

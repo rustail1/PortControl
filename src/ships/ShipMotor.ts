@@ -42,6 +42,7 @@ export class ShipMotor {
       ship.state !== ShipState.Leaving
     ) return;
     const route = ship.route;
+    if (route !== null && ship.routeMotionHeld) return;
     if (route === null) {
       const recoveryHeading = ship.routeRecoveryHeadingDeg;
       if (recoveryHeading !== null) {

@@ -23,8 +23,9 @@ export class NavigationValidator {
     ship: ShipModel,
     points: readonly Point[],
     config: RouteProcessingConfig,
+    start: Point = ship.position,
   ): NavigationValidationResult {
-    let previous = ship.position;
+    let previous = start;
     let index = 0;
     const clearance =
       ship.characteristics.collisionRadius + config.navigationClearanceExtra;

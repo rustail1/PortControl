@@ -84,7 +84,7 @@ test('COR-12 FIX-3 docking uses a guided curve rather than a linear side-slide',
   const { ship, controller, candidates } = await dockingHarness();
   controller.step(candidates, 0.175);
   assert.notDeepEqual(ship.position, { x: 50, y: 50 });
-  assert.ok(ship.x > ship.y, 'initial heading should shape the guided approach');
+  assert.ok(ship.y > 100, 'entry should visit the derived water-side approach lane');
   assert.ok(ship.rotationDeg > 0 && ship.rotationDeg < 90);
 });
 
@@ -96,7 +96,7 @@ test('COR-12 FIX-3 docking stays continuous and reaches exact pose at 350ms', as
     const delta = Math.min(1 / 60, 0.35 - elapsed);
     controller.step(candidates, delta);
     const travel = Math.hypot(ship.x - previous.x, ship.y - previous.y);
-    assert.ok(travel > 0 && travel < 20);
+    assert.ok(travel > 0 && travel < 50);
     previous = ship.position;
     elapsed += delta;
     if (elapsed < 0.35 - 1e-12) assert.equal(ship.state, s.ShipState.Docking);

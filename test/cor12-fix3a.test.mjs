@@ -165,7 +165,7 @@ test('COR-12 FIX-3A rejected outbound route keeps ReadyToLeave occupancy through
   assert.equal(dock.occupiedBy, ship.id);
 });
 
-test('COR-12 FIX-3A successful outbound route releases ReadyToLeave occupancy exactly once', async () => {
+test('COR-12 FIX-3A successful outbound route keeps occupancy until guided departure completes', async () => {
   const { s, bundle, registry } = await setup();
   const dockSystem = new s.DockSystem();
   const events = new s.DomainEventQueue();
@@ -179,18 +179,25 @@ test('COR-12 FIX-3A successful outbound route releases ReadyToLeave occupancy ex
   assert.equal(ship.state, s.ShipState.ReadyToLeave);
   assert.equal(dock.occupiedBy, ship.id);
 
+  const controller = new s.DockingController({
+    docks: new s.DockCollection([dock]),
+    dockSystem,
+    config: s.createDockingConfig(bundle),
+  });
+
   const result = routeService(s, bundle).commit({
     ship,
     draft: { shipId: ship.id, points: [{ x: 20, y: 0 }] },
+    routeStart: controller.departureRouteStart(ship),
   });
   assert.equal(result.kind, 'committed');
   assert.equal(ship.state, s.ShipState.Leaving);
+  assert.equal(controller.beginDeparture(ship), true);
 
   cargo.step([], 0);
-  assert.equal(dock.occupiedBy, null);
+  controller.step([{ ship, spawnSequence: 0 }], 0.175);
+  assert.equal(dock.occupiedBy, ship.id);
 
-  // The retained unload transaction is consumed by the first Leaving phase.
-  // Re-running the cargo phase cannot release the berth a second time.
-  cargo.step([], 0);
+  controller.step([{ ship, spawnSequence: 0 }], 0.175);
   assert.equal(dock.occupiedBy, null);
 });

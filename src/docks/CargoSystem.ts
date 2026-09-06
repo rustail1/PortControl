@@ -113,12 +113,6 @@ export class CargoSystem {
       return;
     }
     if (transaction.ship.state === ShipState.Leaving) {
-      if (transaction.dock.occupiedBy === transaction.ship.id) {
-        this.#dockSystem.releaseOccupancy(
-          transaction.dock,
-          transaction.ship.id,
-        );
-      }
       this.#active.delete(transaction.ship.id);
       return;
     }

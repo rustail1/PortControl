@@ -18,7 +18,10 @@ export function resolveShipVisualHeading(
   if (dockAngle === undefined) {
     return Object.freeze({ targetHeading: simulationHeading, snap: false });
   }
-  if (state === 'Docking' || state === 'Unloading') {
+  if (state === 'Docking') {
+    return Object.freeze({ targetHeading: simulationHeading, snap: false });
+  }
+  if (state === 'Unloading') {
     return Object.freeze({
       targetHeading: ((dockAngle + 180) % 360 + 360) % 360,
       snap: false,

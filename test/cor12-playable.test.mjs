@@ -511,7 +511,11 @@ test('COR-12 #35 runtime grounding and NavigationValidator share exact clearance
   const grounding = new s.GroundingSystem({ geometry, navigationClearanceExtra: 4 });
   ship.setPositionXY(130, 120);
   const runtime = grounding.resolve([{ ship, spawnSequence: 1, previousPosition: { x: -30, y: 120 } }]);
-  assert.equal(planned.validPoints.length === 0, runtime.terminalGrounding !== null);
+  assert.equal(runtime.terminalGrounding, null);
+  assert.equal(
+    planned.validPoints.length === 0,
+    runtime.avoidedShipIds.length > 0,
+  );
 });
 
 for (const [number, state] of [[36, 'Entering'], [37, 'Navigating'], [38, 'ApproachingDock'], [39, 'Leaving']]) {
@@ -521,7 +525,10 @@ for (const [number, state] of [[36, 'Entering'], [37, 'Navigating'], [38, 'Appro
     const ship = createShip(s, registry, `g-${state}`, s.ShipState[state], { x: -40, y: 50 });
     ship.setPositionXY(20, 50);
     const result = new s.GroundingSystem({ geometry, navigationClearanceExtra: 4 }).resolve([{ ship, spawnSequence: 1, previousPosition: { x: -40, y: 50 } }]);
-    assert.equal(result.terminalGrounding?.failReason, 'grounding');
+    assert.equal(result.terminalGrounding, null);
+    assert.deepEqual(result.avoidedShipIds, [`g-${state}`]);
+    assert.equal(ship.state, s.ShipState[state]);
+    assert.notEqual(ship.routeRecoveryHeadingDeg, null);
   });
 }
 
