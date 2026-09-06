@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "validate:configs": "tsx scripts/validate-configs.ts",
     "test": "npm run validate:configs && node --import tsx --test \"test/*.test.mjs\"",
-    "test:browser": "node test/browser/cor12-smoke.cjs",
+    "test:browser": "node test/browser/cor12-smoke.cjs && node test/browser/cor12-redraw.cjs",
+    "test:browser:redraw": "node test/browser/cor12-redraw.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

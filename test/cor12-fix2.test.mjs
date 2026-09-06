@@ -85,6 +85,7 @@ test('COR-12 FIX-2 exact 12px displacement activates direct route drawing', asyn
   assert.deepEqual(controller.activeDraftSnapshot, {
     shipId: 'fix2-input',
     pointerId: 1,
+    start: { x: 100, y: 100 },
     points: [{ x: 112, y: 100 }],
   });
   assert.equal(controller.pointerUp(pointer(124, 100)).kind, 'finished');
@@ -96,7 +97,118 @@ test('COR-12 FIX-2 pointerup at exact threshold activates even without a move ev
 
   assert.deepEqual(controller.pointerUp(pointer(112, 100)), {
     kind: 'finished',
-    draft: { shipId: 'fix2-input', points: [{ x: 112, y: 100 }] },
+    draft: { shipId: 'fix2-input', start: { x: 100, y: 100 }, points: [{ x: 112, y: 100 }] },
+  });
+});
+
+test('COR-12 FIX-3B moving ship drops the stale swipe prefix before preview and commit', async () => {
+  const { ship, controller } = await createInputSubject();
+  controller.pointerDown(pointer(100, 100));
+  controller.pointerMove(pointer(120, 100));
+
+  ship.setPosition({ x: 130, y: 100 });
+  controller.pointerMove(pointer(160, 100));
+
+  assert.deepEqual(controller.activeDraftSnapshot, {
+    shipId: ship.id,
+    pointerId: 1,
+    start: { x: 120, y: 100 },
+    points: [{ x: 160, y: 100 }],
+  });
+  assert.deepEqual(controller.pointerUp(pointer(180, 100)), {
+    kind: 'finished',
+    draft: {
+      shipId: ship.id,
+      start: { x: 120, y: 100 },
+      points: [{ x: 160, y: 100 }, { x: 180, y: 100 }],
+    },
+  });
+});
+
+test('COR-12 FIX-3B fixed steps keep an active swipe anchored to the moving ship', async () => {
+  const subject = await loadSubject();
+  const bundle = subject.validateConfigSource(readBaselineSource());
+  const runtime = new subject.HarborRuntime({ bundle, levelId: 'calm_01', attemptSeed: 123 });
+  let snapshot;
+  for (let frame = 0; frame < 1600; frame += 1) {
+    runtime.advanceRender(1000 / 60);
+    snapshot = runtime.presentationSnapshot();
+    if (snapshot.ships.length > 0) break;
+  }
+  const ship = snapshot.ships[0].ship;
+  const radians = ship.rotationDeg * Math.PI / 180;
+  const first = {
+    x: ship.position.x + Math.cos(radians) * 12,
+    y: ship.position.y + Math.sin(radians) * 12,
+  };
+  const last = {
+    x: ship.position.x + Math.cos(radians) * 120,
+    y: ship.position.y + Math.sin(radians) * 120,
+  };
+  runtime.pointerDown(pointer(ship.position.x, ship.position.y));
+  runtime.pointerMove(pointer(first.x, first.y));
+  runtime.pointerMove(pointer(last.x, last.y));
+  assert.deepEqual(runtime.presentationSnapshot().activeDraft.points, [first, last]);
+
+  for (let frame = 0; frame < 60; frame += 1) runtime.advanceRender(1000 / 60);
+
+  assert.deepEqual(runtime.presentationSnapshot().routePreview.validPoints, [last]);
+});
+
+test('COR-12 FIX-3B off-axis movement does not consume an unvisited first bend', async () => {
+  const { ship, controller } = await createInputSubject();
+  controller.pointerDown(pointer(100, 100));
+  controller.pointerMove(pointer(200, 100));
+  controller.pointerMove(pointer(200, 300));
+
+  ship.setPosition({ x: 220, y: 140 });
+  controller.syncActiveDraftToShip();
+
+  assert.deepEqual(controller.activeDraftSnapshot.start, { x: 100, y: 100 });
+  assert.deepEqual(controller.activeDraftSnapshot.points, [{ x: 200, y: 100 }, { x: 200, y: 300 }]);
+});
+
+test('COR-12 FIX-3B self-crossing swipe cannot skip to a later branch', async () => {
+  const { ship, controller } = await createInputSubject();
+  const points = [
+    { x: 200, y: 200 },
+    { x: 100, y: 200 },
+    { x: 200, y: 100 },
+    { x: 100, y: 100 },
+  ];
+  controller.pointerDown(pointer(100, 100));
+  for (const point of points) controller.pointerMove(pointer(point.x, point.y));
+
+  ship.setPosition({ x: 150, y: 150 });
+  controller.syncActiveDraftToShip();
+
+  assert.deepEqual(controller.activeDraftSnapshot.points, points);
+});
+
+test('COR-12 FIX-3B capped draft keeps its route when the boundary endpoint replaces geometry', async () => {
+  const { subject, ship } = await createInputSubject();
+  ship.setPosition({ x: 500, y: 100 });
+  const controller = new subject.RouteInputController({
+    viewport: new subject.SquareWorldViewport({ width: 1000, height: 1000 }),
+    sampling: { sampleDistance: 1, maxRawPoints: 2 },
+    hitTest: () => ship,
+  });
+  controller.pointerDown(pointer(500, 100));
+  controller.pointerMove(pointer(100, 100));
+  controller.pointerMove(pointer(900, 100));
+  ship.setPosition({ x: 100, y: 100 });
+  controller.syncActiveDraftToShip();
+  ship.setPosition({ x: 400, y: 100 });
+  controller.syncActiveDraftToShip();
+  assert.deepEqual(controller.activeDraftSnapshot.points, [{ x: 900, y: 100 }]);
+
+  assert.deepEqual(controller.pointerMove(pointer(-100, 100)), {
+    kind: 'finished',
+    draft: {
+      shipId: ship.id,
+      start: { x: 100, y: 100 },
+      points: [{ x: 900, y: 100 }, { x: 0, y: 100 }],
+    },
   });
 });
 

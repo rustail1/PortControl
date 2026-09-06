@@ -3,7 +3,7 @@ import { isRouteInputState } from './RouteInputController.ts';
 import { ShipRoute } from '../ships/ShipRoute.ts';
 import { ShipState } from '../ships/ShipState.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
-import { simplifyRoute } from './RouteSimplifier.ts';
+import { simplifyRouteDraft } from './RouteSimplifier.ts';
 import type { RouteProcessingConfig } from './RouteProcessingConfig.ts';
 import { NavigationValidator } from './NavigationValidator.ts';
 
@@ -49,7 +49,7 @@ export class RouteCommitService {
     if (draft.shipId !== ship.id || !isRouteInputState(ship.state)) {
       return { kind: 'rejected_locked' };
     }
-    const simplified = simplifyRoute(draft.points, this.#config);
+    const simplified = simplifyRouteDraft(draft, this.#config);
     const validated = this.#navigation.validate(ship, simplified, this.#config);
     if (validated.validPoints.length === 0) {
       return { kind: 'rejected_invalid' };
@@ -62,6 +62,12 @@ export class RouteCommitService {
     }
 
     ship.replaceRoute(new ShipRoute(validated.validPoints));
+    const initialTangent = ship.route?.tangentAtDistance(0) ?? null;
+    if (initialTangent !== null) {
+      ship.setRotationDeg(
+        (Math.atan2(initialTangent.y, initialTangent.x) * 180) / Math.PI,
+      );
+    }
     if (ship.state === ShipState.Entering) {
       ship.setState(ShipState.Navigating);
     } else if (ship.state === ShipState.ReadyToLeave) {

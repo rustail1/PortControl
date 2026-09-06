@@ -19,6 +19,10 @@ import {
   type HarborShipPresentationSnapshot,
 } from '../runtime/HarborRuntime.ts';
 import { createCargoPipLayout } from '../presentation/VesselFlowPresentation.ts';
+import {
+  resolveShipVisualHeading,
+  smoothShipHeading,
+} from '../presentation/ShipHeadingPresentation.ts';
 import type { ShipModelSnapshot } from '../ships/ShipModel.ts';
 import { ShipState } from '../ships/ShipState.ts';
 
@@ -28,6 +32,7 @@ interface ShipView {
   readonly route: Phaser.GameObjects.Graphics;
   readonly label: Phaser.GameObjects.Text;
   cargoPipCount: number;
+  visualHeading: number | null;
 }
 
 export interface HarborBrowserSmokeSnapshot {
@@ -172,7 +177,7 @@ export class HarborScene extends Phaser.Scene {
       return;
     }
     const advance = runtime.advanceRender(delta);
-    this.#render(runtime.presentationSnapshot(), advance.interpolationAlpha);
+    this.#render(runtime.presentationSnapshot(), advance.interpolationAlpha, delta);
   }
 
   public browserSmokeSnapshot(): HarborBrowserSmokeSnapshot {
@@ -269,7 +274,7 @@ export class HarborScene extends Phaser.Scene {
       this.#overlayGraphics = this.#markWorld(this.add.graphics().setDepth(20));
     }
     if (this.#draftGraphics === null) {
-      this.#draftGraphics = this.#markWorld(this.add.graphics().setDepth(15));
+      this.#draftGraphics = this.#markWorld(this.add.graphics().setDepth(6));
     }
     if (this.#hud === null) {
       this.#hud = this.#markUi(
@@ -368,8 +373,8 @@ export class HarborScene extends Phaser.Scene {
     this.#refreshWorldTextScale();
   }
 
-  #render(snapshot: HarborPresentationSnapshot, alpha: number): void {
-    this.#renderShips(snapshot, alpha);
+  #render(snapshot: HarborPresentationSnapshot, alpha: number, deltaMs: number): void {
+    this.#renderShips(snapshot, alpha, deltaMs);
     this.#renderOverlay(snapshot, alpha);
     this.#renderActiveDraft(snapshot);
     this.#renderBusyDocks(snapshot);
@@ -381,7 +386,7 @@ export class HarborScene extends Phaser.Scene {
     }
   }
 
-  #renderShips(snapshot: HarborPresentationSnapshot, alpha: number): void {
+  #renderShips(snapshot: HarborPresentationSnapshot, alpha: number, deltaMs: number): void {
     const alive = new Set<string>();
     const cargoRejectIds = new Set(snapshot.cargoRejectPulses.map((pulse) => pulse.shipId));
     for (const ship of snapshot.ships) {
@@ -397,11 +402,23 @@ export class HarborScene extends Phaser.Scene {
       const y =
         ship.previousPosition.y +
         (ship.ship.position.y - ship.previousPosition.y) * alpha;
-      const rotation = interpolateAngleDegrees(
+      const simulationRotation = interpolateAngleDegrees(
         ship.previousRotationDeg,
         ship.ship.rotationDeg,
         alpha,
       );
+      const dock = snapshot.docks.find(({ runtime }) =>
+        runtime.reservedBy === ship.ship.id || runtime.occupiedBy === ship.ship.id,
+      );
+      const heading = resolveShipVisualHeading(
+        ship.ship.state,
+        simulationRotation,
+        dock?.definition.dockAngle,
+      );
+      const rotation = heading.snap || view.visualHeading === null
+        ? heading.targetHeading
+        : smoothShipHeading(view.visualHeading, heading.targetHeading, deltaMs);
+      view.visualHeading = rotation;
       view.body
         .setAlpha(1)
         .setPosition(x, y)
@@ -463,10 +480,12 @@ export class HarborScene extends Phaser.Scene {
         view = this.#createShipView(departure.shipType);
         this.#shipViews.set(departure.shipId, view);
       }
+      view.visualHeading = view.visualHeading === null ? departure.rotationDeg
+        : smoothShipHeading(view.visualHeading, departure.rotationDeg, deltaMs);
       view.body
         .setAlpha(0.85)
         .setPosition(departure.position.x, departure.position.y)
-        .setRotation(Phaser.Math.DegToRad(departure.rotationDeg));
+        .setRotation(Phaser.Math.DegToRad(view.visualHeading));
       view.route.clear();
       view.cargoPips.clear().setVisible(false);
       view.cargoPipCount = 0;
@@ -517,7 +536,7 @@ export class HarborScene extends Phaser.Scene {
         .setOrigin(0.5, 0)
         .setDepth(11),
     );
-    return { body, cargoPips, route, label, cargoPipCount: 0 };
+    return { body, cargoPips, route, label, cargoPipCount: 0, visualHeading: null };
   }
 
   #renderCargoPips(
@@ -762,6 +781,9 @@ export class HarborScene extends Phaser.Scene {
   }
 
   #renderActiveDraft(snapshot: HarborPresentationSnapshot): void {
+    for (const [id, view] of this.#shipViews) {
+      view.route.setVisible(snapshot.activeDraft?.shipId !== id);
+    }
     const graphics = this.#draftGraphics;
     if (graphics === null) {
       return;
@@ -776,7 +798,8 @@ export class HarborScene extends Phaser.Scene {
       return;
     }
 
-    let anchor = selected.ship.position;
+    const body = this.#shipViews.get(preview.shipId)?.body;
+    let anchor = body === undefined ? selected.ship.position : { x: body.x, y: body.y };
     if (preview.validPoints.length > 0) {
       graphics.lineStyle(5, 0xfff0a6, 1);
       graphics.beginPath();

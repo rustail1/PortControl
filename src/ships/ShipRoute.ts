@@ -64,6 +64,31 @@ export class ShipRoute {
     }
     return { ...this.#points[this.#points.length - 1]! };
   }
+  public tangentAtDistance(distance: number): ShipPosition | null {
+    const progress = this.#clampDistance(distance);
+    let start = this.#start;
+    for (let index = 0; index < this.#points.length; index += 1) {
+      const end = this.#points[index]!;
+      const segmentEnd = this.#cumulativeLengths[index + 1]!;
+      const length = this.#cumulativeLengths[index + 1]! - this.#cumulativeLengths[index]!;
+      if (length > 0 && segmentEnd > progress) {
+        return { x: (end.x - start.x) / length, y: (end.y - start.y) / length };
+      }
+      start = end;
+    }
+    for (let index = this.#points.length - 1; index >= 0; index -= 1) {
+      const end = this.#points[index]!;
+      const segmentStart = index === 0 ? this.#start : this.#points[index - 1]!;
+      const length = this.#cumulativeLengths[index + 1]! - this.#cumulativeLengths[index]!;
+      if (length > 0) {
+        return {
+          x: (end.x - segmentStart.x) / length,
+          y: (end.y - segmentStart.y) / length,
+        };
+      }
+    }
+    return null;
+  }
   public projectProgress(
     position: ShipPosition,
     currentProgress: number,

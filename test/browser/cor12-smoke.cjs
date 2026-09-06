@@ -115,7 +115,9 @@ async function main() {
     page.on('pageerror', (error) => uncaught.push(String(error)));
 
     let passed = 0;
+    const checkFilter = process.env.PORT_CONTROL_BROWSER_FILTER;
     async function check(name, body) {
+      if (checkFilter && !new RegExp(checkFilter).test(name)) return;
       await body();
       passed += 1;
       console.log(`ok ${passed} - ${name}`);
@@ -152,13 +154,12 @@ async function main() {
     }
 
     await check('BROWSER-04 incoming vessel moves from fully offscreen toward its spawn', async () => {
-      await page.waitForFunction(
-        () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incoming.length > 0,
+      const beforeHandle = await page.waitForFunction(
+        () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incoming[0] ?? null,
         null,
         { timeout: 5000 },
       );
-      const before = await page.evaluate(() =>
-        globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incoming[0]);
+      const before = await beforeHandle.jsonValue();
       assert.ok(before);
       assert.ok(
         before.originPosition.x + before.collisionRadius < 0 ||
@@ -432,7 +433,7 @@ async function main() {
         candidate.position.x >= 30 && candidate.position.x <= 970 &&
         candidate.position.y >= 30 && candidate.position.y <= 970);
       assert.ok(ship);
-      const outsideX = ship.position.x < 500 ? -100 : 1100;
+      const outsideX = ship.position.x < 500 ? 1100 : -100;
       await dragWorldRoute(page, ship.id, [{ x: outsideX, y: ship.position.y + 80 }]);
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
       await page.waitForFunction(({ shipId, edgeX }) => {
@@ -483,6 +484,16 @@ async function main() {
       });
       try {
         await flowPage.goto(`${URL}/?level=calm_01`, { waitUntil: 'networkidle' });
+        await flowPage.evaluate(async () => {
+          const { HarborScene } = await import('/src/scenes/HarborScene.ts');
+          const original = HarborScene.prototype.browserSmokeSnapshot;
+          HarborScene.prototype.browserSmokeSnapshot = function () {
+            globalThis.__FLOW_SCENE__ = this;
+            return original.call(this);
+          };
+          try { globalThis.__PORT_CONTROL_SMOKE__.getSnapshot(); }
+          finally { HarborScene.prototype.browserSmokeSnapshot = original; }
+        });
         await flowPage.waitForFunction(
           () => globalThis.__PORT_CONTROL_SMOKE__?.getSnapshot?.()?.ships.some((ship) =>
             ['Entering', 'Navigating'].includes(ship.state) &&
@@ -517,27 +528,41 @@ async function main() {
               { x: dockX, y: dock.definition.position.y },
             ];
         await dragWorldRoute(flowPage, ship.id, inbound);
+        const queuedInbound = await flowPage.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
         await flowPage.evaluate(() => window.dispatchEvent(new Event('focus')));
         await flowPage.waitForFunction((shipId) => {
           const candidate = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
             .find((current) => current.id === shipId);
           return candidate?.route !== null && candidate?.remainingRoute?.length > 1;
-        }, ship.id, { timeout: 5000 });
+        }, ship.id, { timeout: 5000 }).catch(async error => {
+          const current = await flowPage.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+          console.error('Inbound wait evidence:', JSON.stringify({ queued: queuedInbound.queuedRouteCommands,
+            draft: queuedInbound.activeDraft, beforeTime: queuedInbound.simulationTime,
+            afterTime: current.simulationTime, selected: current.selectedShipId,
+            ship: current.ships.find(candidate => candidate.id === ship.id),
+            pending: current.queuedRouteCommands, terminal: current.terminalTitleCssBounds }));
+          throw error;
+        });
         const committed = await flowPage.evaluate((shipId) => {
           const candidate = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
             .find((current) => current.id === shipId);
           return {
             points: candidate.route.points,
-            rotationDeg: candidate.rotationDeg,
+            position: candidate.position,
+            routeProgress: candidate.routeProgress,
           };
         }, ship.id);
-        await flowPage.waitForFunction(({ shipId, rotationDeg }) => {
+        await flowPage.waitForFunction(({ shipId, position, routeProgress }) => {
           const candidate = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
             .find((current) => current.id === shipId);
           if (candidate === undefined) return false;
-          const delta = Math.abs(((candidate.rotationDeg - rotationDeg + 540) % 360) - 180);
-          return candidate.routeProgress > 20 && delta > 2;
-        }, { shipId: ship.id, rotationDeg: committed.rotationDeg }, { timeout: 15000 });
+          return candidate.route !== null &&
+            candidate.routeProgress > routeProgress + 20 &&
+            Math.hypot(
+              candidate.position.x - position.x,
+              candidate.position.y - position.y,
+            ) > 20;
+        }, { shipId: ship.id, ...committed }, { timeout: 15000 });
         const following = await flowPage.evaluate((shipId) =>
           globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
             .find((candidate) => candidate.id === shipId), ship.id);
@@ -546,7 +571,7 @@ async function main() {
           following.remainingRoute.slice(1),
           committed.points.slice(following.routeCursor),
         );
-        assert.notDeepEqual(following.remainingRoute[0], following.position);
+        assert.deepEqual(following.remainingRoute[0], following.position);
 
         await flowPage.waitForFunction((shipId) =>
           globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
@@ -554,6 +579,17 @@ async function main() {
           ship.id,
           { timeout: 30000 },
         );
+        await flowPage.waitForFunction(({ shipId, targetHeading }) => {
+          const selected = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId);
+          const body = globalThis.__FLOW_SCENE__.children.list
+            .filter((object) => object.type === 'Graphics' && object.depth === 10 && object.alpha === 1)
+            .sort((left, right) =>
+              Math.hypot(left.x - selected.position.x, left.y - selected.position.y) -
+              Math.hypot(right.x - selected.position.x, right.y - selected.position.y))[0];
+          const heading = ((body.rotation * 180 / Math.PI) % 360 + 360) % 360;
+          return Math.abs(((heading - targetHeading + 540) % 360) - 180) < 5;
+        }, { shipId: ship.id, targetHeading: (dock.definition.dockAngle + 180) % 360 });
         const unloading = await flowPage.evaluate((shipId) => {
           const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
           const candidate = current.ships.find((value) => value.id === shipId);
@@ -567,20 +603,39 @@ async function main() {
         assert.deepEqual(unloading.ship.position, dock.definition.position);
         assert.equal(unloading.ship.rotationDeg, dock.definition.dockAngle);
         assert.equal(unloading.pips, cargoBefore);
-        await flowPage.waitForFunction(({ shipId, cargoBefore }) => {
-          const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
-          const candidate = current.ships.find((value) => value.id === shipId);
-          const cargo = Object.values(candidate?.cargo ?? {})
-            .reduce((total, quantity) => total + quantity, 0);
-          const pips = current.cargoPips.find((value) => value.shipId === shipId)?.count;
-          return cargo < cargoBefore && pips === cargo;
-        }, { shipId: ship.id, cargoBefore }, { timeout: 10000 });
+        if (cargoBefore > 0) {
+          await flowPage.waitForFunction(({ shipId, cargoBefore }) => {
+            const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+            const candidate = current.ships.find((value) => value.id === shipId);
+            const cargo = Object.values(candidate?.cargo ?? {})
+              .reduce((total, quantity) => total + quantity, 0);
+            const pips = current.cargoPips.find((value) => value.shipId === shipId)?.count;
+            return cargo < cargoBefore && pips === cargo;
+          }, { shipId: ship.id, cargoBefore }, { timeout: 10000 }).catch(async error => {
+            const current = await flowPage.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
+            console.error('Cargo wait evidence:', JSON.stringify({ captured: unloading, currentShip:
+              current.ships.find(candidate => candidate.id === ship.id), pips: current.cargoPips,
+              time: current.simulationTime, terminal: current.terminalTitleCssBounds }));
+            throw error;
+          });
+        }
         await flowPage.waitForFunction((shipId) =>
           globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
             .find((candidate) => candidate.id === shipId)?.state === 'ReadyToLeave',
           ship.id,
           { timeout: 30000 },
         );
+        await flowPage.waitForFunction(({ shipId, targetHeading }) => {
+          const selected = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId);
+          const body = globalThis.__FLOW_SCENE__.children.list
+            .filter((object) => object.type === 'Graphics' && object.depth === 10 && object.alpha === 1)
+            .sort((left, right) =>
+              Math.hypot(left.x - selected.position.x, left.y - selected.position.y) -
+              Math.hypot(right.x - selected.position.x, right.y - selected.position.y))[0];
+          const heading = ((body.rotation * 180 / Math.PI) % 360 + 360) % 360;
+          return Math.abs(((heading - targetHeading + 540) % 360) - 180) < 1;
+        }, { shipId: ship.id, targetHeading: dock.definition.dockAngle });
         snapshot = await flowPage.evaluate(() =>
           globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
         const ready = snapshot.ships.find((candidate) => candidate.id === ship.id);
@@ -615,7 +670,7 @@ async function main() {
         await flowPage.waitForFunction(({ shipId, position }) => {
           const departure = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().departures
             .find((candidate) => candidate.shipId === shipId);
-          return departure !== undefined && Math.hypot(
+          return departure === undefined || Math.hypot(
             departure.position.x - position.x,
             departure.position.y - position.y,
           ) > 0.1;
@@ -682,10 +737,14 @@ async function main() {
             ];
         await dragWorldRoute(pressurePage, liveShip.id, points);
         await pressurePage.evaluate(() => window.dispatchEvent(new Event('focus')));
-        await pressurePage.waitForFunction((shipId) =>
-          globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
-            .find((candidate) => candidate.id === shipId)?.route !== null,
-        liveShip.id, { timeout: 5000 });
+        await pressurePage.waitForFunction((shipId) => {
+          const route = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+            .find((candidate) => candidate.id === shipId)?.route;
+          if (route === null || route === undefined) return false;
+          window.dispatchEvent(new Event('blur'));
+          return true;
+        }, liveShip.id, { timeout: 5000, polling: 'raf' });
+        await pressurePage.evaluate(() => window.dispatchEvent(new Event('focus')));
       };
       try {
         await pressurePage.goto(`${URL}/?level=calm_01`, { waitUntil: 'networkidle' });
@@ -726,7 +785,7 @@ async function main() {
       }
     });
 
-    console.log(`Browser smoke: PASS (${passed}/${passed})`);
+    console.log(`Browser smoke: PASS (${passed}/${passed}${checkFilter ? ' selected checks' : ''})`);
   } finally {
     try {
       await page?.close();

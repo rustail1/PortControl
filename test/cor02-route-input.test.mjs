@@ -112,7 +112,7 @@ test('raw sampling rejects a point closer than sampleDistance and accepts one at
   });
   assert.deepEqual(controller.pointerUp(pointer('mouse', 1, 208, 100)), {
     kind: 'finished',
-    draft: { shipId: 'ship-input', points: [{ x: 200, y: 100 }, { x: 208, y: 100 }] },
+    draft: { shipId: 'ship-input', start: { x: 100, y: 100 }, points: [{ x: 200, y: 100 }, { x: 208, y: 100 }] },
   });
 });
 
@@ -163,6 +163,7 @@ test('leaving the playfield finishes at the exact world-edge intersection', asyn
     kind: 'finished',
     draft: {
       shipId: 'ship-input',
+      start: { x: 100, y: 100 },
       points: [{ x: 200, y: 100 }, { x: 1000, y: 100 }],
     },
   });

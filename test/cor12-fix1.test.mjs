@@ -239,7 +239,7 @@ test('COR-12 FIX-1 #19 loaded exit reject creates cargo pulse', async () => {
     rotationDeg: 180, state: subject.ShipState.Leaving, cargo: { general: 1 },
   });
   const events = new subject.DomainEventQueue();
-  const exit = new subject.ExitSystem({ zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }], score: 10, events });
+  const exit = new subject.ExitSystem({ zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }], worldBounds: { width: 1000, height: 1000 }, score: 10, events });
   const result = exit.step([ship]);
   const pulses = new subject.PresentationPulseStore();
   for (const shipId of result.rejectedCargoShipIds) pulses.refreshCargoReject(shipId, 0.65);
@@ -250,7 +250,7 @@ test('COR-12 FIX-1 #20 staying inside exit does not spam gameplay reject', async
   const subject = await setup();
   const registry = subject.createShipCharacteristicsRegistry(subject.bundle);
   const ship = new subject.ShipModel({ id: 'loaded', characteristics: registry.require('cargo_boat'), position: { x: 20, y: 500 }, rotationDeg: 0, state: subject.ShipState.Leaving, cargo: { general: 1 } });
-  const exit = new subject.ExitSystem({ zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }], score: 10, events: new subject.DomainEventQueue() });
+  const exit = new subject.ExitSystem({ zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }], worldBounds: { width: 1000, height: 1000 }, score: 10, events: new subject.DomainEventQueue() });
   assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, ['loaded']);
   assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, []);
 });
@@ -259,8 +259,9 @@ test('COR-12 FIX-1 #21 leave and re-enter exit can create second cargo pulse sou
   const subject = await setup();
   const registry = subject.createShipCharacteristicsRegistry(subject.bundle);
   const ship = new subject.ShipModel({ id: 'loaded', characteristics: registry.require('cargo_boat'), position: { x: 20, y: 500 }, rotationDeg: 0, state: subject.ShipState.Leaving, cargo: { general: 1 } });
-  const exit = new subject.ExitSystem({ zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }], score: 10, events: new subject.DomainEventQueue() });
+  const exit = new subject.ExitSystem({ zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }], worldBounds: { width: 1000, height: 1000 }, score: 10, events: new subject.DomainEventQueue() });
   assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, ['loaded']);
+  ship.finishRouteRecovery();
   ship.setPositionXY(100, 500);
   exit.step([ship]);
   ship.setPositionXY(20, 500);
@@ -271,7 +272,7 @@ test('COR-12 FIX-1 #22 successful empty exit has no cargo reject feedback', asyn
   const subject = await setup();
   const registry = subject.createShipCharacteristicsRegistry(subject.bundle);
   const ship = new subject.ShipModel({ id: 'empty', characteristics: registry.require('cargo_boat'), position: { x: 20, y: 500 }, rotationDeg: 0, state: subject.ShipState.Leaving, cargo: {} });
-  const exit = new subject.ExitSystem({ zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }], score: 10, events: new subject.DomainEventQueue() });
+  const exit = new subject.ExitSystem({ zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }], worldBounds: { width: 1000, height: 1000 }, score: 10, events: new subject.DomainEventQueue() });
   const first = exit.step([ship]);
   assert.deepEqual(first.rejectedCargoShipIds, []);
   assert.deepEqual(first.pendingShipIds, ['empty']);

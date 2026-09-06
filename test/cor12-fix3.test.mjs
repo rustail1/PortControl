@@ -169,7 +169,7 @@ for (const type of ['speedboat', 'cargo_boat', 'freighter']) {
     right_angle: [{ x: 90, y: 0 }, { x: 90, y: 100 }, { x: 170, y: 100 }],
     s_curve: [{ x: 55, y: 35 }, { x: 110, y: -35 }, { x: 175, y: 0 }],
   })) {
-    test(`COR-12 FIX-3 ${type} follows ${shape} with bounded monotonic progress`, async () => {
+    test(`COR-12 FIX-3 ${type} follows ${shape} with direct monotonic progress`, async () => {
       const { s, registry } = await setup();
       const ship = shipOf(s, registry, type);
       ship.replaceRoute(new s.ShipRoute(points));
@@ -179,13 +179,10 @@ for (const type of ['speedboat', 'cargo_boat', 'freighter']) {
       let previousCursor = 0;
       for (let step = 0; step < 3600 && ship.routeCursor < points.length; step += 1) {
         const before = ship.position;
-        const beforeRotation = ship.rotationDeg;
         motor.stepRoute(ship, 8, 1 / 60);
         assert.ok(ship.routeProgress >= previousProgress);
         assert.ok(ship.routeCursor >= previousCursor);
         assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
-        const headingDelta = Math.abs(((ship.rotationDeg - beforeRotation + 540) % 360) - 180);
-        assert.ok(headingDelta <= ship.characteristics.turnRateDeg / 60 + 1e-9);
         previousProgress = ship.routeProgress;
         previousCursor = ship.routeCursor;
       }
@@ -266,34 +263,37 @@ test('COR-12 FIX-3 remaining route clips the consumed tail without changing auth
   assert.deepEqual(route.toSnapshot(), authored);
 });
 
-test('COR-12 FIX-3 follower turns toward the next segment before reaching a 90 degree corner', async () => {
+test('COR-12 FIX-3 follower aligns toward the next segment without leaving a 90 degree route', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry);
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 150 }]));
   const motor = new s.ShipMotor();
-  let beganContinuousTurn = false;
+  let alignedTowardCorner = false;
   let previousProgress = 0;
   for (let step = 0; step < 600 && ship.routeCursor < 2; step += 1) {
     const before = ship.position;
-    const beforeRotation = ship.rotationDeg;
     motor.stepRoute(ship, 8, 1 / 60);
     assert.ok(ship.routeProgress >= previousProgress);
     assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
-    const headingDelta = Math.abs(((ship.rotationDeg - beforeRotation + 540) % 360) - 180);
-    assert.ok(headingDelta <= ship.characteristics.turnRateDeg / 60 + 1e-9);
-    if (ship.x < 100 && ship.routeCursor === 0 && ship.rotationDeg > 0) beganContinuousTurn = true;
+    assert.ok(
+      Math.abs(ship.y) < 1e-9 && ship.x <= 100 + 1e-9 ||
+      Math.abs(ship.x - 100) < 1e-9 && ship.y >= -1e-9,
+    );
+    if (ship.x < 100 && ship.routeCursor === 0 && ship.rotationDeg > 0) alignedTowardCorner = true;
     previousProgress = ship.routeProgress;
   }
-  assert.equal(beganContinuousTurn, true);
+  assert.equal(alignedTowardCorner, true);
   assert.equal(ship.routeCursor, 2);
   assert.deepEqual(ship.route.toSnapshot().points, [{ x: 100, y: 0 }, { x: 100, y: 150 }]);
 });
 
-test('COR-12 FIX-3 reaching a close waypoint does not insert a stopped fixed step', async () => {
+test('COR-12 FIX-3 reaching a close waypoint keeps continuous forward movement', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry, 'speedboat', { position: { x: 96, y: 0 } });
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 200, y: 0 }]));
+  const before = ship.position;
   new s.ShipMotor().stepRoute(ship, 8, 1 / 60);
-  assert.equal(ship.routeCursor, 1);
+  assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
   assert.ok(ship.x > 96);
+  assert.equal(ship.y, 0);
 });

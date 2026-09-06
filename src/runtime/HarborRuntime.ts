@@ -61,6 +61,7 @@ import {
 } from '../routes/RouteInputController.ts';
 import { createRouteProcessingConfig } from '../routes/RouteProcessingConfig.ts';
 import { createRouteSamplingConfig } from '../routes/RouteSamplingConfig.ts';
+import { simplifyRouteDraft } from '../routes/RouteSimplifier.ts';
 import {
   createShipCharacteristicsRegistry,
   type ShipModel,
@@ -257,6 +258,8 @@ export function selectNextAttemptSeed(
 function cloneDraft(draft: RawRouteDraft): RawRouteDraft {
   return Object.freeze({
     shipId: draft.shipId,
+    ...(draft.start === undefined ? {} : { start: Object.freeze({ ...draft.start }) }),
+    ...(draft.tip === undefined ? {} : { tip: Object.freeze({ ...draft.tip }) }),
     points: Object.freeze(
       draft.points.map((point) => Object.freeze({ ...point })),
     ),
@@ -374,6 +377,7 @@ export class HarborRuntime {
     });
     this.#exit = new ExitSystem({
       zones: createExitZones(level),
+      worldBounds: this.#viewport.logicalWorld,
       score: createExitScore(options.bundle),
       events: this.#exitEvents,
     });
@@ -415,6 +419,7 @@ export class HarborRuntime {
     this.#routeInput = new RouteInputController({
       viewport: this.#viewport,
       sampling: createRouteSamplingConfig(options.bundle),
+      processing: this.#routeConfig,
       hitTest: (worldPoint, worldToCssPixelScale) =>
         this.#hitTestShip(worldPoint, worldToCssPixelScale),
     });
@@ -649,7 +654,7 @@ export class HarborRuntime {
     }
     const validation = this.#navigation.validate(
       record.ship,
-      draft.points,
+      simplifyRouteDraft(draft, this.#routeConfig),
       this.#routeConfig,
     );
     return Object.freeze({
@@ -891,6 +896,7 @@ export class HarborRuntime {
         deltaSeconds,
       );
     }
+    this.#routeInput.syncActiveDraftToShip();
   }
 
   #buildCollisionCandidates(): void {

@@ -1,8 +1,6 @@
 import { normalizeRotationDeg, type ShipModel } from './ShipModel.ts';
 import { ShipState } from './ShipState.ts';
 
-const ROUTE_LOOKAHEAD_TURN_RADIUS_FRACTION = 0.5;
-
 export interface SteeringTarget {
   readonly x: number;
   readonly y: number;
@@ -44,7 +42,35 @@ export class ShipMotor {
       ship.state !== ShipState.Leaving
     ) return;
     const route = ship.route;
-    if (route === null || ship.routeProgress >= route.totalLength) {
+    if (route === null) {
+      const recoveryHeading = ship.routeRecoveryHeadingDeg;
+      if (recoveryHeading !== null) {
+        assertFinite(deltaSeconds, 'deltaSeconds');
+        if (deltaSeconds < 0) {
+          throw new RangeError('deltaSeconds must be non-negative');
+        }
+        ship.setRotationDeg(moveAngleTowardsDeg(
+          ship.rotationDeg,
+          recoveryHeading,
+          ship.characteristics.turnRateDeg * deltaSeconds,
+        ));
+        if (ship.rotationDeg === recoveryHeading) {
+          ship.finishRouteRecovery();
+        }
+        this.#stepForward(ship, deltaSeconds);
+        return;
+      }
+      if (
+        !ship.routeMotionHeld &&
+        (ship.state === ShipState.Entering ||
+          ship.state === ShipState.Navigating ||
+          ship.state === ShipState.Leaving)
+      ) {
+        this.#stepForward(ship, deltaSeconds);
+      }
+      return;
+    }
+    if (ship.routeProgress >= route.totalLength) {
       if (
         ship.state === ShipState.Entering ||
         ship.state === ShipState.Navigating ||
@@ -54,31 +80,39 @@ export class ShipMotor {
       }
       return;
     }
-    const turnRateRadians = ship.characteristics.turnRateDeg * Math.PI / 180;
-    const turnRadius = ship.characteristics.speed / turnRateRadians;
-    const lookAheadDistance = Math.max(
-      waypointTolerance,
-      turnRadius * ROUTE_LOOKAHEAD_TURN_RADIUS_FRACTION,
-    );
-    ship.advanceRouteProgress(
-      route.projectProgress(ship.position, ship.routeProgress, lookAheadDistance),
-    );
-    while (this.#advanceEndpointInsideTolerance(ship, waypointTolerance)) {
-      // Consume close points without inserting a stopped simulation step.
+    assertFinite(deltaSeconds, 'deltaSeconds');
+    if (deltaSeconds < 0) {
+      throw new RangeError('deltaSeconds must be non-negative');
     }
-    if (ship.routeProgress >= route.totalLength) {
-      if (ship.state !== ShipState.ReadyToLeave) this.#stepForward(ship, deltaSeconds);
-      return;
-    }
-    const target = route.pointAtDistance(
-      Math.min(ship.routeProgress + lookAheadDistance, route.totalLength),
-    );
-    this.step(ship, target, deltaSeconds);
+    const cursor = route.cursorAtDistance(ship.routeProgress);
+    const segmentEnd = route.distanceAtCursor(cursor + 1);
     ship.advanceRouteProgress(
-      route.projectProgress(ship.position, ship.routeProgress, lookAheadDistance),
+      route.projectProgress(
+        ship.position,
+        ship.routeProgress,
+        segmentEnd - ship.routeProgress,
+      ),
     );
-    while (this.#advanceEndpointInsideTolerance(ship, waypointTolerance)) {
-      // Progress stays monotonic even when several simplified points are close.
+    const nextProgress = Math.min(
+      ship.routeProgress + ship.characteristics.speed * deltaSeconds,
+      route.totalLength,
+    );
+    const nextPosition = route.pointAtDistance(nextProgress);
+    ship.setPosition(nextPosition);
+    ship.advanceRouteProgress(nextProgress);
+
+    const headingPoint = route.pointAtDistance(
+      Math.min(nextProgress + waypointTolerance, route.totalLength),
+    );
+    const headingX = headingPoint.x - nextPosition.x;
+    const headingY = headingPoint.y - nextPosition.y;
+    const tangent = Math.hypot(headingX, headingY) > 1e-9
+      ? { x: headingX, y: headingY }
+      : route.tangentAtDistance(nextProgress);
+    if (tangent !== null) {
+      ship.setRotationDeg(
+        (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI,
+      );
     }
   }
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {
@@ -120,18 +154,5 @@ export class ShipMotor {
       ship.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
       ship.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,
     );
-  }
-
-  #advanceEndpointInsideTolerance(ship: ShipModel, waypointTolerance: number): boolean {
-    const route = ship.route;
-    if (route === null) return false;
-    const cursor = route.cursorAtDistance(ship.routeProgress);
-    const endpoint = route.at(cursor);
-    if (
-      endpoint === null ||
-      Math.hypot(endpoint.x - ship.x, endpoint.y - ship.y) > waypointTolerance
-    ) return false;
-    ship.advanceRouteProgress(route.distanceAtCursor(cursor + 1));
-    return true;
   }
 }

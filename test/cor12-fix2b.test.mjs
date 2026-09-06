@@ -182,6 +182,231 @@ test('COR-12 FIX-2B ReadyToLeave remains stopped without an outbound route', asy
   assert.deepEqual(ship.toSnapshot(), before);
 });
 
+test('COR-12 FIX-3B controlled loaded ship keeps moving through repeatable boundary returns', async () => {
+  const { subject, registry } = await createInputController();
+  const ship = new subject.ShipModel({
+    id: 'loaded-exit-reject',
+    characteristics: registry.require('cargo_boat'),
+    position: { x: 20, y: 500 },
+    rotationDeg: 180,
+    state: subject.ShipState.Navigating,
+    cargo: { general: 1 },
+    route: { points: [{ x: 0, y: 500 }] },
+  });
+  const exit = new subject.ExitSystem({
+    zones: [{ id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' }],
+    worldBounds: { width: 1000, height: 1000 },
+    score: 20,
+    events: new subject.DomainEventQueue(),
+  });
+
+  assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, [ship.id]);
+  assert.equal(ship.route, null);
+  const rejectedPosition = ship.position;
+  const motor = new subject.ShipMotor();
+  motor.stepRoute(ship, 8, 0.25);
+
+  assert.ok(Math.abs(
+    Math.hypot(ship.x - rejectedPosition.x, ship.y - rejectedPosition.y) -
+      ship.characteristics.speed * 0.25,
+  ) < 1e-9);
+  assert.ok(ship.rotationDeg > 0 && ship.rotationDeg < 180);
+  assert.equal(ship.state, subject.ShipState.Navigating);
+  ship.replaceRoute(new subject.ShipRoute([{ x: 0, y: ship.y }]));
+  ship.setRotationDeg(180);
+  const interruptedReturn = exit.step([ship]);
+  assert.deepEqual(interruptedReturn.rejectedCargoShipIds, [ship.id]);
+  assert.equal(ship.route, null);
+  assert.notEqual(ship.routeRecoveryHeadingDeg, null);
+  const recoveryTarget = ship.routeRecoveryHeadingDeg;
+  const restored = subject.ShipModel.restore(ship.toSnapshot(), registry);
+  for (let step = 0; step < 180 && restored.routeRecoveryHeadingDeg !== null; step += 1) {
+    const before = restored.position;
+    motor.stepRoute(restored, 8, 1 / 60);
+    assert.ok(Math.hypot(restored.x - before.x, restored.y - before.y) > 0);
+  }
+  assert.equal(restored.rotationDeg, recoveryTarget);
+  assert.equal(restored.routeRecoveryHeadingDeg, null);
+  const alignedX = restored.x;
+  motor.stepRoute(restored, 8, 1 / 60);
+  assert.ok(restored.x > alignedX);
+
+  restored.setPositionXY(500, 500);
+  exit.step([restored]);
+  restored.setPositionXY(20, 500);
+  restored.setRotationDeg(180);
+  restored.replaceRoute(new subject.ShipRoute([{ x: 0, y: 500 }]));
+  const repeated = exit.step([restored]);
+  assert.deepEqual(repeated.rejectedCargoShipIds, [restored.id]);
+  assert.deepEqual(repeated.despawnedShipIds, []);
+  assert.equal(repeated.scoreDelta, 0);
+  assert.equal(restored.state, subject.ShipState.Navigating);
+});
+
+test('COR-12 FIX-2B entering cargo ship can cross its spawn-side ExitZone into the harbor', async () => {
+  const { subject, registry } = await createInputController();
+  const ship = new subject.ShipModel({
+    id: 'entering-through-exit-zone',
+    characteristics: registry.require('speedboat'),
+    position: { x: 980, y: 500 },
+    rotationDeg: 180,
+    state: subject.ShipState.Entering,
+    cargo: { general: 1 },
+  });
+  const exit = new subject.ExitSystem({
+    zones: [{ id: 'right', x: 980, y: 500, width: 40, height: 900, edge: 'right' }],
+    worldBounds: { width: 1000, height: 1000 },
+    score: 20,
+    events: new subject.DomainEventQueue(),
+  });
+
+  assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, []);
+  ship.setState(subject.ShipState.Navigating);
+  ship.replaceRoute(new subject.ShipRoute([{ x: 800, y: 500 }]));
+  assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, []);
+  new subject.ShipMotor().stepRoute(ship, 8, 0.5);
+
+  assert.equal(ship.routeMotionHeld, false);
+  assert.ok(ship.x < 980);
+});
+
+test('COR-12 FIX-2B entering cargo ship routed outward is recovered instead of escaping', async () => {
+  const { subject, registry } = await createInputController();
+  const ship = new subject.ShipModel({
+    id: 'entering-routed-outward',
+    characteristics: registry.require('speedboat'),
+    position: { x: 980, y: 500 },
+    rotationDeg: 180,
+    state: subject.ShipState.Entering,
+    cargo: { general: 1 },
+  });
+  const exit = new subject.ExitSystem({
+    zones: [{ id: 'right', x: 980, y: 500, width: 40, height: 900, edge: 'right' }],
+    worldBounds: { width: 1000, height: 1000 },
+    score: 20,
+    events: new subject.DomainEventQueue(),
+  });
+  assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, []);
+  ship.setState(subject.ShipState.Navigating);
+  ship.replaceRoute(new subject.ShipRoute([{ x: 1000, y: 500 }]));
+  ship.setRotationDeg(0);
+
+  assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, [ship.id]);
+  assert.equal(ship.route, null);
+  assert.equal(ship.routeRecoveryHeadingDeg, 180);
+});
+
+test('COR-12 FIX-3B untouched Entering returns once then neutral-despawns on its next boundary', async () => {
+  const { subject, registry } = await createInputController();
+  const events = new subject.DomainEventQueue();
+  const exited = [];
+  events.subscribe('ship_exited', (fact) => exited.push(fact));
+  const ship = new subject.ShipModel({
+    id: 'untouched-boundary-flow',
+    characteristics: registry.require('speedboat'),
+    position: { x: 980, y: 500 },
+    rotationDeg: 180,
+    state: subject.ShipState.Entering,
+    cargo: { general: 1 },
+  });
+  const exit = new subject.ExitSystem({
+    zones: [
+      { id: 'left', x: 20, y: 500, width: 40, height: 900, edge: 'left' },
+      { id: 'right', x: 980, y: 500, width: 40, height: 900, edge: 'right' },
+    ],
+    worldBounds: { width: 1000, height: 1000 },
+    score: 20,
+    events,
+  });
+
+  assert.deepEqual(exit.step([ship]).despawnedShipIds, []);
+  ship.setPositionXY(500, 500);
+  exit.step([ship]);
+  ship.setPositionXY(20, 500);
+  ship.setRotationDeg(180);
+  const firstBoundary = exit.step([ship]);
+  assert.deepEqual(firstBoundary.despawnedShipIds, []);
+  assert.deepEqual(firstBoundary.rejectedCargoShipIds, []);
+  assert.equal(firstBoundary.scoreDelta, 0);
+  assert.deepEqual(firstBoundary.exitedShipFacts, []);
+  assert.equal(ship.state, subject.ShipState.Entering);
+  assert.equal(ship.routeRecoveryHeadingDeg, 0);
+
+  const beforeArc = ship.position;
+  new subject.ShipMotor().stepRoute(ship, 8, 0.1);
+  assert.ok(Math.hypot(ship.x - beforeArc.x, ship.y - beforeArc.y) > 0);
+  ship.finishRouteRecovery();
+  ship.setPositionXY(500, 500);
+  exit.step([ship]);
+  ship.setPositionXY(980, 500);
+  ship.setRotationDeg(0);
+  const secondBoundary = exit.step([ship]);
+  events.flush();
+
+  assert.deepEqual(secondBoundary.despawnedShipIds, [ship.id]);
+  assert.equal(secondBoundary.scoreDelta, 0);
+  assert.deepEqual(secondBoundary.exitedShipFacts, []);
+  assert.deepEqual(exited, []);
+  assert.equal(ship.state, subject.ShipState.Entering);
+});
+
+test('COR-12 FIX-3B world edge without ExitZone still returns untouched Entering traffic', async () => {
+  const { subject, registry } = await createInputController();
+  const ship = new subject.ShipModel({
+    id: 'untouched-top-boundary',
+    characteristics: registry.require('speedboat'),
+    position: { x: 500, y: 500 },
+    rotationDeg: 270,
+    state: subject.ShipState.Entering,
+    cargo: { general: 1 },
+  });
+  const exit = new subject.ExitSystem({
+    zones: [],
+    worldBounds: { width: 1000, height: 1000 },
+    score: 20,
+    events: new subject.DomainEventQueue(),
+  });
+
+  exit.step([ship]);
+  ship.setPositionXY(500, ship.characteristics.collisionRadius);
+  const result = exit.step([ship]);
+
+  assert.deepEqual(result.despawnedShipIds, []);
+  assert.equal(ship.state, subject.ShipState.Entering);
+  assert.equal(ship.routeRecoveryHeadingDeg, 90);
+});
+
+test('COR-12 FIX-3B loaded boundary return near a corner curves toward the world interior', async () => {
+  const { subject, registry } = await createInputController();
+  const ship = new subject.ShipModel({
+    id: 'loaded-near-corner',
+    characteristics: registry.require('speedboat'),
+    position: { x: 961, y: 60 },
+    rotationDeg: 0,
+    state: subject.ShipState.Navigating,
+    cargo: { general: 1 },
+  });
+  const exit = new subject.ExitSystem({
+    zones: [{ id: 'right', x: 980, y: 500, width: 40, height: 900, edge: 'right' }],
+    worldBounds: { width: 1000, height: 1000 },
+    score: 20,
+    events: new subject.DomainEventQueue(),
+  });
+
+  assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, [ship.id]);
+  assert.ok(ship.routeRecoveryHeadingDeg > 90 && ship.routeRecoveryHeadingDeg < 180);
+  const motor = new subject.ShipMotor();
+  for (let step = 0; step < 600; step += 1) {
+    motor.stepRoute(ship, 8, 1 / 60);
+    exit.step([ship]);
+  }
+
+  assert.ok(ship.x > ship.characteristics.collisionRadius);
+  assert.ok(ship.y > ship.characteristics.collisionRadius);
+  assert.ok(ship.x < 1000 - ship.characteristics.collisionRadius);
+  assert.ok(ship.y < 1000 - ship.characteristics.collisionRadius);
+});
+
 test('COR-12 FIX-2B incoming presentation approaches from offscreen to authored spawn', async () => {
   const subject = await loadSubject();
   const indicator = {
@@ -318,14 +543,15 @@ for (const shipType of ['speedboat', 'cargo_boat', 'freighter']) {
         route: { points },
       });
       const motor = new subject.ShipMotor();
+      let previousProgress = ship.routeProgress;
       for (let step = 0; step < 3600 && ship.routeCursor < points.length; step += 1) {
         const before = ship.position;
-        const beforeRotation = ship.rotationDeg;
         motor.stepRoute(ship, 8, 1 / 60);
         const distance = Math.hypot(ship.x - before.x, ship.y - before.y);
         assert.ok(distance <= ship.characteristics.speed / 60 + 1e-9);
-        const turn = Math.abs(((ship.rotationDeg - beforeRotation + 540) % 360) - 180);
-        assert.ok(turn <= ship.characteristics.turnRateDeg / 60 + 1e-9);
+        assert.ok(ship.routeProgress >= previousProgress);
+        assert.deepEqual(ship.position, ship.route.pointAtDistance(ship.routeProgress));
+        previousProgress = ship.routeProgress;
       }
       assert.equal(ship.routeCursor, points.length);
     });
@@ -396,6 +622,7 @@ test('COR-12 FIX-2B outbound edge route enters ExitZone and scores exactly once'
   events.subscribe('ship_exited', (fact) => received.push(fact));
   const exit = new subject.ExitSystem({
     zones: [{ id: 'right', x: 980, y: 500, width: 40, height: 900, edge: 'right' }],
+    worldBounds: { width: 1000, height: 1000 },
     score: 20,
     events,
   });

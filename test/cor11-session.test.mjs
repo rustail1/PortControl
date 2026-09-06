@@ -310,6 +310,7 @@ async function exitHarness() {
   });
   const system = new s.ExitSystem({
     zones: s.createExitZones(bundle.levels.calm_01),
+    worldBounds: { width: 1000, height: 1000 },
     score: s.createExitScore(bundle),
     events: queue,
   });
