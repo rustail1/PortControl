@@ -34,7 +34,12 @@ export function moveAngleTowardsDeg(
 }
 
 export class ShipMotor {
-  public stepRoute(ship: ShipModel, _waypointTolerance: number, deltaSeconds: number): void {
+  public stepRoute(
+    ship: ShipModel,
+    _waypointTolerance: number,
+    deltaSeconds: number,
+    continueAfterRouteEnd = true,
+  ): void {
     if (
       ship.state !== ShipState.Entering &&
       ship.state !== ShipState.Navigating &&
@@ -72,11 +77,11 @@ export class ShipMotor {
       return;
     }
     if (ship.routeProgress >= route.totalLength) {
-      if (
+      if (continueAfterRouteEnd && (
         ship.state === ShipState.Entering ||
         ship.state === ShipState.Navigating ||
         ship.state === ShipState.Leaving
-      ) {
+      )) {
         this.#stepForward(ship, deltaSeconds);
       }
       return;
@@ -85,27 +90,18 @@ export class ShipMotor {
     if (deltaSeconds < 0) {
       throw new RangeError('deltaSeconds must be non-negative');
     }
-    const cursor = route.cursorAtDistance(ship.routeProgress);
-    const segmentEnd = route.distanceAtCursor(cursor + 1);
-    ship.advanceRouteProgress(
-      route.projectProgress(
-        ship.position,
-        ship.routeProgress,
-        segmentEnd - ship.routeProgress,
-      ),
-    );
+    const before = ship.position;
     const nextProgress = Math.min(
       ship.routeProgress + ship.characteristics.speed * deltaSeconds,
       route.totalLength,
     );
     const nextPosition = route.pointAtDistance(nextProgress);
-    const movementX = nextPosition.x - ship.x;
-    const movementY = nextPosition.y - ship.y;
+    const actualDx = nextPosition.x - before.x;
+    const actualDy = nextPosition.y - before.y;
     ship.setPosition(nextPosition);
     ship.advanceRouteProgress(nextProgress);
-
-    if (Math.hypot(movementX, movementY) > 1e-9) {
-      ship.setRotationDeg(Math.atan2(movementY, movementX) * 180 / Math.PI);
+    if (actualDx !== 0 || actualDy !== 0) {
+      ship.setRotationDeg(Math.atan2(actualDy, actualDx) * 180 / Math.PI);
     }
   }
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {

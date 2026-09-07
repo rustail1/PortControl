@@ -36,6 +36,32 @@ function safeTarget(position, distance = 140) {
   };
 }
 
+function reverseTarget(ship, distance = 80) {
+  const radians = ship.rotationDeg * Math.PI / 180;
+  return {
+    x: ship.position.x - Math.cos(radians) * distance,
+    y: ship.position.y - Math.sin(radians) * distance,
+  };
+}
+
+function angleDelta(left, right) {
+  return Math.abs(((right - left + 540) % 360) - 180);
+}
+
+function accumulatedTurn(points, start, headingDeg) {
+  let previous = start;
+  let heading = headingDeg * Math.PI / 180;
+  let total = 0;
+  for (const point of points) {
+    const nextHeading = Math.atan2(point.y - previous.y, point.x - previous.x);
+    const delta = ((nextHeading - heading + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    total += Math.abs(delta);
+    heading = nextHeading;
+    previous = point;
+  }
+  return total * 180 / Math.PI;
+}
+
 test('COR-12 live-follow starts following an activated draft before pointer release', async () => {
   const { runtime, ship } = await setupRuntime();
   const target = safeTarget(ship.position);
@@ -49,8 +75,7 @@ test('COR-12 live-follow starts following an activated draft before pointer rele
   const live = runtime.presentationSnapshot().ships[0].ship;
   assert.notEqual(live.route, null);
   assert.equal(live.state, 'Navigating');
-  assert.ok(live.routeProgress > 0);
-  assert.notDeepEqual(live.position, ship.position);
+  assert.ok(live.routeProgress > 0 || live.rotationDeg !== ship.rotationDeg);
   assert.notEqual(runtime.presentationSnapshot().activeDraft, null);
 });
 
@@ -70,7 +95,7 @@ test('COR-12 activated cancel seals the live route without rolling movement back
   const afterCancel = runtime.presentationSnapshot().ships[0].ship;
   assert.notEqual(afterCancel.route, null);
   assert.ok(afterCancel.routeProgress >= beforeCancel.routeProgress);
-  assert.notDeepEqual(afterCancel.position, ship.position);
+  assert.ok(afterCancel.routeProgress > 0 || afterCancel.rotationDeg !== ship.rotationDeg);
 });
 
 test('COR-12 sub-threshold cancel remains a non-routing cancellation', async () => {
@@ -97,9 +122,39 @@ test('COR-12 live-follow extends the future tail while the pointer remains down'
   runtime.advanceRender(1000 / 60);
 
   const live = runtime.presentationSnapshot().ships[0].ship;
-  assert.deepEqual(live.route.points.at(-1), second);
-  assert.ok(live.routeProgress > 0);
+  const effectiveEnd = live.route.points.at(-1);
+  assert.ok(Math.hypot(effectiveEnd.x - second.x, effectiveEnd.y - second.y) <
+    Math.hypot(effectiveEnd.x - first.x, effectiveEnd.y - first.y));
+  assert.ok(live.routeProgress > 0 || live.rotationDeg !== ship.rotationDeg);
   assert.notEqual(runtime.presentationSnapshot().activeDraft, null);
+});
+
+test('COR-12 live-follow cannot run past its temporary tip and jerk backward on extension', async () => {
+  const { runtime, ship } = await setupRuntime(1516);
+  const first = safeTarget(ship.position, 40);
+  const extension = {
+    x: ship.position.x + (first.x - ship.position.x) * 3,
+    y: ship.position.y + (first.y - ship.position.y) * 3,
+  };
+  runtime.pointerDown(pointer(ship.position));
+  runtime.pointerMove(pointer(first));
+  for (let frame = 0; frame < 120; frame += 1) runtime.advanceRender(1000 / 60);
+
+  const waiting = runtime.presentationSnapshot().ships[0].ship;
+  const temporaryTip = waiting.route.points.at(-1);
+  assert.ok(Math.hypot(
+    waiting.position.x - temporaryTip.x,
+    waiting.position.y - temporaryTip.y,
+  ) < 1e-6, 'active live route must hold at its temporary tip');
+
+  runtime.pointerMove(pointer(extension));
+  runtime.advanceRender(1000 / 60);
+  const extended = runtime.presentationSnapshot().ships[0].ship;
+  const extensionX = extension.x - temporaryTip.x;
+  const extensionY = extension.y - temporaryTip.y;
+  const movementX = extended.position.x - waiting.position.x;
+  const movementY = extended.position.y - waiting.position.y;
+  assert.ok(movementX * extensionX + movementY * extensionY >= 0);
 });
 
 test('COR-12 live-follow ignores a second pointer without rebasing the active route', async () => {
@@ -165,24 +220,73 @@ test('COR-12 live-follow never applies a fully invalid land-crossing suffix', as
   assert.equal(runtime.lastRouteCommitResult.kind, 'rejected_invalid');
 });
 
-test('COR-12 live reverse route starts a forward U-turn and accepts future extension', async () => {
-  const { runtime, ship } = await setupRuntime(1212);
-  assert.ok(ship.position.x > 950);
-  const outward = { x: 990, y: ship.position.y };
-  const redirected = { x: 700, y: 500 };
-  runtime.pointerDown(pointer(ship.position));
-  runtime.pointerMove(pointer(outward));
+test('COR-12 live reverse route moves nose-first and accepts future extension', async () => {
+  const { runtime } = await setupRuntime(1212);
+  for (let frame = 0; frame < 120; frame += 1) runtime.advanceRender(1000 / 60);
+  const ready = runtime.presentationSnapshot().ships[0].ship;
+  const reverse = reverseTarget(ready);
+  const redirected = safeTarget(ready.position);
+  runtime.pointerDown(pointer(ready.position));
+  runtime.pointerMove(pointer(reverse));
   runtime.advanceRender(1000 / 60);
   const turning = runtime.presentationSnapshot().ships[0].ship;
   assert.equal(turning.routeRecoveryHeadingDeg ?? null, null);
   assert.notEqual(turning.route, null);
-  assert.ok(turning.position.x < ship.position.x);
+  const dx = turning.position.x - ready.position.x;
+  const dy = turning.position.y - ready.position.y;
+  assert.ok(Math.hypot(dx, dy) > 0);
+  assert.ok(angleDelta(turning.rotationDeg, Math.atan2(dy, dx) * 180 / Math.PI) < 1e-9);
 
   runtime.pointerMove(pointer(redirected));
   runtime.advanceRender(1000 / 60);
   const extended = runtime.presentationSnapshot().ships[0].ship;
   assert.notEqual(extended.route, null);
-  assert.deepEqual(extended.route.points.at(-1), redirected);
+  const turningEnd = turning.route.points.at(-1);
+  const extendedEnd = extended.route.points.at(-1);
+  assert.ok(Math.hypot(extendedEnd.x - redirected.x, extendedEnd.y - redirected.y) <
+    Math.hypot(turningEnd.x - redirected.x, turningEnd.y - redirected.y));
+});
+
+test('COR-12 live-follow keeps drawn intent fixed and preserves progress through extension', async () => {
+  const { runtime } = await setupRuntime(1212);
+  for (let frame = 0; frame < 120; frame += 1) runtime.advanceRender(1000 / 60);
+  const ready = runtime.presentationSnapshot().ships[0].ship;
+  const shortReverse = reverseTarget(ready);
+  runtime.pointerDown(pointer(ready.position));
+  runtime.pointerMove(pointer(shortReverse));
+  for (let frame = 0; frame < 30; frame += 1) runtime.advanceRender(1000 / 60);
+
+  const progressedDraft = runtime.presentationSnapshot().activeDraft;
+  assert.notEqual(progressedDraft, null);
+  assert.deepEqual(progressedDraft.start, ready.position);
+  assert.deepEqual(progressedDraft.points, [shortReverse]);
+
+  const beforeExtension = runtime.presentationSnapshot().ships[0].ship;
+  runtime.pointerMove(pointer({ x: 700, y: 500 }));
+  runtime.advanceRender(1000 / 60);
+  const extendedShip = runtime.presentationSnapshot().ships[0].ship;
+  const extendedRoute = extendedShip.route;
+  assert.notEqual(extendedRoute, null);
+  assert.deepEqual(extendedRoute.start, ready.position);
+  assert.ok(extendedShip.routeProgress >= beforeExtension.routeProgress);
+});
+
+test('COR-12 drawn preview clips its tail while future points remain anchored', async () => {
+  const { runtime, ship } = await setupRuntime(1818);
+  runtime.pointerDown(pointer(ship.position));
+  runtime.pointerMove(pointer(safeTarget(ship.position, 240)));
+  const initialSnapshot = runtime.presentationSnapshot();
+  const initialPreview = initialSnapshot.routePreview;
+  assert.notEqual(initialPreview, null);
+
+  for (let frame = 0; frame < 15; frame += 1) runtime.advanceRender(1000 / 60);
+
+  const movedSnapshot = runtime.presentationSnapshot();
+  const movedPreview = movedSnapshot.routePreview;
+  assert.deepEqual(movedSnapshot.activeDraft, initialSnapshot.activeDraft);
+  assert.deepEqual(movedPreview.start, movedSnapshot.ships[0].ship.position);
+  assert.deepEqual(movedPreview.validPoints, initialPreview.validPoints);
+  assert.notDeepEqual(movedPreview.start, initialPreview.start);
 });
 
 test('COR-12 second pointer cannot rebase a live draft during recovery', async () => {

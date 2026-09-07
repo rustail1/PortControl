@@ -143,10 +143,17 @@ export class ShipModel {
   public get routeMotionHeld(): boolean { return this.#routeMotionHeld; }
   public get routeRecoveryHeadingDeg(): number | null { return this.#routeRecoveryHeadingDeg; }
   public get currentWaypoint(): ShipPosition | null { return this.#route?.at(this.#routeCursor) ?? null; }
-  public replaceRoute(route: ShipRoute, start: ShipPosition = this.position): void {
+  public replaceRoute(
+    route: ShipRoute,
+    start: ShipPosition = this.position,
+    progress = 0,
+  ): void {
+    if (!Number.isFinite(progress) || progress < 0) {
+      throw new RangeError('route progress must be a non-negative finite number');
+    }
     this.#route = route.withStart(start);
-    this.#routeCursor = 0;
-    this.#routeProgress = 0;
+    this.#routeProgress = Math.min(progress, this.#route.totalLength);
+    this.#routeCursor = this.#route.cursorAtDistance(this.#routeProgress);
     this.#routeMotionHeld = false;
     this.#routeRecoveryHeadingDeg = null;
   }

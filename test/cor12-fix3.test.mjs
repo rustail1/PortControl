@@ -263,7 +263,7 @@ test('COR-12 FIX-3 remaining route clips the consumed tail without changing auth
   assert.deepEqual(route.toSnapshot(), authored);
 });
 
-test('COR-12 FIX-3 follower aligns toward the next segment without leaving a 90 degree route', async () => {
+test('COR-12 FIX-3 follower turns forward toward the next segment of a raw 90 degree route', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry);
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 150 }]));
@@ -275,10 +275,12 @@ test('COR-12 FIX-3 follower aligns toward the next segment without leaving a 90 
     motor.stepRoute(ship, 8, 1 / 60);
     assert.ok(ship.routeProgress >= previousProgress);
     assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
-    assert.ok(
-      Math.abs(ship.y) < 1e-9 && ship.x <= 100 + 1e-9 ||
-      Math.abs(ship.x - 100) < 1e-9 && ship.y >= -1e-9,
-    );
+    const dx = ship.x - before.x;
+    const dy = ship.y - before.y;
+    if (Math.hypot(dx, dy) > 1e-9) {
+      const velocityHeading = Math.atan2(dy, dx) * 180 / Math.PI;
+      assert.ok(Math.abs(((velocityHeading - ship.rotationDeg + 540) % 360) - 180) < 1e-9);
+    }
     if (ship.x < 100 && ship.routeCursor === 0 && ship.rotationDeg > 0) alignedTowardCorner = true;
     previousProgress = ship.routeProgress;
   }

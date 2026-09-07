@@ -80,7 +80,7 @@ test('COR-12 real pointer preview and released draft both include the unsampled 
   assert.deepEqual(simplifyRouteDraft(controller.pointerUp(pointer(416)).draft, config), [{ x: 416, y: 400 }]);
 });
 
-test('COR-12 moving along the start of a held curve cannot relocate its future bends', async () => {
+test('COR-12 moving along a held curve cannot relocate its raw future bends', async () => {
   const { ship, controller, pointer } = await createPointerSubject();
   controller.pointerDown(pointer(400));
   for (let i = 1; i <= 24; i++) {
@@ -88,26 +88,22 @@ test('COR-12 moving along the start of a held curve cannot relocate its future b
     const point = { x: 400 + 200 * Math.sin(angle), y: 400 + 200 * (1 - Math.cos(angle)) };
     controller.pointerMove({ ...pointer(point.x), screenPosition: point, cssPosition: point });
   }
-  const before = simplifyRouteDraft(controller.activeDraftSnapshot, config);
+  const before = controller.activeDraftSnapshot;
   ship.setPosition({ x: 405.23, y: 400.17 });
-  controller.syncActiveDraftToShip();
-  assert.deepEqual(simplifyRouteDraft(controller.activeDraftSnapshot, config), before);
-  ship.setPosition(before[0]);
-  controller.syncActiveDraftToShip();
-  assert.deepEqual(simplifyRouteDraft(controller.activeDraftSnapshot, config), before.slice(1));
+  assert.deepEqual(controller.activeDraftSnapshot, before);
+  ship.setPosition(before.points[0]);
+  assert.deepEqual(controller.activeDraftSnapshot, before);
 });
 
-test('COR-12 reaching the last raw sample keeps an unvisited live tip visible', async () => {
+test('COR-12 ship movement cannot consume raw samples or the live tip', async () => {
   const { ship, controller, pointer } = await createPointerSubject();
   controller.pointerDown(pointer(400));
   controller.pointerMove(pointer(412));
   controller.pointerMove(pointer(419));
+  const before = controller.activeDraftSnapshot;
   ship.setPosition({ x: 412, y: 400 });
-  controller.syncActiveDraftToShip();
-  assert.deepEqual(simplifyRouteDraft(controller.activeDraftSnapshot, config), [{ x: 419, y: 400 }]);
   ship.setPosition({ x: 419, y: 400 });
-  controller.syncActiveDraftToShip();
-  assert.deepEqual(simplifyRouteDraft(controller.activeDraftSnapshot, config), []);
+  assert.deepEqual(controller.activeDraftSnapshot, before);
 });
 
 test('COR-12 visual heading eases a sharp turn without owning ship movement', async () => {

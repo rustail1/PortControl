@@ -101,7 +101,7 @@ test('COR-12 FIX-2 pointerup at exact threshold activates even without a move ev
   });
 });
 
-test('COR-12 FIX-3B moving ship drops the stale swipe prefix before preview and commit', async () => {
+test('COR-12 moving ship does not rewrite the world-anchored swipe', async () => {
   const { ship, controller } = await createInputSubject();
   controller.pointerDown(pointer(100, 100));
   controller.pointerMove(pointer(120, 100));
@@ -112,20 +112,20 @@ test('COR-12 FIX-3B moving ship drops the stale swipe prefix before preview and 
   assert.deepEqual(controller.activeDraftSnapshot, {
     shipId: ship.id,
     pointerId: 1,
-    start: { x: 120, y: 100 },
-    points: [{ x: 160, y: 100 }],
+    start: { x: 100, y: 100 },
+    points: [{ x: 120, y: 100 }, { x: 160, y: 100 }],
   });
   assert.deepEqual(controller.pointerUp(pointer(180, 100)), {
     kind: 'finished',
     draft: {
       shipId: ship.id,
-      start: { x: 120, y: 100 },
-      points: [{ x: 160, y: 100 }, { x: 180, y: 100 }],
+      start: { x: 100, y: 100 },
+      points: [{ x: 120, y: 100 }, { x: 160, y: 100 }, { x: 180, y: 100 }],
     },
   });
 });
 
-test('COR-12 FIX-3B fixed steps keep an active swipe anchored to the moving ship', async () => {
+test('COR-12 held preview clips its travelled tail without moving future points', async () => {
   const subject = await loadSubject();
   const bundle = subject.validateConfigSource(readBaselineSource());
   const runtime = new subject.HarborRuntime({ bundle, levelId: 'calm_01', attemptSeed: 123 });
@@ -148,11 +148,17 @@ test('COR-12 FIX-3B fixed steps keep an active swipe anchored to the moving ship
   runtime.pointerDown(pointer(ship.position.x, ship.position.y));
   runtime.pointerMove(pointer(first.x, first.y));
   runtime.pointerMove(pointer(last.x, last.y));
-  assert.deepEqual(runtime.presentationSnapshot().activeDraft.points, [first, last]);
+  const beforeMovement = runtime.presentationSnapshot();
+  const draftBeforeMovement = beforeMovement.activeDraft;
 
   for (let frame = 0; frame < 60; frame += 1) runtime.advanceRender(1000 / 60);
 
-  assert.deepEqual(runtime.presentationSnapshot().routePreview.validPoints, [last]);
+  const afterMovement = runtime.presentationSnapshot();
+  const movedShip = afterMovement.ships.find(({ ship: candidate }) => candidate.id === ship.id).ship;
+  assert.deepEqual(afterMovement.activeDraft, draftBeforeMovement);
+  assert.deepEqual(afterMovement.routePreview.start, movedShip.position);
+  assert.deepEqual(afterMovement.routePreview.validPoints.at(-1), last);
+  assert.notDeepEqual(afterMovement.routePreview.start, beforeMovement.routePreview.start);
 });
 
 test('COR-12 FIX-3B off-axis movement does not consume an unvisited first bend', async () => {
@@ -162,7 +168,6 @@ test('COR-12 FIX-3B off-axis movement does not consume an unvisited first bend',
   controller.pointerMove(pointer(200, 300));
 
   ship.setPosition({ x: 220, y: 140 });
-  controller.syncActiveDraftToShip();
 
   assert.deepEqual(controller.activeDraftSnapshot.start, { x: 100, y: 100 });
   assert.deepEqual(controller.activeDraftSnapshot.points, [{ x: 200, y: 100 }, { x: 200, y: 300 }]);
@@ -180,7 +185,6 @@ test('COR-12 FIX-3B self-crossing swipe cannot skip to a later branch', async ()
   for (const point of points) controller.pointerMove(pointer(point.x, point.y));
 
   ship.setPosition({ x: 150, y: 150 });
-  controller.syncActiveDraftToShip();
 
   assert.deepEqual(controller.activeDraftSnapshot.points, points);
 });
@@ -197,17 +201,15 @@ test('COR-12 FIX-3B capped draft keeps its route when the boundary endpoint repl
   controller.pointerMove(pointer(100, 100));
   controller.pointerMove(pointer(900, 100));
   ship.setPosition({ x: 100, y: 100 });
-  controller.syncActiveDraftToShip();
   ship.setPosition({ x: 400, y: 100 });
-  controller.syncActiveDraftToShip();
-  assert.deepEqual(controller.activeDraftSnapshot.points, [{ x: 900, y: 100 }]);
+  assert.deepEqual(controller.activeDraftSnapshot.points, [{ x: 100, y: 100 }, { x: 900, y: 100 }]);
 
   assert.deepEqual(controller.pointerMove(pointer(-100, 100)), {
     kind: 'finished',
     draft: {
       shipId: ship.id,
-      start: { x: 100, y: 100 },
-      points: [{ x: 900, y: 100 }, { x: 0, y: 100 }],
+      start: { x: 500, y: 100 },
+      points: [{ x: 100, y: 100 }, { x: 0, y: 100 }],
     },
   });
 });

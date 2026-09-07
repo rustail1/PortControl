@@ -53,6 +53,7 @@ import {
 } from '../routes/RouteCommitService.ts';
 import {
   isRouteInputState,
+  materializeRouteDraft,
   RouteInputController,
   type ActiveRouteDraftSnapshot,
   type NormalizedPointerInput,
@@ -61,10 +62,9 @@ import {
 } from '../routes/RouteInputController.ts';
 import { createRouteProcessingConfig } from '../routes/RouteProcessingConfig.ts';
 import { createRouteSamplingConfig } from '../routes/RouteSamplingConfig.ts';
-import { simplifyRouteDraft } from '../routes/RouteSimplifier.ts';
 import {
-  createCurvatureLimitedRoute,
   createShipCharacteristicsRegistry,
+  ShipRoute,
   ShipState,
   type ShipModel,
   type ShipModelSnapshot,
@@ -156,6 +156,7 @@ export interface HarborCargoRejectPulseSnapshot {
 
 export interface HarborRoutePreviewSnapshot {
   readonly shipId: string;
+  readonly start: Point;
   readonly validPoints: readonly Point[];
   readonly rejectedPoints: readonly Point[];
 }
@@ -668,32 +669,26 @@ export class HarborRuntime {
     if (record === undefined) {
       return null;
     }
-    const routeStart = this.#routeStartFor(record.ship);
-    const rawValidation = this.#navigation.validate(
+    const routeStart = draft.start;
+    const validation = this.#navigation.validate(
       record.ship,
-      simplifyRouteDraft(draft, this.#routeConfig),
+      materializeRouteDraft(draft),
       this.#routeConfig,
       routeStart,
     );
-    const effectiveValidation = rawValidation.validPoints.length === 0
-      ? rawValidation
-      : this.#navigation.validate(
-          record.ship,
-          createCurvatureLimitedRoute(rawValidation.validPoints, {
-            start: routeStart,
-            headingDeg: record.ship.rotationDeg,
-            speed: record.ship.characteristics.speed,
-            turnRateDeg: record.ship.characteristics.turnRateDeg,
-          }).toSnapshot().points,
-          this.#routeConfig,
-          routeStart,
-        );
+    const committedStart = record.ship.route?.toSnapshot().start;
+    const progress = committedStart !== undefined &&
+      committedStart.x === routeStart.x && committedStart.y === routeStart.y
+      ? record.ship.routeProgress
+      : 0;
+    const remaining = validation.validPoints.length === 0
+      ? Object.freeze([])
+      : new ShipRoute(validation.validPoints, routeStart).remainingPolyline(progress);
     return Object.freeze({
       shipId: draft.shipId,
-      validPoints: freezePoints(effectiveValidation.validPoints),
-      rejectedPoints: freezePoints(rawValidation.validPoints.length === 0
-        ? rawValidation.rejectedPoints
-        : [...effectiveValidation.rejectedPoints, ...rawValidation.rejectedPoints]),
+      start: Object.freeze({ ...record.ship.position }),
+      validPoints: freezePoints(remaining.slice(1)),
+      rejectedPoints: freezePoints(validation.rejectedPoints),
     });
   }
 
@@ -965,14 +960,15 @@ export class HarborRuntime {
   }
 
   #moveShips(deltaSeconds: number): void {
+    const liveShipId = this.#routeInput.activeDraftSnapshot?.shipId ?? null;
     for (const record of this.#active.values()) {
       this.#shipMotor.stepRoute(
         record.ship,
         this.#routeConfig.waypointTolerance,
         deltaSeconds,
+        record.ship.id !== liveShipId,
       );
     }
-    this.#routeInput.syncActiveDraftToShip();
   }
 
   #buildCollisionCandidates(): void {

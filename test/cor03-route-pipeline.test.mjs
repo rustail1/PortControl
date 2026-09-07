@@ -99,18 +99,22 @@ test('route and cursor survive snapshot restore without semantic loss', async ()
   assert.deepEqual(s.ShipModel.restore(ship.toSnapshot(), registry).toSnapshot(), ship.toSnapshot());
 });
 
-test('ShipMotor follows route waypoints without teleporting near an endpoint', async () => {
+test('ShipMotor approaches a route corner forward without teleporting', async () => {
   const { s, ship, config } = await setup();
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 100 }]));
   const motor = new s.ShipMotor();
   motor.stepRoute(ship, config.waypointTolerance, 0.1);
   assert.notDeepEqual(ship.position, { x: 100, y: 0 });
   ship.setPosition({ x: 96, y: 0 });
+  ship.advanceRouteProgress(96);
   const before = ship.position;
   motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
-  assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
+  const dx = ship.x - before.x;
+  const dy = ship.y - before.y;
+  assert.ok(Math.hypot(dx, dy) <= ship.characteristics.speed / 60 + 1e-9);
   assert.ok(ship.x > 96);
-  assert.equal(ship.y, 0);
+  assert.ok(ship.y > 0);
+  assert.ok(Math.abs(((Math.atan2(dy, dx) * 180 / Math.PI - ship.rotationDeg + 540) % 360) - 180) < 1e-9);
 });
 
 test('fixed clock partitions produce the same route snapshot', async () => {

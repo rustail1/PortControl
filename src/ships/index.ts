@@ -13,9 +13,7 @@ export {
 } from './ShipModel.ts';
 export { moveAngleTowardsDeg, ShipMotor, type SteeringTarget } from './ShipMotor.ts';
 export {
-  createCurvatureLimitedRoute,
   ShipRoute,
-  type CurvatureLimitedRouteOptions,
   type ShipRouteSnapshot,
 } from './ShipRoute.ts';
 export {

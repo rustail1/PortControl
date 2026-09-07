@@ -445,7 +445,7 @@ export class HarborScene extends Phaser.Scene {
       const routeSelected = snapshot.selectedShipId === ship.ship.id;
       view.route.clear();
       if (routePoints !== null && routePoints.length > 1) {
-        const routeStart = routePoints[0]!;
+        const routeStart = { x, y };
         const remainingPoints = routePoints.slice(1);
         if (routeSelected) {
           view.route.lineStyle(9, 0x17324d, 0.9);
@@ -799,7 +799,7 @@ export class HarborScene extends Phaser.Scene {
     }
 
     const body = this.#shipViews.get(preview.shipId)?.body;
-    let anchor = body === undefined ? selected.ship.position : { x: body.x, y: body.y };
+    let anchor = body === undefined ? preview.start : { x: body.x, y: body.y };
     if (preview.validPoints.length > 0) {
       graphics.lineStyle(5, 0xfff0a6, 1);
       graphics.beginPath();

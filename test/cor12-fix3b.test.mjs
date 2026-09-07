@@ -39,11 +39,17 @@ test(`COR-12 redraw sideways drift with ${pointerOffset}px grab offset does not 
   controller.pointerMove(pointer(500 + pointerOffset, 480));
   controller.pointerMove(pointer(500 + pointerOffset, 400));
   ship.setPosition({ x: 440, y: 500 });
-  controller.syncActiveDraftToShip();
   const result = new s.RouteCommitService({ navigation: new s.NavigationValidator([]), config: routeConfig })
     .commit({ ship, draft: controller.pointerUp(pointer(500 + pointerOffset, 300)).draft });
   assert.equal(result.kind, 'committed');
-  assert.deepEqual(ship.route.toSnapshot(), { start: { x: 440, y: 500 }, points: [{ x: 500 + pointerOffset, y: 300 }] });
+  assert.deepEqual(ship.route.toSnapshot(), {
+    start: { x: 500, y: 500 },
+    points: [
+      { x: 500 + pointerOffset, y: 480 },
+      { x: 500 + pointerOffset, y: 400 },
+      { x: 500 + pointerOffset, y: 300 },
+    ],
+  });
   assert.equal(ship.rotationDeg, 0);
 });
 }
@@ -105,7 +111,7 @@ test('COR-12 outbound commit preserves dock heading until guided departure moves
   assert.deepEqual(ship.position, { x: 355, y: 150 });
 });
 
-test('COR-12 FIX-3B navigation position follows the authored polyline independent of turn rate', async () => {
+test('COR-12 FIX-3B navigation keeps velocity aligned with the rate-limited hull', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry, { rotationDeg: 180 });
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 100 }]));
@@ -118,27 +124,26 @@ test('COR-12 FIX-3B navigation position follows the authored polyline independen
     const moved = Math.hypot(ship.x - before.x, ship.y - before.y);
     assert.ok(moved <= ship.characteristics.speed / 60 + 1e-9);
     assert.ok(ship.routeProgress >= previousProgress);
-    assert.ok(
-      Math.abs(ship.y) < 1e-9 && ship.x <= 100 + 1e-9 ||
-      Math.abs(ship.x - 100) < 1e-9 && ship.y >= -1e-9,
-      `off authored polyline at (${ship.x}, ${ship.y})`,
-    );
+    if (moved > 1e-9) {
+      const velocityHeading = Math.atan2(ship.y - before.y, ship.x - before.x) * 180 / Math.PI;
+      assert.ok(Math.abs(((velocityHeading - ship.rotationDeg + 540) % 360) - 180) < 1e-9);
+    }
     previousProgress = ship.routeProgress;
   }
 
   assert.equal(ship.routeProgress, ship.route.totalLength);
-  assert.deepEqual(ship.position, { x: 100, y: 100 });
+  assert.ok(ship.y > 0);
 });
 
-test('COR-12 route position responds immediately while freighter hull turn is rate-limited', async () => {
+test('COR-12 reverse command starts a forward rate-limited turn instead of side-slipping', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry, { rotationDeg: 180 });
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }]));
 
   new s.ShipMotor().stepRoute(ship, 8, 1 / 60);
 
-  assert.ok(ship.x > 0);
-  assert.equal(ship.y, 0);
+  assert.ok(ship.x < 0);
+  assert.notEqual(ship.y, 0);
   assert.ok(Math.abs(ship.rotationDeg - (180 - ship.characteristics.turnRateDeg / 60)) < 1e-9);
 });
 

@@ -1,9 +1,8 @@
 import type { RawRouteDraft } from './RouteInputController.ts';
-import { isRouteInputState } from './RouteInputController.ts';
-import { createCurvatureLimitedRoute, ShipRoute } from '../ships/ShipRoute.ts';
+import { isRouteInputState, materializeRouteDraft } from './RouteInputController.ts';
+import { ShipRoute } from '../ships/ShipRoute.ts';
 import { ShipState } from '../ships/ShipState.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
-import { simplifyRouteDraft } from './RouteSimplifier.ts';
 import type { RouteProcessingConfig } from './RouteProcessingConfig.ts';
 import { NavigationValidator } from './NavigationValidator.ts';
 
@@ -50,11 +49,13 @@ export class RouteCommitService {
     if (draft.shipId !== ship.id || !isRouteInputState(ship.state)) {
       return { kind: 'rejected_locked' };
     }
-    const routeStart = input.routeStart ?? ship.position;
-    const simplified = simplifyRouteDraft(draft, this.#config);
+    const routeStart = ship.state === ShipState.ReadyToLeave || ship.state === ShipState.Leaving
+      ? input.routeStart ?? ship.position
+      : draft.start ?? input.routeStart ?? ship.position;
+    const drawnPoints = materializeRouteDraft(draft);
     const validated = this.#navigation.validate(
       ship,
-      simplified,
+      drawnPoints,
       this.#config,
       routeStart,
     );
@@ -68,22 +69,15 @@ export class RouteCommitService {
       return { kind: 'rejected_too_short' };
     }
 
-    const effectiveRoute = createCurvatureLimitedRoute(validated.validPoints, {
-      start: routeStart,
-      headingDeg: ship.rotationDeg,
-      speed: ship.characteristics.speed,
-      turnRateDeg: ship.characteristics.turnRateDeg,
-    });
-    const effectiveValidation = this.#navigation.validate(
-      ship,
-      effectiveRoute.toSnapshot().points,
-      this.#config,
+    const route = new ShipRoute(validated.validPoints, routeStart);
+    const existingStart = ship.route?.toSnapshot().start;
+    const continuesActiveGesture = draft.start !== undefined && existingStart !== undefined &&
+      existingStart.x === draft.start.x && existingStart.y === draft.start.y;
+    ship.replaceRoute(
+      route,
       routeStart,
+      continuesActiveGesture ? ship.routeProgress : 0,
     );
-    if (effectiveValidation.validPoints.length === 0) {
-      return { kind: 'rejected_invalid' };
-    }
-    ship.replaceRoute(new ShipRoute(effectiveValidation.validPoints, routeStart), routeStart);
     if (ship.state === ShipState.Entering) {
       ship.setState(ShipState.Navigating);
     } else if (ship.state === ShipState.ReadyToLeave) {
@@ -92,7 +86,7 @@ export class RouteCommitService {
 
     return {
       kind:
-        validated.rejectedPoints.length === 0 && effectiveValidation.rejectedPoints.length === 0
+        validated.rejectedPoints.length === 0
           ? 'committed'
           : 'partial_prefix_committed',
     };

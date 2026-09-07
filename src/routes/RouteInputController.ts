@@ -1,9 +1,8 @@
 import type { Point, Size } from '../camera/SquareWorldViewport.ts';
 import { SquareWorldViewport } from '../camera/SquareWorldViewport.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
-import { ShipRoute } from '../ships/ShipRoute.ts';
 import { ShipState } from '../ships/ShipState.ts';
-import { simplifyRouteDraft, type SimplifyConfig } from './RouteSimplifier.ts';
+import type { SimplifyConfig } from './RouteSimplifier.ts';
 
 export interface RouteSamplingConfig {
   readonly sampleDistance: number;
@@ -62,8 +61,6 @@ interface ActiveRouteInteraction {
   activated: boolean;
 }
 
-const ROUTE_PROGRESS_EPSILON = 1e-9;
-
 function assertSamplingConfig(sampling: RouteSamplingConfig): RouteSamplingConfig {
   if (!Number.isFinite(sampling.sampleDistance) || sampling.sampleDistance <= 0) {
     throw new RangeError('sampleDistance must be a positive finite number');
@@ -76,6 +73,18 @@ function assertSamplingConfig(sampling: RouteSamplingConfig): RouteSamplingConfi
 
 function copyPoints(points: readonly Point[]): readonly Point[] {
   return Object.freeze(points.map((point) => Object.freeze({ ...point })));
+}
+
+export function materializeRouteDraft(
+  draft: Pick<RawRouteDraft, 'points' | 'start' | 'tip'>,
+): readonly Point[] {
+  const points = [...draft.points];
+  const last = points.at(-1) ?? draft.start;
+  if (
+    draft.tip !== undefined &&
+    (last === undefined || last.x !== draft.tip.x || last.y !== draft.tip.y)
+  ) points.push(draft.tip);
+  return copyPoints(points);
 }
 
 function copyLiveTip(active: ActiveRouteInteraction): { readonly tip?: Point } {
@@ -97,14 +106,12 @@ export function isRouteInputState(state: ShipModel['state']): boolean {
 export class RouteInputController {
   readonly #viewport: SquareWorldViewport;
   readonly #sampling: RouteSamplingConfig;
-  readonly #processing: SimplifyConfig | undefined;
   readonly #hitTest: (worldPoint: Point, worldToCssPixelScale: number) => ShipModel | null;
   #active: ActiveRouteInteraction | null = null;
 
   public constructor(options: RouteInputControllerOptions) {
     this.#viewport = options.viewport;
     this.#sampling = assertSamplingConfig(options.sampling);
-    this.#processing = options.processing;
     this.#hitTest = options.hitTest;
   }
 
@@ -141,10 +148,6 @@ export class RouteInputController {
     return { kind: 'cancelled' };
   }
 
-  public syncActiveDraftToShip(): void {
-    this.#advanceActiveDraftProgress();
-  }
-
   public rebaseActiveDraftToShip(): void {
     const active = this.#active;
     if (active === null || !active.activated) return;
@@ -169,7 +172,7 @@ export class RouteInputController {
       pointerId: input.pointerId,
       ship,
       initialCssPosition: { ...input.cssPosition },
-      routeStart: { ...worldPoint },
+      routeStart: { ...ship.position },
       points: [],
       lastWorldPosition: { ...worldPoint },
       activated: false,
@@ -195,7 +198,6 @@ export class RouteInputController {
     }
     if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
     const sampled = this.#sample(worldPoint);
-    this.#advanceActiveDraftProgress();
     if (!sampled) {
       return { kind: 'ignored' };
     }
@@ -364,7 +366,6 @@ export class RouteInputController {
     if (cancellation !== null) {
       return cancellation;
     }
-    this.#advanceActiveDraftProgress();
     const active = this.#active;
     if (active === null) {
       return { kind: 'ignored' };
@@ -381,48 +382,4 @@ export class RouteInputController {
     };
   }
 
-  #advanceActiveDraftProgress(): void {
-    const active = this.#active;
-    if (active === null || !active.activated) return;
-    const tip = copyLiveTip(active);
-    const points = this.#processing === undefined
-      ? [...active.points, ...(tip.tip === undefined ? [] : [tip.tip])]
-      : simplifyRouteDraft({ points: active.points, start: active.routeStart, ...tip }, this.#processing);
-    if (points.length === 0) return;
-    const route = new ShipRoute(points, active.routeStart);
-    let progress = 0;
-    while (progress < route.totalLength) {
-      const cursor = route.cursorAtDistance(progress);
-      const segmentEnd = route.distanceAtCursor(cursor + 1);
-      if (segmentEnd <= progress + ROUTE_PROGRESS_EPSILON) break;
-      const projected = route.projectProgress(
-        active.ship.position,
-        progress,
-        segmentEnd - progress,
-      );
-      progress = projected;
-      if (progress < segmentEnd - ROUTE_PROGRESS_EPSILON) break;
-    }
-    if (progress <= ROUTE_PROGRESS_EPSILON) return;
-    const projectedPoint = route.pointAtDistance(progress);
-    // Lateral motion on the old route does not mean this draft's bend was passed.
-    if (Math.hypot(
-      active.ship.x - projectedPoint.x,
-      active.ship.y - projectedPoint.y,
-    ) > this.#sampling.sampleDistance + ROUTE_PROGRESS_EPSILON) return;
-    const passed = route.cursorAtDistance(progress);
-    if (passed === 0) return;
-    // Preserve the simplification origin until a whole stable bend is passed.
-    // Moving it along the first segment would relocate every future bend.
-    let rawCount = 0;
-    for (let index = 0; index < passed; index += 1) {
-      const point = points[index]!;
-      while (rawCount < active.points.length) {
-        const raw = active.points[rawCount++]!;
-        if (raw.x === point.x && raw.y === point.y) break;
-      }
-    }
-    active.routeStart = points[passed - 1]!;
-    active.points.splice(0, rawCount);
-  }
 }
