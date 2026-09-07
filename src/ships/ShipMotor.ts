@@ -34,6 +34,8 @@ export function moveAngleTowardsDeg(
   );
 }
 
+const LIVE_TIP_EPSILON = 1e-6;
+
 export class ShipMotor {
   public stepRoute(
     ship: ShipModel,
@@ -86,7 +88,12 @@ export class ShipMotor {
       throw new RangeError('waypointTolerance must be non-negative');
     }
 
-    this.#advanceReachedOrPassedWaypoints(ship, route, waypointTolerance);
+    this.#advanceReachedOrPassedWaypoints(
+      ship,
+      route,
+      waypointTolerance,
+      continueAfterRouteEnd,
+    );
     if (ship.routeProgress >= route.totalLength) {
       if (continueAfterRouteEnd && (
         ship.state === ShipState.Entering ||
@@ -108,16 +115,38 @@ export class ShipMotor {
       desiredAngleDeg,
       ship.characteristics.turnRateDeg * deltaSeconds,
     ));
-    this.#stepForward(ship, deltaSeconds);
 
-    const maximumForwardProgress =
-      ship.characteristics.speed * deltaSeconds + waypointTolerance;
-    ship.advanceRouteProgress(route.projectProgress(
+    const isHeldLiveTip =
+      !continueAfterRouteEnd && ship.routeCursor === route.length - 1;
+    const maximumDistance = ship.characteristics.speed * deltaSeconds;
+    const movedDistance = isHeldLiveTip
+      ? this.#stepForwardTowardLiveTip(ship, target, maximumDistance)
+      : this.#stepForwardDistance(ship, maximumDistance);
+
+    let projectedProgress = route.projectProgress(
       ship.position,
       ship.routeProgress,
-      maximumForwardProgress,
-    ));
-    this.#advanceReachedOrPassedWaypoints(ship, route, waypointTolerance);
+      movedDistance + waypointTolerance,
+    );
+    if (isHeldLiveTip) {
+      const distanceToTip = Math.hypot(target.x - ship.x, target.y - ship.y);
+      if (distanceToTip <= LIVE_TIP_EPSILON) {
+        ship.setPosition(target);
+        projectedProgress = route.totalLength;
+      } else if (projectedProgress >= route.totalLength) {
+        projectedProgress = Math.max(
+          ship.routeProgress,
+          route.totalLength - Number.EPSILON * Math.max(1, route.totalLength),
+        );
+      }
+    }
+    ship.advanceRouteProgress(projectedProgress);
+    this.#advanceReachedOrPassedWaypoints(
+      ship,
+      route,
+      waypointTolerance,
+      continueAfterRouteEnd,
+    );
   }
 
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {
@@ -153,6 +182,7 @@ export class ShipMotor {
     ship: ShipModel,
     route: ShipRoute,
     waypointTolerance: number,
+    continueAfterRouteEnd: boolean,
   ): void {
     while (ship.routeProgress < route.totalLength) {
       const cursor = ship.routeCursor;
@@ -166,9 +196,42 @@ export class ShipMotor {
       const passed = segmentLengthSquared > 0 &&
         ((ship.x - segmentStart.x) * segmentX +
           (ship.y - segmentStart.y) * segmentY) >= segmentLengthSquared;
-      if (targetDistance > waypointTolerance && !passed) return;
+      const isHeldLiveTip = !continueAfterRouteEnd && cursor === route.length - 1;
+      const tolerance = isHeldLiveTip ? LIVE_TIP_EPSILON : waypointTolerance;
+      if (targetDistance > tolerance && (!passed || isHeldLiveTip)) return;
       ship.advanceRouteCursor();
     }
+  }
+
+  #stepForwardTowardLiveTip(
+    ship: ShipModel,
+    target: SteeringTarget,
+    maximumDistance: number,
+  ): number {
+    const rotationRadians = (ship.rotationDeg * Math.PI) / 180;
+    const forwardX = Math.cos(rotationRadians);
+    const forwardY = Math.sin(rotationRadians);
+    const toTargetX = target.x - ship.x;
+    const toTargetY = target.y - ship.y;
+    const forwardDistanceToTarget = toTargetX * forwardX + toTargetY * forwardY;
+    return this.#stepForwardDistance(
+      ship,
+      Math.min(maximumDistance, Math.max(0, forwardDistanceToTarget)),
+    );
+  }
+
+  #stepForwardDistance(ship: ShipModel, distance: number): number {
+    assertFinite(distance, 'distance');
+    if (distance < 0) {
+      throw new RangeError('distance must be non-negative');
+    }
+    if (distance === 0) return 0;
+    const rotationRadians = (ship.rotationDeg * Math.PI) / 180;
+    ship.setPositionXY(
+      ship.x + Math.cos(rotationRadians) * distance,
+      ship.y + Math.sin(rotationRadians) * distance,
+    );
+    return distance;
   }
 
   #stepForward(ship: ShipModel, deltaSeconds: number): void {
@@ -176,10 +239,6 @@ export class ShipMotor {
     if (deltaSeconds < 0) {
       throw new RangeError('deltaSeconds must be non-negative');
     }
-    const rotationRadians = (ship.rotationDeg * Math.PI) / 180;
-    ship.setPositionXY(
-      ship.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
-      ship.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,
-    );
+    this.#stepForwardDistance(ship, ship.characteristics.speed * deltaSeconds);
   }
 }
