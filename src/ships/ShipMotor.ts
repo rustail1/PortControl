@@ -1,4 +1,5 @@
 import { normalizeRotationDeg, type ShipModel } from './ShipModel.ts';
+import type { ShipRoute } from './ShipRoute.ts';
 import { ShipState } from './ShipState.ts';
 
 export interface SteeringTarget {
@@ -36,7 +37,7 @@ export function moveAngleTowardsDeg(
 export class ShipMotor {
   public stepRoute(
     ship: ShipModel,
-    _waypointTolerance: number,
+    waypointTolerance: number,
     deltaSeconds: number,
     continueAfterRouteEnd = true,
   ): void {
@@ -76,6 +77,16 @@ export class ShipMotor {
       }
       return;
     }
+    assertFinite(deltaSeconds, 'deltaSeconds');
+    if (deltaSeconds < 0) {
+      throw new RangeError('deltaSeconds must be non-negative');
+    }
+    assertFinite(waypointTolerance, 'waypointTolerance');
+    if (waypointTolerance < 0) {
+      throw new RangeError('waypointTolerance must be non-negative');
+    }
+
+    this.#advanceReachedOrPassedWaypoints(ship, route, waypointTolerance);
     if (ship.routeProgress >= route.totalLength) {
       if (continueAfterRouteEnd && (
         ship.state === ShipState.Entering ||
@@ -86,24 +97,29 @@ export class ShipMotor {
       }
       return;
     }
-    assertFinite(deltaSeconds, 'deltaSeconds');
-    if (deltaSeconds < 0) {
-      throw new RangeError('deltaSeconds must be non-negative');
-    }
-    const before = ship.position;
-    const nextProgress = Math.min(
-      ship.routeProgress + ship.characteristics.speed * deltaSeconds,
-      route.totalLength,
+
+    const target = ship.currentWaypoint;
+    if (target === null) return;
+    const desiredAngleDeg = normalizeRotationDeg(
+      Math.atan2(target.y - ship.y, target.x - ship.x) * 180 / Math.PI,
     );
-    const nextPosition = route.pointAtDistance(nextProgress);
-    const actualDx = nextPosition.x - before.x;
-    const actualDy = nextPosition.y - before.y;
-    ship.setPosition(nextPosition);
-    ship.advanceRouteProgress(nextProgress);
-    if (actualDx !== 0 || actualDy !== 0) {
-      ship.setRotationDeg(Math.atan2(actualDy, actualDx) * 180 / Math.PI);
-    }
+    ship.setRotationDeg(moveAngleTowardsDeg(
+      ship.rotationDeg,
+      desiredAngleDeg,
+      ship.characteristics.turnRateDeg * deltaSeconds,
+    ));
+    this.#stepForward(ship, deltaSeconds);
+
+    const maximumForwardProgress =
+      ship.characteristics.speed * deltaSeconds + waypointTolerance;
+    ship.advanceRouteProgress(route.projectProgress(
+      ship.position,
+      ship.routeProgress,
+      maximumForwardProgress,
+    ));
+    this.#advanceReachedOrPassedWaypoints(ship, route, waypointTolerance);
   }
+
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {
     assertFinite(deltaSeconds, 'deltaSeconds');
     if (deltaSeconds < 0) {
@@ -131,6 +147,28 @@ export class ShipMotor {
       ship.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
       ship.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,
     );
+  }
+
+  #advanceReachedOrPassedWaypoints(
+    ship: ShipModel,
+    route: ShipRoute,
+    waypointTolerance: number,
+  ): void {
+    while (ship.routeProgress < route.totalLength) {
+      const cursor = ship.routeCursor;
+      const target = route.at(cursor);
+      const segmentStart = route.segmentStartAt(cursor);
+      if (target === null || segmentStart === null) return;
+      const targetDistance = Math.hypot(target.x - ship.x, target.y - ship.y);
+      const segmentX = target.x - segmentStart.x;
+      const segmentY = target.y - segmentStart.y;
+      const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+      const passed = segmentLengthSquared > 0 &&
+        ((ship.x - segmentStart.x) * segmentX +
+          (ship.y - segmentStart.y) * segmentY) >= segmentLengthSquared;
+      if (targetDistance > waypointTolerance && !passed) return;
+      ship.advanceRouteCursor();
+    }
   }
 
   #stepForward(ship: ShipModel, deltaSeconds: number): void {
