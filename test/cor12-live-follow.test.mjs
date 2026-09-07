@@ -165,7 +165,7 @@ test('COR-12 live-follow never applies a fully invalid land-crossing suffix', as
   assert.equal(runtime.lastRouteCommitResult.kind, 'rejected_invalid');
 });
 
-test('COR-12 live route waits for an authoritative boundary recovery to finish', async () => {
+test('COR-12 live reverse route starts a forward U-turn and accepts future extension', async () => {
   const { runtime, ship } = await setupRuntime(1212);
   assert.ok(ship.position.x > 950);
   const outward = { x: 990, y: ship.position.y };
@@ -173,23 +173,16 @@ test('COR-12 live route waits for an authoritative boundary recovery to finish',
   runtime.pointerDown(pointer(ship.position));
   runtime.pointerMove(pointer(outward));
   runtime.advanceRender(1000 / 60);
-  const recovery = runtime.presentationSnapshot().ships[0].ship;
-  assert.notEqual(recovery.routeRecoveryHeadingDeg, null);
-  assert.equal(recovery.route, null);
+  const turning = runtime.presentationSnapshot().ships[0].ship;
+  assert.equal(turning.routeRecoveryHeadingDeg ?? null, null);
+  assert.notEqual(turning.route, null);
+  assert.ok(turning.position.x < ship.position.x);
 
   runtime.pointerMove(pointer(redirected));
   runtime.advanceRender(1000 / 60);
-  const protectedRecovery = runtime.presentationSnapshot().ships[0].ship;
-  assert.equal(protectedRecovery.routeRecoveryHeadingDeg, recovery.routeRecoveryHeadingDeg);
-  assert.equal(protectedRecovery.route, null);
-
-  let resumed = protectedRecovery;
-  for (let step = 0; step < 600 && resumed.route === null; step += 1) {
-    runtime.advanceRender(1000 / 60);
-    resumed = runtime.presentationSnapshot().ships[0].ship;
-  }
-  assert.notEqual(resumed.route, null, JSON.stringify(resumed));
-  assert.deepEqual(resumed.route.points.at(-1), redirected);
+  const extended = runtime.presentationSnapshot().ships[0].ship;
+  assert.notEqual(extended.route, null);
+  assert.deepEqual(extended.route.points.at(-1), redirected);
 });
 
 test('COR-12 second pointer cannot rebase a live draft during recovery', async () => {

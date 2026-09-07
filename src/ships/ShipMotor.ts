@@ -34,7 +34,7 @@ export function moveAngleTowardsDeg(
 }
 
 export class ShipMotor {
-  public stepRoute(ship: ShipModel, waypointTolerance: number, deltaSeconds: number): void {
+  public stepRoute(ship: ShipModel, _waypointTolerance: number, deltaSeconds: number): void {
     if (
       ship.state !== ShipState.Entering &&
       ship.state !== ShipState.Navigating &&
@@ -99,23 +99,13 @@ export class ShipMotor {
       route.totalLength,
     );
     const nextPosition = route.pointAtDistance(nextProgress);
+    const movementX = nextPosition.x - ship.x;
+    const movementY = nextPosition.y - ship.y;
     ship.setPosition(nextPosition);
     ship.advanceRouteProgress(nextProgress);
 
-    const headingPoint = route.pointAtDistance(
-      Math.min(nextProgress + waypointTolerance, route.totalLength),
-    );
-    const headingX = headingPoint.x - nextPosition.x;
-    const headingY = headingPoint.y - nextPosition.y;
-    const tangent = Math.hypot(headingX, headingY) > 1e-9
-      ? { x: headingX, y: headingY }
-      : route.tangentAtDistance(nextProgress);
-    if (tangent !== null) {
-      ship.setRotationDeg(moveAngleTowardsDeg(
-        ship.rotationDeg,
-        (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI,
-        ship.characteristics.turnRateDeg * deltaSeconds,
-      ));
+    if (Math.hypot(movementX, movementY) > 1e-9) {
+      ship.setRotationDeg(Math.atan2(movementY, movementX) * 180 / Math.PI);
     }
   }
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {

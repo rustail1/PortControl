@@ -1,6 +1,6 @@
 import type { RawRouteDraft } from './RouteInputController.ts';
 import { isRouteInputState } from './RouteInputController.ts';
-import { ShipRoute } from '../ships/ShipRoute.ts';
+import { createCurvatureLimitedRoute, ShipRoute } from '../ships/ShipRoute.ts';
 import { ShipState } from '../ships/ShipState.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
 import { simplifyRouteDraft } from './RouteSimplifier.ts';
@@ -68,7 +68,22 @@ export class RouteCommitService {
       return { kind: 'rejected_too_short' };
     }
 
-    ship.replaceRoute(new ShipRoute(validated.validPoints, routeStart), routeStart);
+    const effectiveRoute = createCurvatureLimitedRoute(validated.validPoints, {
+      start: routeStart,
+      headingDeg: ship.rotationDeg,
+      speed: ship.characteristics.speed,
+      turnRateDeg: ship.characteristics.turnRateDeg,
+    });
+    const effectiveValidation = this.#navigation.validate(
+      ship,
+      effectiveRoute.toSnapshot().points,
+      this.#config,
+      routeStart,
+    );
+    if (effectiveValidation.validPoints.length === 0) {
+      return { kind: 'rejected_invalid' };
+    }
+    ship.replaceRoute(new ShipRoute(effectiveValidation.validPoints, routeStart), routeStart);
     if (ship.state === ShipState.Entering) {
       ship.setState(ShipState.Navigating);
     } else if (ship.state === ShipState.ReadyToLeave) {
@@ -77,7 +92,7 @@ export class RouteCommitService {
 
     return {
       kind:
-        validated.rejectedPoints.length === 0
+        validated.rejectedPoints.length === 0 && effectiveValidation.rejectedPoints.length === 0
           ? 'committed'
           : 'partial_prefix_committed',
     };

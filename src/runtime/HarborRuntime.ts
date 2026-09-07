@@ -63,6 +63,7 @@ import { createRouteProcessingConfig } from '../routes/RouteProcessingConfig.ts'
 import { createRouteSamplingConfig } from '../routes/RouteSamplingConfig.ts';
 import { simplifyRouteDraft } from '../routes/RouteSimplifier.ts';
 import {
+  createCurvatureLimitedRoute,
   createShipCharacteristicsRegistry,
   ShipState,
   type ShipModel,
@@ -667,16 +668,32 @@ export class HarborRuntime {
     if (record === undefined) {
       return null;
     }
-    const validation = this.#navigation.validate(
+    const routeStart = this.#routeStartFor(record.ship);
+    const rawValidation = this.#navigation.validate(
       record.ship,
       simplifyRouteDraft(draft, this.#routeConfig),
       this.#routeConfig,
-      this.#routeStartFor(record.ship),
+      routeStart,
     );
+    const effectiveValidation = rawValidation.validPoints.length === 0
+      ? rawValidation
+      : this.#navigation.validate(
+          record.ship,
+          createCurvatureLimitedRoute(rawValidation.validPoints, {
+            start: routeStart,
+            headingDeg: record.ship.rotationDeg,
+            speed: record.ship.characteristics.speed,
+            turnRateDeg: record.ship.characteristics.turnRateDeg,
+          }).toSnapshot().points,
+          this.#routeConfig,
+          routeStart,
+        );
     return Object.freeze({
       shipId: draft.shipId,
-      validPoints: freezePoints(validation.validPoints),
-      rejectedPoints: freezePoints(validation.rejectedPoints),
+      validPoints: freezePoints(effectiveValidation.validPoints),
+      rejectedPoints: freezePoints(rawValidation.validPoints.length === 0
+        ? rawValidation.rejectedPoints
+        : [...effectiveValidation.rejectedPoints, ...rawValidation.rejectedPoints]),
     });
   }
 
