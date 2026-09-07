@@ -281,7 +281,7 @@ test('COR-12 #14 exact selection distance tie chooses lower spawnSequence', asyn
   assert.equal(s.selectRouteInputShip([{ ship: left, spawnSequence: 5 }, { ship: right, spawnSequence: 2 }], { x: 100, y: 100 }, 1)?.id, 'right');
 });
 
-test('COR-12 #15 cancelling unfinished draft preserves committed route', async () => {
+test('COR-12 #15 ending an activated redraw seals its replacement route', async () => {
   const { s, bundle } = await setup();
   const runtime = new s.HarborRuntime({ bundle, levelId: 'calm_01', attemptSeed: 17 });
   const snapshot = advanceUntil(runtime, (state) => state.ships.length > 0);
@@ -295,8 +295,13 @@ test('COR-12 #15 cancelling unfinished draft preserves committed route', async (
   assert.ok(current);
   runtime.pointerDown({ source: 'touch', pointerId: 9, screenPosition: current.ship.position, cssPosition: current.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 });
   runtime.pointerMove({ source: 'touch', pointerId: 9, screenPosition: { x: 600, y: 600 }, cssPosition: { x: 600, y: 600 }, internalViewport: viewport, worldToCssPixelScale: 1 });
-  runtime.cancelActiveDraft();
+  assert.equal(runtime.cancelActiveDraft().kind, 'finished');
   assert.deepEqual(firstShip(runtime.presentationSnapshot())?.ship.route, before);
+  runtime.advanceRender(frameMs(60));
+  assert.deepEqual(
+    firstShip(runtime.presentationSnapshot())?.ship.route?.points.at(-1),
+    { x: 600, y: 600 },
+  );
 });
 
 // C. LIVE CORE FLOW
@@ -398,7 +403,7 @@ test('COR-12 #24 ReadyToLeave does not auto-exit without a new route', async () 
   assert.deepEqual(after?.ship.position, before);
 });
 
-test('COR-12 #25 manual outbound route transitions ReadyToLeave to Leaving', async () => {
+test('COR-12 #25 live outbound route starts departure before pointer release', async () => {
   const { s, bundle } = await setup();
   const runtime = new s.HarborRuntime({ bundle, levelId: 'calm_01', attemptSeed: 5555 });
   let snapshot = advanceUntil(runtime, (state) => state.ships.length > 0);
@@ -408,9 +413,24 @@ test('COR-12 #25 manual outbound route transitions ReadyToLeave to Leaving', asy
   snapshot = advanceUntil(runtime, (state) => state.ships.some((candidate) => candidate.ship.id === ship.ship.id && candidate.ship.state === s.ShipState.ReadyToLeave), 7000);
   const ready = snapshot.ships.find((candidate) => candidate.ship.id === ship.ship.id);
   assert.ok(ready);
-  runtime.enqueueRouteDraft(rawDraft(ship.ship.id, freeExitRoute(snapshot, ready)));
+  const outbound = freeExitRoute(snapshot, ready);
+  const target = outbound[0];
+  const viewport = { width: 1000, height: 1000 };
+  runtime.pointerDown({ source: 'mouse', pointerId: 25, screenPosition: ready.ship.position, cssPosition: ready.ship.position, internalViewport: viewport, worldToCssPixelScale: 1 });
+  runtime.pointerMove({ source: 'mouse', pointerId: 25, screenPosition: target, cssPosition: target, internalViewport: viewport, worldToCssPixelScale: 1 });
   runtime.advanceRender(frameMs(60));
-  assert.equal(runtime.presentationSnapshot().ships.find((candidate) => candidate.ship.id === ship.ship.id)?.ship.state, s.ShipState.Leaving);
+  const leaving = runtime.presentationSnapshot();
+  assert.equal(leaving.ships.find((candidate) => candidate.ship.id === ship.ship.id)?.ship.state, s.ShipState.Leaving);
+  assert.notEqual(leaving.activeDraft, null);
+  assert.equal(leaving.docks.find((dock) => dock.runtime.occupiedBy === ship.ship.id)?.busy, true);
+
+  runtime.pointerMove({ source: 'mouse', pointerId: 25, screenPosition: outbound[1], cssPosition: outbound[1], internalViewport: viewport, worldToCssPixelScale: 1 });
+  assert.equal(runtime.pointerUp({ source: 'mouse', pointerId: 25, screenPosition: outbound[1], cssPosition: outbound[1], internalViewport: viewport, worldToCssPixelScale: 1 }).kind, 'finished');
+  advance(runtime, 24);
+  const released = runtime.presentationSnapshot();
+  const releasedShip = released.ships.find((candidate) => candidate.ship.id === ship.ship.id);
+  assert.equal(released.docks.some((dock) => dock.runtime.occupiedBy === ship.ship.id), false);
+  assert.deepEqual(releasedShip?.ship.route?.points.at(-1), outbound[1]);
 });
 
 test('COR-12 #26 actual ExitSystem eventually removes successfully leaving ship', async () => {

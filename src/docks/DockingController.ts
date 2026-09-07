@@ -1,5 +1,6 @@
 import { normalizeRotationDeg, type ShipModel } from '../ships/ShipModel.ts';
 import type { LandClearanceGeometry } from '../geometry/LandClearanceGeometry.ts';
+import { moveAngleTowardsDeg } from '../ships/ShipMotor.ts';
 import { ShipRoute } from '../ships/ShipRoute.ts';
 import { ShipState } from '../ships/ShipState.ts';
 import type { DockCollection, DockModel } from './DockModel.ts';
@@ -52,8 +53,8 @@ interface Snapping extends TransactionIdentity {
   readonly approachX: number;
   readonly approachY: number;
   readonly splitProgress: number;
-  readonly elapsedMs: number;
-  readonly durationMs: number;
+  readonly progress: number;
+  readonly curveLength: number;
 }
 
 interface Departing extends TransactionIdentity {
@@ -149,6 +150,117 @@ function distanceSquared(ship: ShipModel, dock: DockModel): number {
   const dx = ship.x - dock.definition.position.x;
   const dy = ship.y - dock.definition.position.y;
   return dx * dx + dy * dy;
+}
+
+const DOCK_CURVE_LENGTH_SAMPLES = 64;
+const DOCK_TURN_PROGRESS_ITERATIONS = 24;
+
+type SnapPath = Pick<
+  Snapping,
+  'startX' | 'startY' | 'startRotationDeg' | 'approachX' | 'approachY' | 'splitProgress'
+>;
+
+function sampleSnapPath(
+  path: SnapPath,
+  lane: DockLane,
+  progress: number,
+): ReturnType<typeof cubicPoint> {
+  const inwardRadians = Math.atan2(
+    lane.berth.y - lane.approach.y,
+    lane.berth.x - lane.approach.x,
+  );
+  const inward = { x: Math.cos(inwardRadians), y: Math.sin(inwardRadians) };
+  if (path.splitProgress > 1e-9 && progress <= path.splitProgress) {
+    const localProgress = progress / path.splitProgress;
+    const start = { x: path.startX, y: path.startY };
+    const approach = { x: path.approachX, y: path.approachY };
+    const distance = Math.hypot(approach.x - start.x, approach.y - start.y);
+    const startRadians = path.startRotationDeg * Math.PI / 180;
+    return cubicPoint(
+      start,
+      {
+        x: start.x + Math.cos(startRadians) * distance / 3,
+        y: start.y + Math.sin(startRadians) * distance / 3,
+      },
+      {
+        x: approach.x - inward.x * distance / 3,
+        y: approach.y - inward.y * distance / 3,
+      },
+      approach,
+      localProgress,
+    );
+  }
+  const denominator = 1 - path.splitProgress;
+  const localProgress = denominator <= 1e-9
+    ? 1
+    : (progress - path.splitProgress) / denominator;
+  const distance = Math.hypot(
+    lane.berth.x - lane.approach.x,
+    lane.berth.y - lane.approach.y,
+  );
+  return cubicPoint(
+    lane.approach,
+    {
+      x: lane.approach.x + inward.x * distance / 3,
+      y: lane.approach.y + inward.y * distance / 3,
+    },
+    {
+      x: lane.berth.x - inward.x * distance / 3,
+      y: lane.berth.y - inward.y * distance / 3,
+    },
+    lane.berth,
+    Math.min(Math.max(localProgress, 0), 1),
+  );
+}
+
+function measureSnapPath(path: SnapPath, lane: DockLane): number {
+  let length = 0;
+  let previous = sampleSnapPath(path, lane, 0).position;
+  for (let index = 1; index <= DOCK_CURVE_LENGTH_SAMPLES; index += 1) {
+    const current = sampleSnapPath(
+      path,
+      lane,
+      index / DOCK_CURVE_LENGTH_SAMPLES,
+    ).position;
+    length += Math.hypot(current.x - previous.x, current.y - previous.y);
+    previous = current;
+  }
+  return length;
+}
+
+function angleDistanceDeg(left: number, right: number): number {
+  return Math.abs(((right - left + 540) % 360) - 180);
+}
+
+function turnLimitedSnapProgress(
+  path: Snapping,
+  lane: DockLane,
+  desiredProgress: number,
+  currentHeadingDeg: number,
+  maximumTurnDeg: number,
+): number {
+  if (
+    angleDistanceDeg(
+      currentHeadingDeg,
+      sampleSnapPath(path, lane, desiredProgress).headingDeg,
+    ) <= maximumTurnDeg
+  ) return desiredProgress;
+  let reachable = path.progress;
+  let unreachable = desiredProgress;
+  for (let iteration = 0; iteration < DOCK_TURN_PROGRESS_ITERATIONS; iteration += 1) {
+    const candidate = (reachable + unreachable) / 2;
+    if (
+      angleDistanceDeg(
+        currentHeadingDeg,
+        sampleSnapPath(path, lane, candidate).headingDeg,
+      ) <= maximumTurnDeg
+    ) {
+      reachable = candidate;
+    } else {
+      unreachable = candidate;
+    }
+  }
+  return reachable;
 }
 
 export class DockingController {
@@ -288,8 +400,6 @@ export class DockingController {
         continue;
       }
       if (transaction.phase === 'awaiting_snap') {
-        const durationMs = this.#resolveSnapDurationMs(this.#config.baseSnapDurationMs);
-        if (!Number.isFinite(durationMs) || durationMs <= 0) throw new RangeError('effective snap duration must be positive and finite');
         const lane = this.#deriveLane(dock, ship);
         const approachDistance = Math.hypot(
           lane.approach.x - ship.x,
@@ -300,13 +410,22 @@ export class DockingController {
           lane.berth.y - lane.approach.y,
         );
         const totalDistance = approachDistance + berthDistance;
+        const path: SnapPath = {
+          startX: ship.x,
+          startY: ship.y,
+          startRotationDeg: ship.rotationDeg,
+          approachX: lane.approach.x,
+          approachY: lane.approach.y,
+          splitProgress: totalDistance <= 1e-9 ? 0 : approachDistance / totalDistance,
+        };
         const snapping: Snapping = {
           phase: 'snapping', shipId: ship.id, dockId: dock.id, ship, startX: ship.x, startY: ship.y,
           startRotationDeg: ship.rotationDeg,
           approachX: lane.approach.x,
           approachY: lane.approach.y,
-          splitProgress: totalDistance <= 1e-9 ? 0 : approachDistance / totalDistance,
-          elapsedMs: 0, durationMs,
+          splitProgress: path.splitProgress,
+          progress: 0,
+          curveLength: measureSnapPath(path, lane),
         };
         this.#transactions.set(ship.id, snapping);
         ship.setState(ShipState.Docking);
@@ -319,58 +438,32 @@ export class DockingController {
   }
 
   #advanceSnap(transaction: Snapping, ship: ShipModel, dock: DockModel, deltaMs: number, result: { completedShipIds: string[]; invariantShipIds: string[] }): void {
-    const elapsedMs = transaction.elapsedMs + deltaMs;
-    const progress = Math.min(Math.max(elapsedMs / transaction.durationMs, 0), 1);
     const lane = this.#deriveLane(dock, ship);
-    const inwardRadians = (dock.definition.dockAngle + 180) * Math.PI / 180;
-    const inward = { x: Math.cos(inwardRadians), y: Math.sin(inwardRadians) };
-    let sample;
-    if (transaction.splitProgress > 1e-9 && progress <= transaction.splitProgress) {
-      const localProgress = progress / transaction.splitProgress;
-      const start = { x: transaction.startX, y: transaction.startY };
-      const approach = { x: transaction.approachX, y: transaction.approachY };
-      const distance = Math.hypot(approach.x - start.x, approach.y - start.y);
-      const startRadians = transaction.startRotationDeg * Math.PI / 180;
-      sample = cubicPoint(
-        start,
-        {
-          x: start.x + Math.cos(startRadians) * distance / 3,
-          y: start.y + Math.sin(startRadians) * distance / 3,
-        },
-        {
-          x: approach.x - inward.x * distance / 3,
-          y: approach.y - inward.y * distance / 3,
-        },
-        approach,
-        localProgress,
-      );
-    } else {
-      const denominator = 1 - transaction.splitProgress;
-      const localProgress = denominator <= 1e-9
-        ? 1
-        : (progress - transaction.splitProgress) / denominator;
-      const distance = Math.hypot(
-        lane.berth.x - lane.approach.x,
-        lane.berth.y - lane.approach.y,
-      );
-      sample = cubicPoint(
-        lane.approach,
-        {
-          x: lane.approach.x + inward.x * distance / 3,
-          y: lane.approach.y + inward.y * distance / 3,
-        },
-        {
-          x: lane.berth.x - inward.x * distance / 3,
-          y: lane.berth.y - inward.y * distance / 3,
-        },
-        lane.berth,
-        Math.min(Math.max(localProgress, 0), 1),
-      );
-    }
+    const desiredProgress = transaction.curveLength <= 1e-9
+      ? 1
+      : Math.min(
+          transaction.progress + ship.characteristics.speed * deltaMs / 1000 / transaction.curveLength,
+          1,
+        );
+    const progress = turnLimitedSnapProgress(
+      transaction,
+      lane,
+      desiredProgress,
+      ship.rotationDeg,
+      ship.characteristics.turnRateDeg * deltaMs / 1000,
+    );
+    const sample = sampleSnapPath(transaction, lane, progress);
+    const headingTarget = progress <= transaction.progress + 1e-12 && desiredProgress > progress
+      ? sampleSnapPath(transaction, lane, desiredProgress).headingDeg
+      : sample.headingDeg;
     ship.setPosition(sample.position);
-    ship.setRotationDeg(sample.headingDeg);
+    ship.setRotationDeg(moveAngleTowardsDeg(
+      ship.rotationDeg,
+      headingTarget,
+      ship.characteristics.turnRateDeg * deltaMs / 1000,
+    ));
     if (progress < 1) {
-      this.#transactions.set(ship.id, { ...transaction, elapsedMs });
+      this.#transactions.set(ship.id, { ...transaction, progress });
       return;
     }
     ship.setPositionXY(dock.definition.position.x, dock.definition.position.y);

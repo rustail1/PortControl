@@ -309,6 +309,7 @@ export class HarborRuntime {
   readonly #session: ReturnType<typeof createGameSessionFromConfig>;
   readonly #active = new Map<string, ActiveShipRecord>();
   readonly #routeCommands: RawRouteDraft[] = [];
+  #pendingLiveRouteDraft: RawRouteDraft | null = null;
   readonly #incomingIndicators = new Map<string, IncomingPresentationRecord>();
   readonly #departures: DeparturePresentationStore;
   readonly #presentationPulses = new PresentationPulseStore();
@@ -485,7 +486,22 @@ export class HarborRuntime {
   }
 
   public pointerMove(input: NormalizedPointerInput): RouteInputOutcome {
-    return this.#handleRouteInputOutcome(this.#routeInput.pointerMove(input));
+    const ownsActiveDraft = this.#routeInput.activePointerId === input.pointerId;
+    const outcome = this.#routeInput.pointerMove(input);
+    const selectedShipId = this.#routeInput.selectedShipId;
+    const selected = selectedShipId === null ? undefined : this.#active.get(selectedShipId);
+    if (
+      ownsActiveDraft &&
+      selected !== undefined &&
+      selected.ship.routeRecoveryHeadingDeg !== null
+    ) {
+      this.#routeInput.rebaseActiveDraftToShip();
+    }
+    const activeDraft = this.#routeInput.activeDraftSnapshot;
+    if (activeDraft !== null && ownsActiveDraft) {
+      this.#pendingLiveRouteDraft = cloneDraft(activeDraft);
+    }
+    return this.#handleRouteInputOutcome(outcome);
   }
 
   public pointerUp(input: NormalizedPointerInput): RouteInputOutcome {
@@ -493,23 +509,17 @@ export class HarborRuntime {
   }
 
   public pointerCancel(input: NormalizedPointerInput): RouteInputOutcome {
-    const outcome = this.#routeInput.pointerCancel(input);
-    if (outcome.kind === 'cancelled') {
-      this.#presentationSelectedShipId = null;
-    }
-    return outcome;
+    return this.#handleRouteInputOutcome(this.#routeInput.pointerCancel(input));
   }
 
   public cancelActiveDraft(): RouteInputOutcome {
-    const outcome = this.#routeInput.cancelActiveDraft();
-    this.#presentationSelectedShipId = null;
-    return outcome;
+    return this.#handleRouteInputOutcome(this.#routeInput.cancelActiveDraft());
   }
 
   public setPageActive(active: boolean): void {
     this.#activeForRenderAdvance = active;
     if (!active) {
-      this.#routeInput.cancelActiveDraft();
+      this.#handleRouteInputOutcome(this.#routeInput.cancelActiveDraft());
     }
   }
 
@@ -626,8 +636,10 @@ export class HarborRuntime {
 
   #handleRouteInputOutcome(outcome: RouteInputOutcome): RouteInputOutcome {
     if (outcome.kind === 'finished') {
+      this.#pendingLiveRouteDraft = null;
       this.enqueueRouteDraft(outcome.draft);
     } else if (outcome.kind === 'cancelled') {
+      this.#pendingLiveRouteDraft = null;
       this.#presentationSelectedShipId = null;
     }
     return outcome;
@@ -674,6 +686,7 @@ export class HarborRuntime {
     }
     this.#advancePresentationPulses(deltaSeconds);
     this.#applyQueuedRoutes();
+    this.#applyLiveRouteDraft();
     this.#spawnPhase(deltaSeconds);
     this.#snapshotPreviousPoses();
     this.#moveShips(deltaSeconds);
@@ -746,25 +759,53 @@ export class HarborRuntime {
       return;
     }
     const commands = this.#routeCommands.splice(0);
+    const deferred: RawRouteDraft[] = [];
     for (const draft of commands) {
       const record = this.#active.get(draft.shipId);
       if (record === undefined) {
         continue;
       }
-      const wasReadyToLeave = record.ship.state === ShipState.ReadyToLeave;
-      this.#lastRouteCommitResult = this.#routeCommit.commit({
-        ship: record.ship,
-        draft,
-        routeStart: this.#routeStartFor(record.ship),
-      });
-      if (
-        wasReadyToLeave &&
-        (this.#lastRouteCommitResult.kind === 'committed' ||
-          this.#lastRouteCommitResult.kind === 'partial_prefix_committed')
-      ) {
-        this.#docking.beginDeparture(record.ship);
+      if (this.#routeCommitIsDeferred(record.ship)) {
+        deferred.push(draft);
+        continue;
       }
+      this.#commitRouteDraft(record.ship, draft);
     }
+    this.#routeCommands.unshift(...deferred);
+  }
+
+  #applyLiveRouteDraft(): void {
+    const draft = this.#pendingLiveRouteDraft;
+    if (draft === null) return;
+    const record = this.#active.get(draft.shipId);
+    if (record === undefined) {
+      this.#pendingLiveRouteDraft = null;
+      return;
+    }
+    if (this.#routeCommitIsDeferred(record.ship)) return;
+    this.#pendingLiveRouteDraft = null;
+    this.#commitRouteDraft(record.ship, draft);
+  }
+
+  #commitRouteDraft(ship: ShipModel, draft: RawRouteDraft): void {
+    const wasReadyToLeave = ship.state === ShipState.ReadyToLeave;
+    this.#lastRouteCommitResult = this.#routeCommit.commit({
+      ship,
+      draft,
+      routeStart: this.#routeStartFor(ship),
+    });
+    if (
+      wasReadyToLeave &&
+      (this.#lastRouteCommitResult.kind === 'committed' ||
+        this.#lastRouteCommitResult.kind === 'partial_prefix_committed')
+    ) {
+      this.#docking.beginDeparture(ship);
+    }
+  }
+
+  #routeCommitIsDeferred(ship: ShipModel): boolean {
+    return this.#docking.isShipInManeuver(ship.id) ||
+      ship.routeRecoveryHeadingDeg !== null;
   }
 
   #routeStartFor(ship: ShipModel): Point {

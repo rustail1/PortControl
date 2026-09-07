@@ -248,15 +248,20 @@ test('COR-12 FIX-2 runtime tap selects without queueing or mutating Entering', a
   assert.deepEqual(runtime.presentationSnapshot().ships[0].ship, before);
 });
 
-test('COR-12 FIX-2 cancelled activated redraw preserves route and cursor', async () => {
+test('COR-12 activated redraw cancellation seals the drawn replacement route', async () => {
   const existingRoute = { points: [{ x: 200, y: 100 }, { x: 300, y: 100 }] };
   const { ship, controller } = await createInputSubject('Navigating', existingRoute);
-  const before = ship.toSnapshot();
   controller.pointerDown(pointer(100, 100));
   controller.pointerMove(pointer(150, 100));
 
-  assert.deepEqual(controller.cancelActiveDraft(), { kind: 'cancelled' });
-  assert.deepEqual(ship.toSnapshot(), before);
+  assert.deepEqual(controller.cancelActiveDraft(), {
+    kind: 'finished',
+    draft: {
+      shipId: ship.id,
+      start: { x: 100, y: 100 },
+      points: [{ x: 150, y: 100 }],
+    },
+  });
 });
 
 test('COR-12 FIX-2 micro-drag cannot create a waypoint orbit', async () => {

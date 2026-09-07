@@ -20,8 +20,13 @@ async function loadSubject() {
 async function setup() {
   const subject = await loadSubject();
   const bundle = subject.validateConfigSource(readBaselineSource());
-  const characteristics = subject.createShipCharacteristicsRegistry(bundle).require('speedboat');
-  return { subject, bundle, characteristics };
+  const registry = subject.createShipCharacteristicsRegistry(bundle);
+  const characteristics = registry.require('speedboat');
+  return { subject, bundle, characteristics, registry };
+}
+
+function angleDelta(left, right) {
+  return Math.abs(((right - left + 540) % 360) - 180);
 }
 
 function dockDefinition() {
@@ -66,13 +71,13 @@ test('COR-12 FIX-3D shore contact starts moving recovery without terminal ground
   assert.deepEqual(result.avoidedShipIds, [ship.id]);
   assert.equal(ship.state, subject.ShipState.Navigating);
   assert.equal(ship.route, null);
-  assert.equal(ship.routeRecoveryHeadingDeg, 180);
-  const before = ship.position;
-  new subject.ShipMotor().stepRoute(ship, 8, 0.1);
-  assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) > 0);
-  assert.notDeepEqual(ship.position, { x: 70, y: 150 });
+  assert.notEqual(ship.routeRecoveryHeadingDeg, null);
+  assert.equal(geometry.blocksSegment(ship.position, ship.position, characteristics.collisionRadius + 4), false);
+  assert.ok(Math.hypot(ship.x - 70, ship.y - 150) > 0);
+  assert.ok(Math.hypot(ship.x - 70, ship.y - 150) <= 13 + 1e-9);
   const motor = new subject.ShipMotor();
   let previousPosition = ship.position;
+  let previousRotation = ship.rotationDeg;
   for (let step = 0; step < 240; step += 1) {
     motor.stepRoute(ship, 8, 1 / 60);
     const moved = Math.hypot(
@@ -84,7 +89,10 @@ test('COR-12 FIX-3D shore contact starts moving recovery without terminal ground
       ship, spawnSequence: 0, previousPosition,
     }]);
     assert.equal(contact.terminalGrounding, null);
+    assert.equal(geometry.blocksSegment(ship.position, ship.position, characteristics.collisionRadius + 4), false);
+    assert.ok(angleDelta(previousRotation, ship.rotationDeg) <= characteristics.turnRateDeg / 60 + 1e-9);
     previousPosition = ship.position;
+    previousRotation = ship.rotationDeg;
   }
   assert.ok(ship.x < 100 - characteristics.collisionRadius - 4);
   assert.equal(ship.state, subject.ShipState.Navigating);
@@ -114,9 +122,21 @@ test('COR-12 FIX-3E side entry follows derived water lane and finishes at exact 
   });
   controller.step([{ ship, spawnSequence: 0 }], 0);
   const positions = [];
-  for (let step = 0; step < 21; step += 1) {
+  let previousRotation = ship.rotationDeg;
+  let previousPosition = ship.position;
+  for (let step = 0; step < 240 && ship.state !== subject.ShipState.Unloading; step += 1) {
     controller.step([{ ship, spawnSequence: 0 }], 1 / 60);
     positions.push(ship.position);
+    if (ship.state !== subject.ShipState.Unloading) {
+      assert.ok(angleDelta(previousRotation, ship.rotationDeg) <= characteristics.turnRateDeg / 60 + 1e-9);
+      const movementHeading = Math.atan2(
+        ship.y - previousPosition.y,
+        ship.x - previousPosition.x,
+      ) * 180 / Math.PI;
+      assert.ok(angleDelta(ship.rotationDeg, movementHeading) <= characteristics.turnRateDeg / 60 + 1e-9);
+    }
+    previousRotation = ship.rotationDeg;
+    previousPosition = ship.position;
   }
 
   assert.ok(Math.max(...positions.map((position) => position.x)) > 570);
@@ -124,6 +144,31 @@ test('COR-12 FIX-3E side entry follows derived water lane and finishes at exact 
   assert.equal(ship.rotationDeg, definition.dockAngle);
   assert.equal(ship.state, subject.ShipState.Unloading);
   assert.equal(dock.occupiedBy, ship.id);
+});
+
+test('COR-12 dock curve advances by each ship speed instead of a shared duration', async () => {
+  const { subject, bundle, registry } = await setup();
+  const run = (type) => {
+    const dock = new subject.DockModel(dockDefinition());
+    const controller = new subject.DockingController({
+      docks: new subject.DockCollection([dock]),
+      dockSystem: new subject.DockSystem(),
+      config: subject.createDockingConfig(bundle),
+    });
+    const ship = new subject.ShipModel({
+      id: type,
+      characteristics: registry.require(type),
+      position: { x: 500, y: 560 },
+      rotationDeg: 270,
+      state: subject.ShipState.Navigating,
+      cargo: { general: 1 },
+    });
+    controller.step([{ ship, spawnSequence: 0 }], 0);
+    controller.step([{ ship, spawnSequence: 0 }], 0.2);
+    return Math.hypot(ship.x - 500, ship.y - 560);
+  };
+
+  assert.ok(run('speedboat') > run('freighter'));
 });
 
 test('COR-12 FIX-3E derived lane extends along dock axis until the whole ship is in water', async () => {

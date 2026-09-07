@@ -111,9 +111,11 @@ export class ShipMotor {
       ? { x: headingX, y: headingY }
       : route.tangentAtDistance(nextProgress);
     if (tangent !== null) {
-      ship.setRotationDeg(
+      ship.setRotationDeg(moveAngleTowardsDeg(
+        ship.rotationDeg,
         (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI,
-      );
+        ship.characteristics.turnRateDeg * deltaSeconds,
+      ));
     }
   }
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {

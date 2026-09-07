@@ -134,12 +134,22 @@ export class RouteInputController {
     if (this.#active === null) {
       return { kind: 'ignored' };
     }
+    if (this.#active.activated) {
+      return this.#finish();
+    }
     this.#active = null;
     return { kind: 'cancelled' };
   }
 
   public syncActiveDraftToShip(): void {
     this.#advanceActiveDraftProgress();
+  }
+
+  public rebaseActiveDraftToShip(): void {
+    const active = this.#active;
+    if (active === null || !active.activated) return;
+    active.routeStart = { ...active.ship.position };
+    active.points.splice(0);
   }
 
   public pointerDown(input: NormalizedPointerInput): RouteInputOutcome {
@@ -219,6 +229,9 @@ export class RouteInputController {
   public pointerCancel(input: NormalizedPointerInput): RouteInputOutcome {
     if (!this.#owns(input.pointerId)) {
       return { kind: 'ignored' };
+    }
+    if (this.#active?.activated) {
+      return this.#finish();
     }
     this.#active = null;
     return { kind: 'cancelled' };

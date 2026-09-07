@@ -69,12 +69,6 @@ export class RouteCommitService {
     }
 
     ship.replaceRoute(new ShipRoute(validated.validPoints, routeStart), routeStart);
-    const initialTangent = ship.route?.tangentAtDistance(0) ?? null;
-    if (initialTangent !== null) {
-      ship.setRotationDeg(
-        (Math.atan2(initialTangent.y, initialTangent.x) * 180) / Math.PI,
-      );
-    }
     if (ship.state === ShipState.Entering) {
       ship.setState(ShipState.Navigating);
     } else if (ship.state === ShipState.ReadyToLeave) {

@@ -96,9 +96,13 @@ test('snap starts once, blocks route input by state, and completes with exact po
   });
   assert.deepEqual(input.pointerDown({ source: 'mouse', pointerId: 1, screenPosition: { x: 0, y: 0 }, cssPosition: { x: 0, y: 0 }, internalViewport: { width: 1000, height: 1000 }, worldToCssPixelScale: 1 }), { kind: 'ignored' });
   assert.equal(controller.step([candidate(model, 1)], 0.175).startedShipIds.length, 0);
-  assert.ok(model.x > 30 && model.x < 40);
-  assert.ok(model.rotationDeg < 5 || model.rotationDeg > 355);
-  const complete = controller.step([candidate(model, 1)], 0.175);
+  assert.notDeepEqual(model.position, snapStart);
+  assert.equal(model.state, s.ShipState.Docking);
+  let complete;
+  for (let step = 0; step < 120; step += 1) {
+    complete = controller.step([candidate(model, 1)], 1 / 60);
+    if (complete.completedShipIds.length > 0) break;
+  }
   assert.deepEqual(complete.completedShipIds, ['ship']);
   assert.deepEqual(model.position, { x: 10, y: 0 });
   assert.equal(model.rotationDeg, 0);
@@ -173,8 +177,12 @@ test('active transaction progresses and completes when later arbitration candida
   assert.deepEqual(started.startedShipIds, ['ship']);
   assert.deepEqual(started.invariantShipIds, []);
   controller.step([], 0.175);
-  assert.ok(model.x > 30 && model.x < 40);
-  const complete = controller.step([], 0.175);
+  assert.notDeepEqual(model.position, { x: 0, y: 0 });
+  let complete;
+  for (let step = 0; step < 600; step += 1) {
+    complete = controller.step([], 1 / 60);
+    if (complete.completedShipIds.length > 0) break;
+  }
   assert.deepEqual(complete.invariantShipIds, []);
   assert.deepEqual(complete.completedShipIds, ['ship']);
   assert.deepEqual(model.position, { x: 10, y: 0 });

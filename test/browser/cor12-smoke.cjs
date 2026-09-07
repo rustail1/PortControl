@@ -362,7 +362,7 @@ async function main() {
       await page.evaluate(() => window.dispatchEvent(new Event('blur')));
     });
 
-    await check('BROWSER-13 Escape cancels activated draft and preserves route', async () => {
+    await check('BROWSER-13 Escape seals an activated live route without rollback', async () => {
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       const ship = before.ships.find((candidate) => candidate.id === routedShipId);
       assert.ok(ship);
@@ -376,14 +376,17 @@ async function main() {
       await page.mouse.up();
       const after = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       assert.equal(after.activeDraft, null);
-      assert.equal(after.queuedRouteCommands, 0);
-      assert.deepEqual(
-        after.ships.find((candidate) => candidate.id === routedShipId)?.route,
-        committedRoute,
-      );
+      assert.equal(after.queuedRouteCommands, 1);
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await page.waitForFunction(({ shipId, previousRoute }) => {
+        const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+        const route = current.ships.find((candidate) => candidate.id === shipId)?.route;
+        return current.queuedRouteCommands === 0 &&
+          route !== null && JSON.stringify(route) !== JSON.stringify(previousRoute);
+      }, { shipId: routedShipId, previousRoute: committedRoute }, { timeout: 5000 });
     });
 
-    await check('BROWSER-14 right click cancels draft and suppresses context menu', async () => {
+    await check('BROWSER-14 right click seals live route and suppresses context menu', async () => {
       const before = await page.evaluate(() => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot());
       const ship = before.ships.find((candidate) => candidate.id === routedShipId);
       assert.ok(ship);
@@ -407,13 +410,14 @@ async function main() {
         contextPrevented: globalThis.__PORT_CONTROL_CONTEXT_PREVENTED__,
       }));
       assert.equal(after.snapshot.activeDraft, null);
-      assert.equal(after.snapshot.queuedRouteCommands, 0);
       assert.equal(after.contextPrevented, true);
-      assert.deepEqual(
-        after.snapshot.ships.find((candidate) => candidate.id === ship.id)?.route,
-        routeBeforeCancel,
-      );
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await page.waitForFunction(({ shipId, previousRoute }) => {
+        const current = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot();
+        const route = current.ships.find((candidate) => candidate.id === shipId)?.route;
+        return current.queuedRouteCommands === 0 &&
+          route !== null && JSON.stringify(route) !== JSON.stringify(previousRoute);
+      }, { shipId: ship.id, previousRoute: routeBeforeCancel }, { timeout: 5000 });
     });
 
     await check('BROWSER-15 outward drag commits an exact world-edge endpoint', async () => {

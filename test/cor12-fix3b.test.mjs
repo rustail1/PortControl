@@ -27,7 +27,7 @@ function pointer(x, y) {
 }
 
 for (const pointerOffset of [0, 12]) {
-test(`COR-12 redraw sideways drift with ${pointerOffset}px grab offset does not pin the first tangent`, async () => {
+test(`COR-12 redraw sideways drift with ${pointerOffset}px grab offset does not snap the hull`, async () => {
   const { s, registry, routeConfig } = await setup();
   const { SquareWorldViewport } = await import('../src/camera/SquareWorldViewport.ts');
   const ship = shipOf(s, registry, { position: { x: 500, y: 500 }, rotationDeg: 0 });
@@ -44,8 +44,7 @@ test(`COR-12 redraw sideways drift with ${pointerOffset}px grab offset does not 
     .commit({ ship, draft: controller.pointerUp(pointer(500 + pointerOffset, 300)).draft });
   assert.equal(result.kind, 'committed');
   assert.deepEqual(ship.route.toSnapshot(), { start: { x: 440, y: 500 }, points: [{ x: 500 + pointerOffset, y: 300 }] });
-  const heading = (Math.atan2(-200, 60 + pointerOffset) * 180 / Math.PI + 360) % 360;
-  assert.ok(Math.abs(ship.rotationDeg - heading) < 1e-9);
+  assert.equal(ship.rotationDeg, 0);
 });
 }
 
@@ -67,7 +66,7 @@ function shipOf(s, registry, options = {}) {
   });
 }
 
-test('COR-12 FIX-3B successful route commit snaps heading to its first valid tangent without moving', async () => {
+test('COR-12 route commit preserves hull heading until fixed-step turning begins', async () => {
   const { s, registry, routeConfig } = await setup();
   const ship = shipOf(s, registry, { rotationDeg: 180 });
   const before = ship.position;
@@ -81,10 +80,10 @@ test('COR-12 FIX-3B successful route commit snaps heading to its first valid tan
 
   assert.equal(result.kind, 'committed');
   assert.deepEqual(ship.position, before);
-  assert.equal(ship.rotationDeg, 90);
+  assert.equal(ship.rotationDeg, 180);
 });
 
-test('COR-12 FIX-3B outbound commit immediately points OUT ship along the swipe', async () => {
+test('COR-12 outbound commit preserves dock heading until guided departure moves', async () => {
   const { s, registry, routeConfig } = await setup();
   const ship = shipOf(s, registry, {
     position: { x: 355, y: 150 },
@@ -102,7 +101,7 @@ test('COR-12 FIX-3B outbound commit immediately points OUT ship along the swipe'
 
   assert.equal(result.kind, 'committed');
   assert.equal(ship.state, s.ShipState.Leaving);
-  assert.equal(ship.rotationDeg, 180);
+  assert.equal(ship.rotationDeg, 90);
   assert.deepEqual(ship.position, { x: 355, y: 150 });
 });
 
@@ -131,7 +130,7 @@ test('COR-12 FIX-3B navigation position follows the authored polyline independen
   assert.deepEqual(ship.position, { x: 100, y: 100 });
 });
 
-test('COR-12 FIX-3B first navigation step obeys route direction instead of current heading', async () => {
+test('COR-12 route position responds immediately while freighter hull turn is rate-limited', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry, { rotationDeg: 180 });
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }]));
@@ -140,5 +139,21 @@ test('COR-12 FIX-3B first navigation step obeys route direction instead of curre
 
   assert.ok(ship.x > 0);
   assert.equal(ship.y, 0);
-  assert.equal(ship.rotationDeg, 0);
+  assert.ok(Math.abs(ship.rotationDeg - (180 - ship.characteristics.turnRateDeg / 60)) < 1e-9);
+});
+
+test('COR-12 normal route navigation preserves ship-specific speed', async () => {
+  const { s, registry } = await setup();
+  const speedboat = shipOf(s, registry, { id: 'fast', type: 'speedboat', rotationDeg: 0 });
+  const freighter = shipOf(s, registry, { id: 'slow', type: 'freighter', rotationDeg: 0 });
+  speedboat.replaceRoute(new s.ShipRoute([{ x: 1000, y: 0 }]));
+  freighter.replaceRoute(new s.ShipRoute([{ x: 1000, y: 0 }]));
+  const motor = new s.ShipMotor();
+
+  motor.stepRoute(speedboat, 8, 0.2);
+  motor.stepRoute(freighter, 8, 0.2);
+
+  assert.equal(speedboat.x, speedboat.characteristics.speed * 0.2);
+  assert.equal(freighter.x, freighter.characteristics.speed * 0.2);
+  assert.ok(speedboat.x > freighter.x);
 });

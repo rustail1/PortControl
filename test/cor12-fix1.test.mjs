@@ -278,15 +278,17 @@ test('COR-12 FIX-1 #22 successful empty exit has no cargo reject feedback', asyn
   assert.deepEqual(first.pendingShipIds, ['empty']);
 });
 
-test('COR-12 FIX-1 #23 resize-style draft cancellation keeps committed route', async () => {
+test('COR-12 live resize-style end seals the activated replacement route', async () => {
   const { runtime, ship } = await runtimeWithFirstShip();
   runtime.enqueueRouteDraft({ shipId: ship.ship.id, points: [{ x: 500, y: 700 }] });
   runtime.advanceRender(frameMs());
   const committed = runtime.presentationSnapshot().ships[0].ship.route;
   runtime.pointerDown(pointer(runtime.presentationSnapshot().ships[0], runtime.presentationSnapshot().ships[0].ship.position));
   runtime.pointerMove(pointer(runtime.presentationSnapshot().ships[0], { x: 450, y: 650 }));
-  runtime.cancelActiveDraft();
+  assert.equal(runtime.cancelActiveDraft().kind, 'finished');
   assert.deepEqual(runtime.presentationSnapshot().ships[0].ship.route, committed);
+  runtime.advanceRender(frameMs());
+  assert.deepEqual(runtime.presentationSnapshot().ships[0].ship.route.points.at(-1), { x: 450, y: 650 });
 });
 
 test('COR-12 FIX-1 #24 resize-style cancellation clears active draft', async () => {
