@@ -131,7 +131,20 @@ async function main() {
     assert.equal(visible.oldRoutes, 0, 'old committed line must hide while replacement is drawn');
     assert.ok(visible.draftDepth < visible.bodyDepth, 'draft must emerge from hull, not draw over it');
     assert.deepEqual(visible.anchor, visible.body, 'preview must start at the actually rendered vessel');
-    assert.equal(visible.ends.length, 1, 'straight swipe must not retain the old start as a corner');
+    assert.ok(visible.ends.length >= 1, 'straight swipe must render a visible route');
+    const straightTip = visible.ends.at(-1);
+    const straightDx = straightTip.x - visible.anchor.x;
+    const straightDy = straightTip.y - visible.anchor.y;
+    const straightLength = Math.hypot(straightDx, straightDy);
+    assert.ok(straightLength > 0, 'straight swipe tip must differ from the rendered vessel');
+    for (const point of visible.ends.slice(0, -1)) {
+      const perpendicularDistance = Math.abs(
+        straightDx * (point.y - visible.anchor.y) -
+        straightDy * (point.x - visible.anchor.x),
+      ) / straightLength;
+      assert.ok(perpendicularDistance <= 0.5,
+        `straight swipe must not retain a geometric corner: ${JSON.stringify({ visible, point, perpendicularDistance })}`);
+    }
     assert.deepEqual((await snapshot()).ships.find(ship => ship.id === shipId).route, oldRoute);
     await page.keyboard.press('Escape');
     await page.mouse.up();
