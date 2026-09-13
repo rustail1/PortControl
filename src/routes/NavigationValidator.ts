@@ -2,6 +2,7 @@ import type { Point } from '../camera/SquareWorldViewport.ts';
 import { LandClearanceGeometry } from '../geometry/LandClearanceGeometry.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
 import type { RouteProcessingConfig } from './RouteProcessingConfig.ts';
+import { simplifyRouteDraft } from './RouteSimplifier.ts';
 
 export interface ForbiddenPolygon {
   readonly points: readonly Point[];
@@ -25,12 +26,13 @@ export class NavigationValidator {
     config: RouteProcessingConfig,
     start: Point = ship.position,
   ): NavigationValidationResult {
+    const processedPoints = simplifyRouteDraft({ start, points }, config);
     let previous = start;
     let index = 0;
     const clearance =
       ship.characteristics.collisionRadius + config.navigationClearanceExtra;
-    for (; index < points.length; index += 1) {
-      const current = points[index];
+    for (; index < processedPoints.length; index += 1) {
+      const current = processedPoints[index];
       if (this.#geometry.blocksSegment(previous, current, clearance)) {
         break;
       }
@@ -38,10 +40,10 @@ export class NavigationValidator {
     }
     return Object.freeze({
       validPoints: Object.freeze(
-        points.slice(0, index).map((point) => Object.freeze({ ...point })),
+        processedPoints.slice(0, index).map((point) => Object.freeze({ ...point })),
       ),
       rejectedPoints: Object.freeze(
-        points.slice(index).map((point) => Object.freeze({ ...point })),
+        processedPoints.slice(index).map((point) => Object.freeze({ ...point })),
       ),
     });
   }
