@@ -45,6 +45,18 @@ test('COR-12R NavigationValidator validates supplied geometry without rewriting 
   assert.deepEqual(result.rejectedPoints, []);
 });
 
+test('COR-12R canonicalizer preserves straight authored anchors used by safe-prefix validation', async () => {
+  const { routes, routeConfig } = await setup();
+  const canonicalizer = new routes.RouteCanonicalizer(routeConfig);
+  const authored = [{ x: 20, y: 0 }, { x: 100, y: 0 }];
+
+  assert.deepEqual(
+    canonicalizer.canonicalize({ x: 0, y: 0 }, authored),
+    authored,
+    'canonicalization may round real corners but must not erase straight validation anchors',
+  );
+});
+
 test('COR-12R RouteCommitService canonicalizes once before validation', async () => {
   const { routes, ship, routeConfig } = await setup();
   let receivedByValidator = null;
