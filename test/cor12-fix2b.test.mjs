@@ -146,27 +146,45 @@ test('COR-12 FIX-2B route cursor makes monotonic progress through close polyline
   assert.equal(ship.routeCursor, 4);
 });
 
-for (const state of ['Navigating', 'Leaving']) {
-  test(`COR-12 FIX-2B ${state} continues forward after route exhaustion`, async () => {
-    const { subject, registry } = await createInputController();
-    const ship = new subject.ShipModel({
-      id: `route-end-${state}`,
-      characteristics: registry.require('freighter'),
-      position: { x: 200, y: 300 },
-      rotationDeg: 90,
-      state: subject.ShipState[state],
-      route: { points: [{ x: 200, y: 300 }] },
-    });
-    const motor = new subject.ShipMotor();
-    motor.stepRoute(ship, 8, 1 / 60);
-    const beforeContinuation = ship.position;
-    motor.stepRoute(ship, 8, 0.5);
-
-    assert.equal(ship.routeCursor, 1);
-    assert.ok(Math.abs(ship.x - beforeContinuation.x) < 1e-9);
-    assert.ok(Math.abs(ship.y - (beforeContinuation.y + ship.characteristics.speed * 0.5)) < 1e-9);
+test('COR-12 FIX-2B Navigating holds at canonical route exhaustion', async () => {
+  const { subject, registry } = await createInputController();
+  const ship = new subject.ShipModel({
+    id: 'route-end-Navigating',
+    characteristics: registry.require('freighter'),
+    position: { x: 200, y: 300 },
+    rotationDeg: 90,
+    state: subject.ShipState.Navigating,
+    route: { points: [{ x: 200, y: 300 }] },
   });
-}
+  const motor = new subject.ShipMotor();
+  motor.stepRoute(ship, 8, 1 / 60);
+  const routeEnd = ship.position;
+  motor.stepRoute(ship, 8, 0.5);
+
+  assert.equal(ship.routeCursor, 1);
+  assert.deepEqual(ship.position, routeEnd);
+  assert.equal(ship.routeProgress, ship.route.totalLength);
+});
+
+test('COR-12 FIX-2B Leaving continues forward after route exhaustion', async () => {
+  const { subject, registry } = await createInputController();
+  const ship = new subject.ShipModel({
+    id: 'route-end-Leaving',
+    characteristics: registry.require('freighter'),
+    position: { x: 200, y: 300 },
+    rotationDeg: 90,
+    state: subject.ShipState.Leaving,
+    route: { points: [{ x: 200, y: 300 }] },
+  });
+  const motor = new subject.ShipMotor();
+  motor.stepRoute(ship, 8, 1 / 60);
+  const beforeContinuation = ship.position;
+  motor.stepRoute(ship, 8, 0.5);
+
+  assert.equal(ship.routeCursor, 1);
+  assert.ok(Math.abs(ship.x - beforeContinuation.x) < 1e-9);
+  assert.ok(Math.abs(ship.y - (beforeContinuation.y + ship.characteristics.speed * 0.5)) < 1e-9);
+});
 
 test('COR-12 FIX-2B ReadyToLeave remains stopped without an outbound route', async () => {
   const { subject, registry } = await createInputController();
