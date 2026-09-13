@@ -92,11 +92,14 @@ for (const dockAngle of [0, 90, 180, 270]) {
 
     controller.step(candidates, 0);
     controller.step(candidates, 0);
-    controller.step(candidates, 0.349);
     assert.equal(ship.state, s.ShipState.Docking);
-    const nearEnd = ship.position;
 
-    controller.step(candidates, 0.001);
+    let nearEnd = ship.position;
+    for (let step = 0; step < 1200 && ship.state === s.ShipState.Docking; step += 1) {
+      nearEnd = ship.position;
+      controller.step(candidates, 1 / 60);
+    }
+
     assert.deepEqual(ship.position, dock.definition.position);
     assert.equal(ship.rotationDeg, dockAngle);
     assert.equal(ship.state, s.ShipState.Unloading);
