@@ -62,6 +62,11 @@ function isAtAuthoredCorner(route: ShipRoute, progress: number): boolean {
   const cursor = route.cursorAtDistance(progress);
   return cursor > 0 && Math.abs(route.distanceAtCursor(cursor) - progress) <= EPSILON;
 }
+function incomingHeadingAtCorner(route: ShipRoute, progress: number): number | null {
+  if (!isAtAuthoredCorner(route, progress)) return null;
+  const cursor = route.cursorAtDistance(progress);
+  return segmentHeadingDeg(route, cursor - 1);
+}
 function routeEndRequiresStop(ship: ShipModel, continueAfterRouteEnd: boolean): boolean {
   if (!continueAfterRouteEnd) return true;
   return ship.state === ShipState.Navigating || ship.state === ShipState.ReadyToLeave;
@@ -90,6 +95,7 @@ export class ShipMotor {
       return;
     }
     const desiredAngleDeg = routeHeadingDeg(route, ship.routeProgress); if (desiredAngleDeg === null) return;
+    const rotationBefore = ship.rotationDeg;
     ship.setRotationDeg(moveAngleTowardsDeg(ship.rotationDeg, desiredAngleDeg, ship.characteristics.turnRateDeg * deltaSeconds));
     const cruiseSpeed = ship.characteristics.speed;
     const headingErrorDeg = angleDeltaDeg(ship.rotationDeg, desiredAngleDeg);
@@ -107,7 +113,13 @@ export class ShipMotor {
       const allowedEndSpeed = Math.sqrt(2 * braking * distanceToEnd);
       speed = Math.min(speed, allowedEndSpeed);
     }
-    if (isAtAuthoredCorner(route, ship.routeProgress) && headingErrorDeg >= FULL_PIVOT_ERROR_DEG) speed = 0;
+    if (isAtAuthoredCorner(route, ship.routeProgress)) {
+      const incomingHeading = incomingHeadingAtCorner(route, ship.routeProgress);
+      const beginningCornerTurn = incomingHeading !== null &&
+        angleDeltaDeg(rotationBefore, incomingHeading) <= EPSILON &&
+        angleDeltaDeg(incomingHeading, desiredAngleDeg) >= MIN_CORNER_ANGLE_DEG;
+      if (beginningCornerTurn || headingErrorDeg >= FULL_PIVOT_ERROR_DEG) speed = 0;
+    }
     let nextProgress = Math.min(ship.routeProgress + speed * deltaSeconds, route.totalLength);
     if (corner !== null && corner.progress > ship.routeProgress + EPSILON && nextProgress > corner.progress) nextProgress = corner.progress;
     const nextPosition = route.pointAtDistance(nextProgress);

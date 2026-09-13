@@ -65,7 +65,7 @@ test('COR-12 physical route follower brakes before a raw 90 degree corner withou
   assert.deepEqual(ship.route.toSnapshot(), authoredSnapshot, 'movement must never rewrite the player route');
 });
 
-test('COR-12 raw 90 degree vertex slows but does not hard-stop the ship', () => {
+test('COR-12 raw 90 degree vertex uses one vertex turn tick then continues at reduced speed', () => {
   const ship = makeShip();
   ship.replaceRoute(new ShipRoute([{ x: 20, y: 0 }, { x: 20, y: 100 }], ship.position));
   const motor = new ShipMotor();
@@ -79,12 +79,17 @@ test('COR-12 raw 90 degree vertex slows but does not hard-stop the ship', () => 
 
   motor.stepRoute(ship, 2, 1 / 60, false);
 
-  assert.ok(ship.routeProgress > 20, '90 degree corner must keep controlled forward progress');
+  assert.equal(ship.routeProgress, 20, 'first outgoing tick should turn at the exact authored vertex');
+  assert.ok(angleDelta(rotationAtVertex, ship.rotationDeg) > 0, 'hull must begin turning at the vertex');
+  assertOnRoute(ship);
+
+  motor.stepRoute(ship, 2, 1 / 60, false);
+
+  assert.ok(ship.routeProgress > 20, '90 degree corner must resume forward progress after the vertex turn tick');
   assert.ok(
     ship.routeProgress - 20 < cruiseStep,
     '90 degree corner must remain slower than straight-line cruise',
   );
-  assert.ok(angleDelta(rotationAtVertex, ship.rotationDeg) > 0, 'hull must keep turning through the corner');
   assertOnRoute(ship);
 });
 
