@@ -93,7 +93,6 @@ export class ShipMotor {
     if (ship.routeProgress >= route.totalLength) {
       if (continueAfterRouteEnd && (
         ship.state === ShipState.Entering ||
-        ship.state === ShipState.Navigating ||
         ship.state === ShipState.Leaving
       )) {
         this.#stepForward(ship, deltaSeconds);
