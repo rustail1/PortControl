@@ -111,39 +111,46 @@ test('COR-12 outbound commit preserves dock heading until guided departure moves
   assert.deepEqual(ship.position, { x: 355, y: 150 });
 });
 
-test('COR-12 FIX-3B navigation keeps velocity aligned with the rate-limited hull', async () => {
+test('COR-12 FIX-3B navigation keeps the center on canonical route while the hull turns independently', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry, { rotationDeg: 180 });
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 100 }]));
   const motor = new s.ShipMotor();
   let previousProgress = 0;
+  let observedIndependentHull = false;
 
   for (let step = 0; step < 600 && ship.routeProgress < ship.route.totalLength; step += 1) {
-    const before = ship.position;
+    const beforeRotation = ship.rotationDeg;
     motor.stepRoute(ship, 8, 1 / 60);
-    const moved = Math.hypot(ship.x - before.x, ship.y - before.y);
-    assert.ok(moved <= ship.characteristics.speed / 60 + 1e-9);
+    const expected = ship.route.pointAtDistance(ship.routeProgress);
+    assert.ok(Math.abs(ship.x - expected.x) < 1e-9);
+    assert.ok(Math.abs(ship.y - expected.y) < 1e-9);
     assert.ok(ship.routeProgress >= previousProgress);
-    if (moved > 1e-9) {
-      const velocityHeading = Math.atan2(ship.y - before.y, ship.x - before.x) * 180 / Math.PI;
-      assert.ok(Math.abs(((velocityHeading - ship.rotationDeg + 540) % 360) - 180) < 1e-9);
+    const rotationDelta = Math.abs(((ship.rotationDeg - beforeRotation + 540) % 360) - 180);
+    assert.ok(rotationDelta <= ship.characteristics.turnRateDeg / 60 + 1e-9);
+    if (ship.routeProgress > previousProgress + 1e-9) {
+      const tangent = ship.route.tangentAtDistance(ship.routeProgress);
+      const tangentHeading = Math.atan2(tangent.y, tangent.x) * 180 / Math.PI;
+      const headingError = Math.abs(((tangentHeading - ship.rotationDeg + 540) % 360) - 180);
+      if (headingError > 1e-6) observedIndependentHull = true;
     }
     previousProgress = ship.routeProgress;
   }
 
   assert.equal(ship.routeProgress, ship.route.totalLength);
-  assert.ok(ship.y > 0);
+  assert.deepEqual(ship.position, { x: 100, y: 100 });
+  assert.equal(observedIndependentHull, true);
 });
 
-test('COR-12 reverse command starts a forward rate-limited turn instead of side-slipping', async () => {
+test('COR-12 reverse-facing hull turns in place before making canonical forward progress', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry, { rotationDeg: 180 });
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }]));
 
   new s.ShipMotor().stepRoute(ship, 8, 1 / 60);
 
-  assert.ok(ship.x < 0);
-  assert.notEqual(ship.y, 0);
+  assert.deepEqual(ship.position, { x: 0, y: 0 });
+  assert.equal(ship.routeProgress, 0);
   assert.ok(Math.abs(ship.rotationDeg - (180 - ship.characteristics.turnRateDeg / 60)) < 1e-9);
 });
 
