@@ -139,9 +139,10 @@ export class ShipMotor {
     // COR-12 canonical-follow contract:
     // - the navigation point/ship centre advances on the exact visible route;
     // - hull rotation is independent and turn-rate limited;
-    // - large heading errors reduce forward progress instead of pushing the ship off-route.
+    // - ordinary bends keep configured speed while >90-degree heading errors pause
+    //   progress until the hull has turned enough to follow the authored route safely.
     const headingErrorDeg = angleDeltaDeg(ship.rotationDeg, desiredAngleDeg);
-    const alignment = Math.max(0, Math.cos(headingErrorDeg * Math.PI / 180));
+    const alignment = headingErrorDeg <= 90 ? 1 : 0;
     const maximumDistance = ship.characteristics.speed * deltaSeconds;
     const nextProgress = Math.min(
       ship.routeProgress + maximumDistance * alignment,
