@@ -38,6 +38,26 @@ function angleDeltaDeg(left: number, right: number): number {
   return Math.abs(((right - left + 540) % 360) - 180);
 }
 
+function routePreviewHeadingDeg(
+  route: ShipRoute,
+  progress: number,
+  lookaheadDistance: number,
+): number | null {
+  const current = route.pointAtDistance(progress);
+  const preview = route.pointAtDistance(
+    Math.min(progress + lookaheadDistance, route.totalLength),
+  );
+  const previewX = preview.x - current.x;
+  const previewY = preview.y - current.y;
+  if (Math.hypot(previewX, previewY) > 1e-9) {
+    return normalizeRotationDeg(Math.atan2(previewY, previewX) * 180 / Math.PI);
+  }
+
+  const tangent = route.tangentAtDistance(progress);
+  if (tangent === null) return null;
+  return normalizeRotationDeg(Math.atan2(tangent.y, tangent.x) * 180 / Math.PI);
+}
+
 export class ShipMotor {
   public stepRoute(
     ship: ShipModel,
@@ -100,11 +120,16 @@ export class ShipMotor {
       return;
     }
 
-    const tangent = route.tangentAtDistance(ship.routeProgress);
-    if (tangent === null) return;
-    const desiredAngleDeg = normalizeRotationDeg(
-      Math.atan2(tangent.y, tangent.x) * 180 / Math.PI,
+    // Preview only local authored geometry. The preview steers the hull early enough
+    // to make corners readable while the navigation point continues to advance on
+    // the exact canonical route below. A half-second preview preserves each ship's
+    // configured speed/turn-rate feel without introducing a separate hidden path.
+    const desiredAngleDeg = routePreviewHeadingDeg(
+      route,
+      ship.routeProgress,
+      Math.max(waypointTolerance, ship.characteristics.speed * 0.5),
     );
+    if (desiredAngleDeg === null) return;
     ship.setRotationDeg(moveAngleTowardsDeg(
       ship.rotationDeg,
       desiredAngleDeg,
