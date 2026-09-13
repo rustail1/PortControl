@@ -18,15 +18,9 @@ function assertStableFixedBends(previousEnds, currentEnds) {
   const currentFixed = currentEnds.slice(0, -1);
   if (previousFixed.length === 0 || currentFixed.length === 0) return;
 
-  let overlap = Math.min(previousFixed.length, currentFixed.length);
-  while (overlap > 0 && !Array.from({ length: overlap }, (_, index) =>
-    assert.deepEqual ? previousFixed[previousFixed.length - overlap + index] : null)) {
-    overlap -= 1;
-  }
-
   // Find the largest exact overlap between the surviving suffix of the old fixed
   // geometry and the prefix of the new fixed geometry. Only a consumed prefix may vanish.
-  overlap = Math.min(previousFixed.length, currentFixed.length);
+  let overlap = Math.min(previousFixed.length, currentFixed.length);
   for (; overlap > 0; overlap -= 1) {
     const oldSuffix = previousFixed.slice(previousFixed.length - overlap);
     const newPrefix = currentFixed.slice(0, overlap);
