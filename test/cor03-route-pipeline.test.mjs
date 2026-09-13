@@ -99,7 +99,7 @@ test('route and cursor survive snapshot restore without semantic loss', async ()
   assert.deepEqual(s.ShipModel.restore(ship.toSnapshot(), registry).toSnapshot(), ship.toSnapshot());
 });
 
-test('ShipMotor follows the canonical polyline through a route corner without teleporting', async () => {
+test('ShipMotor reaches the authored corner before turning into the next route leg', async () => {
   const { s, ship, config } = await setup();
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 100 }]));
   const motor = new s.ShipMotor();
@@ -118,11 +118,20 @@ test('ShipMotor follows the canonical polyline through a route corner without te
     motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
   }
   assert.equal(ship.routeCursor, 1);
-  const corner = ship.position;
+  assert.ok(Math.abs(ship.x - 100) < 1e-9);
+  assert.ok(Math.abs(ship.y) < 1e-9);
+  const rotationAtCorner = ship.rotationDeg;
+
   motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
   assert.ok(Math.abs(ship.x - 100) < 1e-9);
-  assert.ok(ship.y > corner.y);
-  assert.ok(ship.rotationDeg > 0 && ship.rotationDeg < 90);
+  assert.ok(Math.abs(ship.y) < 1e-9, 'ship should turn at the authored vertex instead of side-sliding past it');
+  assert.ok(ship.rotationDeg > rotationAtCorner && ship.rotationDeg < 90);
+
+  for (let step = 0; step < 120 && ship.y <= 0; step += 1) {
+    motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
+  }
+  assert.ok(ship.y > 0, 'ship should continue down the next leg after turning enough');
+  assert.ok(Math.abs(ship.x - 100) < 1e-9);
 });
 
 test('fixed clock partitions produce the same route snapshot', async () => {
