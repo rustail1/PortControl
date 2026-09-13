@@ -91,6 +91,40 @@ test('COR-12R RouteCommitService canonicalizes once before validation', async ()
     'committed ShipRoute must reuse the exact geometry that was validated');
 });
 
+test('COR-12R departure commit trims gesture samples that lie before the guided release start', async () => {
+  const { routes, ships, ship, routeConfig } = await setup();
+  ship.setState(ships.ShipState.ReadyToLeave);
+  ship.setPositionXY(0, 0);
+  const routeStart = { x: 0, y: 58 };
+  const service = new routes.RouteCommitService({
+    navigation: new routes.NavigationValidator([]),
+    config: routeConfig,
+  });
+
+  const result = service.commit({
+    ship,
+    routeStart,
+    draft: {
+      shipId: ship.id,
+      start: { x: 0, y: 0 },
+      points: [
+        { x: 0, y: 15 },
+        { x: 0, y: 30 },
+        { x: 0, y: 45 },
+        { x: 0, y: 60 },
+      ],
+    },
+  });
+
+  assert.equal(result.kind, 'committed');
+  assert.deepEqual(ship.route.toSnapshot().start, routeStart);
+  assert.ok(
+    ship.route.toSnapshot().points.every((point) => point.y >= routeStart.y - 1e-6),
+    `guided release must not route backward through dock gesture prefix: ${JSON.stringify(ship.route.toSnapshot())}`,
+  );
+  assert.deepEqual(ship.route.toSnapshot().points.at(-1), { x: 0, y: 60 });
+});
+
 test('COR-12R exposes a dedicated RouteCanonicalizer module', async () => {
   const { routes } = await setup();
   assert.equal(typeof routes.RouteCanonicalizer, 'function');
