@@ -22,6 +22,8 @@ export interface ShipModelInit {
   readonly route?: ShipRouteSnapshot | null;
   readonly routeCursor?: number;
   readonly routeProgress?: number;
+  readonly routeSpeed?: number;
+  readonly routePivotProgress?: number;
   readonly routeMotionHeld?: boolean;
   readonly routeRecoveryHeadingDeg?: number;
 }
@@ -36,6 +38,8 @@ export interface ShipModelSnapshot {
   readonly route: ShipRouteSnapshot | null;
   readonly routeCursor: number;
   readonly routeProgress: number;
+  readonly routeSpeed?: number;
+  readonly routePivotProgress?: number;
   readonly routeMotionHeld?: boolean;
   readonly routeRecoveryHeadingDeg?: number;
 }
@@ -60,6 +64,16 @@ function copyCargo(cargo: CargoManifest | undefined): CargoManifest {
   return Object.freeze(copied);
 }
 
+function defaultRouteSpeed(
+  characteristics: ShipCharacteristics,
+  state: ShipStateValue,
+): number {
+  return state === ShipState.ReadyToLeave ||
+    state === ShipState.Docking || state === ShipState.Unloading
+    ? 0
+    : characteristics.speed;
+}
+
 export function normalizeRotationDeg(rotationDeg: number): number {
   assertFinite(rotationDeg, 'rotationDeg');
   return ((rotationDeg % 360) + 360) % 360;
@@ -76,6 +90,8 @@ export class ShipModel {
   #route: ShipRoute | null;
   #routeCursor: number;
   #routeProgress: number;
+  #routeSpeed: number;
+  #routePivotProgress: number | null;
   #routeMotionHeld: boolean;
   #routeRecoveryHeadingDeg: number | null;
 
@@ -109,6 +125,19 @@ export class ShipModel {
           this.#route.totalLength,
         );
     this.#routeCursor = this.#route?.cursorAtDistance(this.#routeProgress) ?? 0;
+    this.#routeSpeed = init.routeSpeed ?? defaultRouteSpeed(this.characteristics, init.state);
+    if (!Number.isFinite(this.#routeSpeed) || this.#routeSpeed < 0) {
+      throw new RangeError('routeSpeed must be a non-negative finite number');
+    }
+    this.#routeSpeed = Math.min(this.#routeSpeed, this.characteristics.speed);
+    if (init.routePivotProgress !== undefined && (
+      !Number.isFinite(init.routePivotProgress) || init.routePivotProgress < 0 || this.#route === null
+    )) {
+      throw new RangeError('routePivotProgress requires a route and non-negative finite progress');
+    }
+    this.#routePivotProgress = init.routePivotProgress === undefined
+      ? null
+      : Math.min(init.routePivotProgress, this.#route!.totalLength);
     this.#routeMotionHeld = init.routeMotionHeld ?? false;
     this.#routeRecoveryHeadingDeg = init.routeRecoveryHeadingDeg === undefined
       ? null
@@ -140,6 +169,8 @@ export class ShipModel {
   public get route(): ShipRoute | null { return this.#route; }
   public get routeCursor(): number { return this.#routeCursor; }
   public get routeProgress(): number { return this.#routeProgress; }
+  public get routeSpeed(): number { return this.#routeSpeed; }
+  public get routePivotProgress(): number | null { return this.#routePivotProgress; }
   public get routeMotionHeld(): boolean { return this.#routeMotionHeld; }
   public get routeRecoveryHeadingDeg(): number | null { return this.#routeRecoveryHeadingDeg; }
   public get currentWaypoint(): ShipPosition | null { return this.#route?.at(this.#routeCursor) ?? null; }
@@ -154,6 +185,7 @@ export class ShipModel {
     this.#route = route.withStart(start);
     this.#routeProgress = Math.min(progress, this.#route.totalLength);
     this.#routeCursor = this.#route.cursorAtDistance(this.#routeProgress);
+    this.#routePivotProgress = null;
     this.#routeMotionHeld = false;
     this.#routeRecoveryHeadingDeg = null;
   }
@@ -161,6 +193,8 @@ export class ShipModel {
     this.#route = null;
     this.#routeCursor = 0;
     this.#routeProgress = 0;
+    this.#routeSpeed = 0;
+    this.#routePivotProgress = null;
     this.#routeMotionHeld = true;
     this.#routeRecoveryHeadingDeg = null;
   }
@@ -202,6 +236,25 @@ export class ShipModel {
     this.#routeCursor = this.#route.cursorAtDistance(this.#routeProgress);
   }
 
+  public setRouteSpeed(speed: number): void {
+    if (!Number.isFinite(speed) || speed < 0) {
+      throw new RangeError('route speed must be a non-negative finite number');
+    }
+    this.#routeSpeed = Math.min(speed, this.characteristics.speed);
+  }
+
+  public beginRoutePivot(progress: number): void {
+    if (this.#route === null || !Number.isFinite(progress)) {
+      throw new RangeError('route pivot requires a route and finite progress');
+    }
+    this.#routePivotProgress = Math.min(Math.max(progress, 0), this.#route.totalLength);
+    this.#routeSpeed = 0;
+  }
+
+  public finishRoutePivot(): void {
+    this.#routePivotProgress = null;
+  }
+
   public setPosition(position: ShipPosition): void {
     this.setPositionXY(position.x, position.y);
   }
@@ -234,6 +287,12 @@ export class ShipModel {
       route: this.#route?.toSnapshot() ?? null,
       routeCursor: this.#routeCursor,
       routeProgress: this.#routeProgress,
+      ...(Math.abs(this.#routeSpeed - defaultRouteSpeed(this.characteristics, this.#state)) > 1e-9
+        ? { routeSpeed: this.#routeSpeed }
+        : {}),
+      ...(this.#routePivotProgress === null
+        ? {}
+        : { routePivotProgress: this.#routePivotProgress }),
       ...(this.#routeMotionHeld ? { routeMotionHeld: true } : {}),
       ...(this.#routeRecoveryHeadingDeg === null
         ? {}
@@ -255,6 +314,8 @@ export class ShipModel {
       route: snapshot.route,
       routeCursor: snapshot.routeCursor,
       routeProgress: snapshot.routeProgress,
+      routeSpeed: snapshot.routeSpeed,
+      routePivotProgress: snapshot.routePivotProgress,
       routeMotionHeld: snapshot.routeMotionHeld,
       routeRecoveryHeadingDeg: snapshot.routeRecoveryHeadingDeg,
     });

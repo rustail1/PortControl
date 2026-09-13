@@ -53,11 +53,11 @@ test('COR-12R canonicalizer preserves straight authored anchors used by safe-pre
   assert.deepEqual(
     canonicalizer.canonicalize({ x: 0, y: 0 }, authored),
     authored,
-    'canonicalization may round real corners but must not erase straight validation anchors',
+    'canonicalization must preserve authored validation anchors',
   );
 });
 
-test('COR-12R RouteCommitService canonicalizes once before validation', async () => {
+test('COR-12R RouteCommitService validates the exact canonical authored geometry', async () => {
   const { routes, ship, routeConfig } = await setup();
   let receivedByValidator = null;
   const navigation = {
@@ -82,11 +82,8 @@ test('COR-12R RouteCommitService canonicalizes once before validation', async ()
   }).kind, 'committed');
 
   assert.ok(Array.isArray(receivedByValidator));
-  assert.ok(receivedByValidator.length > 2,
-    'validator must receive expanded canonical geometry, not the raw two-point bend');
-  assert.ok(!receivedByValidator.some((point) => point.x === 100 && point.y === 0),
-    'raw square corner must be removed before validation');
-  assert.deepEqual(receivedByValidator.at(-1), endpoint);
+  assert.deepEqual(receivedByValidator, [{ x: 100, y: 0 }, endpoint],
+    'validator must receive the exact authored corner without smoothing or expansion');
   assert.deepEqual(ship.route.toSnapshot().points, receivedByValidator,
     'committed ShipRoute must reuse the exact geometry that was validated');
 });

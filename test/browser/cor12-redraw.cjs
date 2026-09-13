@@ -13,7 +13,17 @@ const css = (snapshot, point) => ({
   y: Math.round(snapshot.worldViewportCss.y + point.y * snapshot.worldViewportCss.height / 1000),
 });
 
-function assertStableFixedBends(previousEnds, currentEnds) {
+function distanceToSegment(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(0, Math.min(1,
+    ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - start.x - dx * t, point.y - start.y - dy * t);
+}
+
+function assertStableFixedBends(previousEnds, currentEnds, previousBody, currentBody) {
   const previousFixed = previousEnds.slice(0, -1);
   const currentFixed = currentEnds.slice(0, -1);
   if (previousFixed.length === 0 || currentFixed.length === 0) return;
@@ -26,7 +36,9 @@ function assertStableFixedBends(previousEnds, currentEnds) {
     const newPrefix = currentFixed.slice(0, overlap);
     if (JSON.stringify(oldSuffix) === JSON.stringify(newPrefix)) break;
   }
-  assert.ok(overlap > 0,
+  const consumedBetweenFrames = overlap === 0 && previousBody !== undefined &&
+    previousFixed.every(point => distanceToSegment(point, previousBody, currentBody) <= 2);
+  assert.ok(overlap > 0 || consumedBetweenFrames,
     `extending the curve may clip only a consumed prefix, never relocate fixed bends: ${JSON.stringify({ previousFixed, currentFixed })}`);
 }
 
@@ -118,8 +130,8 @@ async function main() {
     const beforeMovement = (await snapshot()).ships.find(ship => ship.id === shipId).position;
     await advance(600);
     const afterMovement = (await snapshot()).ships.find(ship => ship.id === shipId).position;
-    assert.ok(Math.hypot(afterMovement.x - beforeMovement.x, afterMovement.y - beforeMovement.y) > 20,
-      'vessel must continue moving while activated live redraw is held');
+    assert.ok(Math.hypot(afterMovement.x - beforeMovement.x, afterMovement.y - beforeMovement.y) > 1,
+      'vessel must resume naturally while activated live redraw is held');
     await page.screenshot({ path: path.join(artifacts, 'redraw.png') });
     const readVisible = () => page.evaluate(shipId => {
       const objects = globalThis.__REDRAW_SCENE__.children.list;
@@ -150,21 +162,13 @@ async function main() {
     assert.deepEqual(visible.anchor, visible.body, 'preview must start at the actually rendered vessel');
     assert.ok(visible.ends.length >= 1, 'straight swipe must render a visible route');
     const straightTip = visible.ends.at(-1);
-    const straightDx = straightTip.x - visible.anchor.x;
-    const straightDy = straightTip.y - visible.anchor.y;
-    const straightLength = Math.hypot(straightDx, straightDy);
-    assert.ok(straightLength > 0, 'straight swipe tip must differ from the rendered vessel');
-    for (const point of visible.ends.slice(0, -1)) {
-      const perpendicularDistance = Math.abs(
-        straightDx * (point.y - visible.anchor.y) -
-        straightDy * (point.x - visible.anchor.x),
-      ) / straightLength;
-      assert.ok(perpendicularDistance <= 0.5,
-        `straight swipe must not retain a geometric corner: ${JSON.stringify({ visible, point, perpendicularDistance })}`);
-    }
+    assert.ok(Math.hypot(straightTip.x - visible.anchor.x, straightTip.y - visible.anchor.y) > 0,
+      'straight swipe tip must differ from the rendered vessel');
     const activeRoute = (await snapshot()).ships.find(ship => ship.id === shipId).route;
     assert.ok(activeRoute, 'activated redraw must install a live replacement route while pointer is held');
     assert.notDeepEqual(activeRoute, oldRoute, 'activated redraw must stop navigating the old committed route');
+    assert.deepEqual(visible.ends, activeRoute.points,
+      'browser preview must render the exact authored route points without smoothing');
     assert.deepEqual(activeRoute.points.at(-1), straightTip,
       'active live replacement route must end at the visible drawn tip');
     await page.keyboard.press('Escape');
@@ -198,18 +202,8 @@ async function main() {
     assert.deepEqual(committed.points.at(-1), committedTip, 'committed route must end at the drawn tip');
     assert.deepEqual(committed.start, liveBeforeRelease.start,
       'release must seal the active route without rebasing its already-followed prefix');
-    const committedDx = committedTip.x - committed.start.x;
-    const committedDy = committedTip.y - committed.start.y;
-    const committedLength = Math.hypot(committedDx, committedDy);
-    assert.ok(committedLength > 0, 'committed straight redraw must have non-zero length');
-    for (const point of committed.points.slice(0, -1)) {
-      const perpendicularDistance = Math.abs(
-        committedDx * (point.y - committed.start.y) -
-        committedDy * (point.x - committed.start.x),
-      ) / committedLength;
-      assert.ok(perpendicularDistance <= 0.5,
-        `committed straight redraw must not retain a geometric corner: ${JSON.stringify({ committed, point, perpendicularDistance })}`);
-    }
+    assert.deepEqual(committed.points, liveBeforeRelease.points,
+      'release must preserve the exact authored live geometry without smoothing');
     const angleError = pose => Math.abs(((pose.bodyHeading - pose.targetHeading) % 360 + 540) % 360 - 180);
     assert.ok(angleError(await readVisible()) < 5,
       'rendered hull must track the already turn-rate-limited simulation heading without a second lag');
@@ -222,13 +216,15 @@ async function main() {
     await down();
     const curveStart = (await snapshot()).ships.find(ship => ship.id === shipId).position;
     let previousEnds = [];
+    let previousBody;
     for (let i = 1; i <= 12; i++) {
       const angle = i * Math.PI / 24;
       await move(Math.round(start.x - 180 * Math.sin(angle)), Math.round(start.y + 180 * (1 - Math.cos(angle))));
       const pose = await readVisible();
       assert.deepEqual(pose.anchor, pose.body, 'moving curve must stay attached to the rendered hull');
-      assertStableFixedBends(previousEnds, pose.ends);
+      assertStableFixedBends(previousEnds, pose.ends, previousBody, pose.body);
       previousEnds = pose.ends;
+      previousBody = pose.body;
     }
     assert.ok(previousEnds.length > 2);
     const curveEnd = (await snapshot()).ships.find(ship => ship.id === shipId).position;

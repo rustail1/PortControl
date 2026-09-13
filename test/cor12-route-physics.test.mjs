@@ -41,7 +41,7 @@ function assertOnRoute(ship, epsilon = 1e-7) {
   );
 }
 
-test('COR-12 ordinary 90 degree bend keeps cruise progress and anticipates the turn without stopping', () => {
+test('COR-12 ordinary 90 degree bend slows without pre-steer or a long stop', () => {
   const ship = makeShip();
   const authoredPoints = [{ x: 50, y: 0 }, { x: 50, y: 100 }];
   const authoredSnapshot = { points: authoredPoints, start: { x: 0, y: 0 } };
@@ -49,7 +49,8 @@ test('COR-12 ordinary 90 degree bend keeps cruise progress and anticipates the t
   const motor = new ShipMotor();
   const cruiseStep = ship.characteristics.speed / 60;
   let sawPreTurn = false;
-  let sawUnexpectedStall = false;
+  let heldFrames = 0;
+  let maximumHeldFrames = 0;
 
   for (let step = 0; step < 240 && ship.routeProgress < ship.route.totalLength; step += 1) {
     const beforeProgress = ship.routeProgress;
@@ -58,13 +59,12 @@ test('COR-12 ordinary 90 degree bend keeps cruise progress and anticipates the t
     const travelled = ship.routeProgress - beforeProgress;
     assertOnRoute(ship);
     if (beforeX < 50 - 1e-7 && ship.rotationDeg > 0) sawPreTurn = true;
-    if (beforeProgress < ship.route.totalLength - cruiseStep - 1e-9 && travelled < cruiseStep - 1e-9) {
-      sawUnexpectedStall = true;
-    }
+    heldFrames = travelled <= 1e-9 ? heldFrames + 1 : 0;
+    maximumHeldFrames = Math.max(maximumHeldFrames, heldFrames);
   }
 
-  assert.equal(sawPreTurn, true, 'hull should begin its ordinary turn before the raw vertex');
-  assert.equal(sawUnexpectedStall, false, 'ordinary <=90 degree bends must not brake or park the ship');
+  assert.equal(sawPreTurn, false, 'hull must not turn before the authored vertex');
+  assert.ok(maximumHeldFrames <= 6, `ordinary bend parked for ${maximumHeldFrames} frames`);
   assert.equal(ship.routeProgress, ship.route.totalLength);
   assert.deepEqual(ship.route.toSnapshot(), authoredSnapshot, 'movement must never rewrite the player route');
 });

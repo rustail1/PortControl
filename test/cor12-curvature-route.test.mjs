@@ -119,7 +119,7 @@ test('COR-12 player commit preserves the drawn polyline without an effective rep
   assert.deepEqual(subject.ship.route.toSnapshot().points, drawn);
 });
 
-test('COR-12 path step crossing a raw corner does not snap hull rotation', async () => {
+test('COR-12 path step reaches a raw corner exactly without snapping hull rotation', async () => {
   const { ships, ship } = await setup('freighter');
   const stepDistance = ship.characteristics.speed / 60;
   ship.replaceRoute(new ships.ShipRoute([
@@ -131,7 +131,9 @@ test('COR-12 path step crossing a raw corner does not snap hull rotation', async
 
   assertOnRoute(ship);
   assert.ok(Math.abs(ship.x - stepDistance / 2) < 1e-9);
-  assert.ok(Math.abs(ship.y - stepDistance / 2) < 1e-9);
+  assert.ok(Math.abs(ship.y) < 1e-9);
+  assert.ok(Math.abs(ship.routeProgress - stepDistance / 2) < 1e-9,
+    'a fixed step must not skip across the authored corner');
   assert.ok(angleDelta(0, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9);
 });
 

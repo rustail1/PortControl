@@ -274,12 +274,13 @@ test('COR-12 FIX-3 remaining route clips the consumed tail without changing auth
   assert.deepEqual(route.toSnapshot(), authored);
 });
 
-test('COR-12 FIX-3 follower turns hull toward the next segment while centre stays on canonical route', async () => {
+test('COR-12 FIX-3 follower waits for the exact vertex before turning toward the next segment', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry);
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 150 }]));
   const motor = new s.ShipMotor();
-  let alignedTowardCorner = false;
+  let preSteered = false;
+  let visitedVertex = false;
   let previousProgress = 0;
   for (let step = 0; step < 600 && ship.routeCursor < 2; step += 1) {
     const before = ship.position;
@@ -289,10 +290,12 @@ test('COR-12 FIX-3 follower turns hull toward the next segment while centre stay
     const expected = ship.route.pointAtDistance(ship.routeProgress);
     assert.ok(Math.hypot(ship.x - expected.x, ship.y - expected.y) < 1e-7,
       `ship centre left route: actual=${ship.x},${ship.y} expected=${expected.x},${expected.y}`);
-    if (ship.x < 100 && ship.routeCursor === 0 && ship.rotationDeg > 0) alignedTowardCorner = true;
+    if (ship.x < 100 && ship.routeCursor === 0 && ship.rotationDeg > 0) preSteered = true;
+    if (Math.abs(ship.routeProgress - 100) < 1e-7) visitedVertex = true;
     previousProgress = ship.routeProgress;
   }
-  assert.equal(alignedTowardCorner, true);
+  assert.equal(preSteered, false);
+  assert.equal(visitedVertex, true);
   assert.equal(ship.routeCursor, 2);
   assert.deepEqual(ship.route.toSnapshot().points, [{ x: 100, y: 0 }, { x: 100, y: 150 }]);
 });
