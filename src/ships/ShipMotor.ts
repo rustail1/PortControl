@@ -15,10 +15,13 @@ interface UpcomingCorner {
 const NORMAL_CORNER_MAX_DEG = 90;
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 const FULL_SPEED_HEADING_ERROR_DEG = 60;
 const MIN_CORNER_SLOWDOWN_DEG = 15;
 const REVERSAL_PIVOT_MIN_DEG = 120;
 const PIVOT_RELEASE_ERROR_DEG = 60;
+=======
+>>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
 =======
 >>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
 =======
@@ -58,6 +61,7 @@ function angleDeltaDeg(left: number, right: number): number {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 function alignmentSpeedScale(headingErrorDeg: number): number {
   if (headingErrorDeg <= FULL_SPEED_HEADING_ERROR_DEG) return 1;
   if (headingErrorDeg >= REVERSAL_PIVOT_MIN_DEG) return 0;
@@ -85,6 +89,8 @@ function brakingSpeedLimit(targetSpeed: number, acceleration: number, distance: 
   return Math.sqrt(Math.max(0, targetSpeed * targetSpeed + 2 * acceleration * distance));
 }
 
+=======
+>>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
 =======
 >>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
 =======
@@ -233,6 +239,7 @@ export class ShipMotor {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     const travelHeadingErrorDeg = angleDeltaDeg(ship.rotationDeg, travelHeadingDeg);
     const acceleration = routeAcceleration(ship);
     let targetSpeed = ship.characteristics.speed * alignmentSpeedScale(travelHeadingErrorDeg);
@@ -269,11 +276,20 @@ export class ShipMotor {
     // backwards. Normal <=90-degree bends retain configured cruise speed.
     const travelHeadingErrorDeg = angleDeltaDeg(ship.rotationDeg, travelHeadingDeg);
 >>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
+=======
+    // Translation always belongs to the canonical route. Never advance while that
+    // route lies behind the bow: the ship turns in place instead of visually sailing
+    // backwards. Normal <=90-degree bends retain configured cruise speed.
+    const travelHeadingErrorDeg = angleDeltaDeg(ship.rotationDeg, travelHeadingDeg);
+>>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
     const mayAdvance = travelHeadingErrorDeg <= NORMAL_CORNER_MAX_DEG + EPSILON;
     const maximumDistance = mayAdvance
       ? ship.characteristics.speed * deltaSeconds
       : 0;
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
+=======
 >>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
 =======
 >>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)

@@ -95,30 +95,6 @@ test('COR-12 route behind the bow turns in place before any canonical progress',
   assert.ok(Math.abs(ship.y) < 1e-9);
 });
 
-test('COR-12 reverse route eases back into motion instead of snapping from pivot to cruise', () => {
-  const ship = makeShip({ rotationDeg: 0 });
-  ship.replaceRoute(new ShipRoute([{ x: -160, y: 0 }], ship.position));
-  const motor = new ShipMotor();
-  const cruiseStep = ship.characteristics.speed / 60;
-  let firstTravelled = null;
-
-  for (let step = 0; step < 240 && firstTravelled === null; step += 1) {
-    const beforeProgress = ship.routeProgress;
-    motor.stepRoute(ship, 2, 1 / 60, false);
-    assertOnRoute(ship);
-    const travelled = ship.routeProgress - beforeProgress;
-    if (travelled > 1e-9) firstTravelled = travelled;
-  }
-
-  assert.notEqual(firstTravelled, null, 'ship should eventually resume along the reverse route');
-  assert.ok(firstTravelled > 0, 'first resumed route step must move forward on the canonical route');
-  assert.ok(
-    firstTravelled < cruiseStep * 0.8,
-    `reverse resume should ease in below cruise instead of jumping ${firstTravelled} units in one frame`,
-  );
-  assert.ok(ship.x < 0 && Math.abs(ship.y) < 1e-9, 'eased resume must stay on the authored reverse line');
-});
-
 test('COR-12 sharp greater-than-90 corner reaches the vertex then pivots there before continuing', () => {
   const ship = makeShip({ type: 'cargo_boat', speed: 105, turnRateDeg: 155 });
   const points = [{ x: 45, y: 0 }, { x: 0, y: 45 }];
