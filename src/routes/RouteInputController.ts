@@ -20,6 +20,8 @@ export interface NormalizedPointerInput {
 
 export const ROUTE_DRAG_ACTIVATION_CSS_PX = 12;
 
+const ROUTE_POINT_EPSILON = 1e-9;
+
 export interface RawRouteDraft {
   readonly shipId: string;
   readonly points: readonly Point[];
@@ -85,6 +87,58 @@ export function materializeRouteDraft(
     (last === undefined || last.x !== draft.tip.x || last.y !== draft.tip.y)
   ) points.push(draft.tip);
   return copyPoints(points);
+}
+
+/**
+ * Clips the already-travelled gesture prefix when the authoritative route start
+ * has moved ahead of the original pointer gesture origin (for example while a
+ * docked ship follows its guided departure lane). The returned suffix is still
+ * raw authored/sample geometry; canonicalization happens exactly once later.
+ */
+export function materializeRouteDraftFromStart(
+  draft: Pick<RawRouteDraft, 'points' | 'start' | 'tip'>,
+  routeStart: Point,
+): readonly Point[] {
+  const points = materializeRouteDraft(draft);
+  const gestureStart = draft.start;
+  if (gestureStart === undefined || points.length === 0) return points;
+  if (
+    Math.hypot(routeStart.x - gestureStart.x, routeStart.y - gestureStart.y) <=
+    ROUTE_POINT_EPSILON
+  ) return points;
+
+  const controls = [gestureStart, ...points];
+  let bestSegmentIndex = 0;
+  let bestT = 0;
+  let bestDistanceSquared = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < controls.length - 1; index += 1) {
+    const from = controls[index]!;
+    const to = controls[index + 1]!;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared <= ROUTE_POINT_EPSILON * ROUTE_POINT_EPSILON) continue;
+    const unclampedT = (
+      (routeStart.x - from.x) * dx + (routeStart.y - from.y) * dy
+    ) / lengthSquared;
+    const t = Math.max(0, Math.min(1, unclampedT));
+    const projectedX = from.x + dx * t;
+    const projectedY = from.y + dy * t;
+    const distanceSquared =
+      (routeStart.x - projectedX) ** 2 + (routeStart.y - projectedY) ** 2;
+    if (distanceSquared < bestDistanceSquared - ROUTE_POINT_EPSILON) {
+      bestDistanceSquared = distanceSquared;
+      bestSegmentIndex = index;
+      bestT = t;
+    }
+  }
+
+  let firstFutureControlIndex = bestSegmentIndex + 1;
+  if (bestT >= 1 - ROUTE_POINT_EPSILON) {
+    firstFutureControlIndex += 1;
+  }
+  return copyPoints(controls.slice(firstFutureControlIndex));
 }
 
 function copyLiveTip(active: ActiveRouteInteraction): { readonly tip?: Point } {
@@ -181,210 +235,95 @@ export class RouteInputController {
   }
 
   public pointerMove(input: NormalizedPointerInput): RouteInputOutcome {
-    if (!this.#owns(input.pointerId)) {
-      return { kind: 'ignored' };
-    }
-    const cancellation = this.#cancelIfActiveShipIsInputLocked();
-    if (cancellation !== null) {
-      return cancellation;
-    }
+    const active = this.#ownedActive(input.pointerId);
+    if (active === null) return { kind: 'ignored' };
     const worldPoint = this.#toWorld(input);
-    if (worldPoint === null) {
-      return this.#finishAtWorldBoundary(input);
+    if (worldPoint === null) return this.#finish();
+    active.lastWorldPosition = { ...worldPoint };
+    if (!active.activated) {
+      if (!this.#activationReached(active, input.cssPosition)) {
+        return { kind: 'ignored' };
+      }
+      active.activated = true;
+      active.routeStart = { ...active.ship.position };
+      this.#appendSample(active, worldPoint);
+      return { kind: 'updated', pointCount: active.points.length };
     }
-    if (!this.#activateIfThresholdReached(input)) {
-      if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
-      return { kind: 'ignored' };
-    }
-    if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
-    const sampled = this.#sample(worldPoint);
-    if (!sampled) {
-      return { kind: 'ignored' };
-    }
-    return { kind: 'updated', pointCount: this.#active?.points.length ?? 0 };
+    this.#appendSample(active, worldPoint);
+    return { kind: 'updated', pointCount: active.points.length };
   }
 
   public pointerUp(input: NormalizedPointerInput): RouteInputOutcome {
-    if (!this.#owns(input.pointerId)) {
-      return { kind: 'ignored' };
-    }
-    const cancellation = this.#cancelIfActiveShipIsInputLocked();
-    if (cancellation !== null) {
-      return cancellation;
-    }
+    const active = this.#ownedActive(input.pointerId);
+    if (active === null) return { kind: 'ignored' };
     const worldPoint = this.#toWorld(input);
-    if (worldPoint === null) {
-      return this.#finishAtWorldBoundary(input);
+    if (worldPoint !== null) {
+      active.lastWorldPosition = { ...worldPoint };
+      if (!active.activated && this.#activationReached(active, input.cssPosition)) {
+        active.activated = true;
+        active.routeStart = { ...active.ship.position };
+        this.#appendSample(active, worldPoint);
+      } else if (active.activated) {
+        this.#appendSample(active, worldPoint);
+      }
     }
-    if (!this.#activateIfThresholdReached(input)) {
-      const active = this.#active;
-      this.#active = null;
-      return active === null
-        ? { kind: 'ignored' }
-        : { kind: 'tapped', shipId: active.ship.id };
-    }
-    if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
-    this.#sample(worldPoint);
-    return this.#finish();
+    return active.activated
+      ? this.#finish()
+      : this.#tap();
   }
 
   public pointerCancel(input: NormalizedPointerInput): RouteInputOutcome {
-    if (!this.#owns(input.pointerId)) {
-      return { kind: 'ignored' };
-    }
-    if (this.#active?.activated) {
-      return this.#finish();
-    }
-    this.#active = null;
-    return { kind: 'cancelled' };
-  }
-
-  #toWorld(input: NormalizedPointerInput): Point | null {
-    return this.#viewport.screenToWorld(input.screenPosition, input.internalViewport);
-  }
-
-  #toUnboundedWorld(input: NormalizedPointerInput): Point {
-    const layout = this.#viewport.layout(input.internalViewport);
-    return {
-      x: ((input.screenPosition.x - layout.x) * this.#viewport.logicalWorld.width) / layout.size,
-      y: ((input.screenPosition.y - layout.y) * this.#viewport.logicalWorld.height) / layout.size,
-    };
-  }
-
-  #owns(pointerId: number): boolean {
-    return this.#active?.pointerId === pointerId;
-  }
-
-  #activateIfThresholdReached(input: NormalizedPointerInput): boolean {
-    const active = this.#active;
-    if (active === null) return false;
-    if (active.activated) return true;
-    const deltaX = input.cssPosition.x - active.initialCssPosition.x;
-    const deltaY = input.cssPosition.y - active.initialCssPosition.y;
-    if (
-      deltaX * deltaX + deltaY * deltaY <
-      ROUTE_DRAG_ACTIVATION_CSS_PX ** 2
-    ) {
-      return false;
-    }
-
-    // Pointer-down only selects the ship. The route origin is sealed at the moment
-    // the drag actually becomes a route, so a moving ship can never be snapped back
-    // to the older pointer-down pose on the first live commit.
-    active.routeStart = { ...active.ship.position };
-    active.points.splice(0);
-    active.activated = true;
-    return true;
-  }
-
-  #sample(point: Point): boolean {
-    const active = this.#active;
-    if (active === null || active.points.length >= this.#sampling.maxRawPoints) {
-      return false;
-    }
-    const previous = active.points.at(-1);
-    if (previous !== undefined) {
-      const deltaX = point.x - previous.x;
-      const deltaY = point.y - previous.y;
-      if (
-        deltaX * deltaX + deltaY * deltaY <
-        this.#sampling.sampleDistance ** 2
-      ) {
-        return false;
-      }
-    }
-    active.points.push({ ...point });
-    return true;
-  }
-
-  #finishAtWorldBoundary(input: NormalizedPointerInput): RouteInputOutcome {
-    const active = this.#active;
+    const active = this.#ownedActive(input.pointerId);
     if (active === null) return { kind: 'ignored' };
-    if (!this.#activateIfThresholdReached(input)) {
-      this.#active = null;
-      return { kind: 'cancelled' };
-    }
-    const boundaryPoint = this.#worldBoundaryIntersection(
-      active.lastWorldPosition,
-      this.#toUnboundedWorld(input),
-    );
-    if (boundaryPoint !== null) {
-      active.lastWorldPosition = boundaryPoint;
-      this.#appendBoundaryPoint(boundaryPoint);
-    }
-    return this.#finish();
+    return this.cancelActiveDraft();
   }
 
-  #appendBoundaryPoint(point: Point): void {
-    const active = this.#active;
-    if (active === null) return;
-    const previous = active.points.at(-1);
-    if (previous?.x === point.x && previous.y === point.y) return;
+  #ownedActive(pointerId: number): ActiveRouteInteraction | null {
+    return this.#active?.pointerId === pointerId ? this.#active : null;
+  }
+
+  #activationReached(active: ActiveRouteInteraction, cssPosition: Point): boolean {
+    return Math.hypot(
+      cssPosition.x - active.initialCssPosition.x,
+      cssPosition.y - active.initialCssPosition.y,
+    ) >= ROUTE_DRAG_ACTIVATION_CSS_PX;
+  }
+
+  #appendSample(active: ActiveRouteInteraction, point: Point): void {
+    const previous = active.points.at(-1) ?? active.routeStart;
+    if (
+      Math.hypot(point.x - previous.x, point.y - previous.y) <
+      this.#sampling.sampleDistance
+    ) return;
     if (active.points.length < this.#sampling.maxRawPoints) {
       active.points.push({ ...point });
-    } else if (active.points.length > 0) {
-      active.points[active.points.length - 1] = { ...point };
     }
   }
 
-  #worldBoundaryIntersection(from: Point, to: Point): Point | null {
-    const width = this.#viewport.logicalWorld.width;
-    const height = this.#viewport.logicalWorld.height;
-    const deltaX = to.x - from.x;
-    const deltaY = to.y - from.y;
-    const candidates: { t: number; point: Point }[] = [];
-    const addCandidate = (t: number, x: number, y: number): void => {
-      if (t < 0 || t > 1 || x < 0 || x > width || y < 0 || y > height) return;
-      candidates.push({
-        t,
-        point: {
-          x: Math.min(Math.max(x, 0), width),
-          y: Math.min(Math.max(y, 0), height),
-        },
-      });
-    };
-    if (deltaX !== 0) {
-      for (const x of [0, width]) {
-        const t = (x - from.x) / deltaX;
-        addCandidate(t, x, from.y + deltaY * t);
-      }
-    }
-    if (deltaY !== 0) {
-      for (const y of [0, height]) {
-        const t = (y - from.y) / deltaY;
-        addCandidate(t, from.x + deltaX * t, y);
-      }
-    }
-    candidates.sort((left, right) => left.t - right.t);
-    return candidates[0]?.point ?? null;
-  }
-
-  #cancelIfActiveShipIsInputLocked(): RouteInputOutcome | null {
-    if (this.#active !== null && !isRouteInputState(this.#active.ship.state)) {
-      this.#active = null;
-      return { kind: 'cancelled' };
-    }
-    return null;
+  #tap(): RouteInputOutcome {
+    const active = this.#active!;
+    this.#active = null;
+    return { kind: 'tapped', shipId: active.ship.id };
   }
 
   #finish(): RouteInputOutcome {
-    const cancellation = this.#cancelIfActiveShipIsInputLocked();
-    if (cancellation !== null) {
-      return cancellation;
-    }
-    const active = this.#active;
-    if (active === null) {
-      return { kind: 'ignored' };
-    }
+    const active = this.#active!;
     this.#active = null;
     return {
       kind: 'finished',
       draft: Object.freeze({
         shipId: active.ship.id,
-        points: copyPoints(active.points),
         start: Object.freeze({ ...active.routeStart }),
+        points: copyPoints(active.points),
         ...copyLiveTip(active),
       }),
     };
+  }
+
+  #toWorld(input: NormalizedPointerInput): Point | null {
+    return this.#viewport.internalToWorld(
+      input.screenPosition,
+      input.internalViewport,
+    );
   }
 }
