@@ -4,8 +4,8 @@ import { ShipRoute } from '../ships/ShipRoute.ts';
 import { ShipState } from '../ships/ShipState.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
 import type { RouteProcessingConfig } from './RouteProcessingConfig.ts';
-import { NavigationValidator } from './NavigationValidator.ts';
-import { RouteCanonicalizer } from './RouteCanonicalizer.ts';
+import type { NavigationValidator } from './NavigationValidator.ts';
+import { RoutePreparationService } from './RoutePreparationService.ts';
 
 export type RouteCommitResult = {
   readonly kind:
@@ -30,17 +30,19 @@ function routeLength(
 }
 
 export class RouteCommitService {
-  readonly #navigation: NavigationValidator;
   readonly #config: RouteProcessingConfig;
-  readonly #canonicalizer: RouteCanonicalizer;
+  readonly #preparation: RoutePreparationService;
 
   public constructor(options: {
-    readonly navigation: NavigationValidator;
+    readonly navigation: Pick<NavigationValidator, 'validate'>;
     readonly config: RouteProcessingConfig;
+    readonly preparation?: RoutePreparationService;
   }) {
-    this.#navigation = options.navigation;
     this.#config = options.config;
-    this.#canonicalizer = new RouteCanonicalizer(options.config);
+    this.#preparation = options.preparation ?? new RoutePreparationService({
+      navigation: options.navigation,
+      config: options.config,
+    });
   }
 
   public commit(input: {
@@ -56,24 +58,22 @@ export class RouteCommitService {
       ? input.routeStart ?? ship.position
       : draft.start ?? input.routeStart ?? ship.position;
     const drawnPoints = materializeRouteDraft(draft);
-    const canonicalPoints = this.#canonicalizer.canonicalize(routeStart, drawnPoints);
-    const validated = this.#navigation.validate(
+    const prepared = this.#preparation.prepare({
       ship,
-      canonicalPoints,
-      this.#config,
-      routeStart,
-    );
-    if (validated.validPoints.length === 0) {
+      points: drawnPoints,
+      start: routeStart,
+    });
+    if (prepared.validPoints.length === 0) {
       return { kind: 'rejected_invalid' };
     }
     if (
-      routeLength(ship.position, validated.validPoints) <
+      routeLength(ship.position, prepared.validPoints) <
       this.#config.minValidRouteLength
     ) {
       return { kind: 'rejected_too_short' };
     }
 
-    const route = new ShipRoute(validated.validPoints, routeStart);
+    const route = new ShipRoute(prepared.validPoints, routeStart);
     const existingStart = ship.route?.toSnapshot().start;
     const continuesActiveGesture = draft.start !== undefined && existingStart !== undefined &&
       existingStart.x === draft.start.x && existingStart.y === draft.start.y;
@@ -90,7 +90,7 @@ export class RouteCommitService {
 
     return {
       kind:
-        validated.rejectedPoints.length === 0
+        prepared.rejectedPoints.length === 0
           ? 'committed'
           : 'partial_prefix_committed',
     };
