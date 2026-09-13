@@ -1,7 +1,6 @@
 import type { Point } from '../camera/SquareWorldViewport.ts';
 import { LandClearanceGeometry } from '../geometry/LandClearanceGeometry.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
-import { canonicalizeRoute } from './RouteSimplifier.ts';
 import type { RouteProcessingConfig } from './RouteProcessingConfig.ts';
 
 export interface ForbiddenPolygon {
@@ -26,13 +25,12 @@ export class NavigationValidator {
     config: RouteProcessingConfig,
     start: Point = ship.position,
   ): NavigationValidationResult {
-    const canonicalPoints = canonicalizeRoute(start, points, config);
     let previous = start;
     let index = 0;
     const clearance =
       ship.characteristics.collisionRadius + config.navigationClearanceExtra;
-    for (; index < canonicalPoints.length; index += 1) {
-      const current = canonicalPoints[index]!;
+    for (; index < points.length; index += 1) {
+      const current = points[index]!;
       if (this.#geometry.blocksSegment(previous, current, clearance)) {
         break;
       }
@@ -40,10 +38,10 @@ export class NavigationValidator {
     }
     return Object.freeze({
       validPoints: Object.freeze(
-        canonicalPoints.slice(0, index).map((point) => Object.freeze({ ...point })),
+        points.slice(0, index).map((point) => Object.freeze({ ...point })),
       ),
       rejectedPoints: Object.freeze(
-        canonicalPoints.slice(index).map((point) => Object.freeze({ ...point })),
+        points.slice(index).map((point) => Object.freeze({ ...point })),
       ),
     });
   }
