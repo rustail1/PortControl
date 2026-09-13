@@ -119,20 +119,29 @@ test('COR-12 player commit preserves the drawn polyline without an effective rep
   assert.deepEqual(subject.ship.route.toSnapshot().points, drawn);
 });
 
-test('COR-12 path step crossing a raw corner does not snap hull rotation', async () => {
+test('COR-12 path step reaches a raw corner before hull rotation continues into the next leg', async () => {
   const { ships, ship } = await setup('freighter');
   const stepDistance = ship.characteristics.speed / 60;
   ship.replaceRoute(new ships.ShipRoute([
     { x: stepDistance / 2, y: 0 },
     { x: stepDistance / 2, y: 100 },
   ]));
+  const motor = new ships.ShipMotor();
 
-  new ships.ShipMotor().stepRoute(ship, 8, 1 / 60);
+  motor.stepRoute(ship, 8, 1 / 60);
 
   assertOnRoute(ship);
   assert.ok(Math.abs(ship.x - stepDistance / 2) < 1e-9);
-  assert.ok(Math.abs(ship.y - stepDistance / 2) < 1e-9);
+  assert.ok(Math.abs(ship.y) < 1e-9, 'one simulation step must not skip across a sharp authored vertex');
   assert.ok(angleDelta(0, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9);
+
+  const rotationAtCorner = ship.rotationDeg;
+  motor.stepRoute(ship, 8, 1 / 60);
+  assertOnRoute(ship);
+  assert.ok(Math.abs(ship.x - stepDistance / 2) < 1e-9);
+  assert.ok(Math.abs(ship.y) < 1e-9, 'ship should pivot at the vertex while broadside to the outgoing leg');
+  assert.ok(ship.rotationDeg > rotationAtCorner);
+  assert.ok(angleDelta(rotationAtCorner, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9);
 });
 
 test('COR-12 nearby sharp raw route completes without a circular excursion', async () => {
