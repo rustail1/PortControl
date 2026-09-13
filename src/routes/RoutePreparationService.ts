@@ -17,7 +17,7 @@ export interface PreparedRouteGeometry extends NavigationValidationResult {
  * validate raw points or canonicalize the same route twice.
  */
 export class RoutePreparationService {
-  readonly #canonicalizer: RouteCanonicalizer;
+  readonly #canonicalizer = new RouteCanonicalizer();
   readonly #navigation: Pick<NavigationValidator, 'validate'>;
   readonly #config: RouteProcessingConfig;
 
@@ -27,7 +27,6 @@ export class RoutePreparationService {
   }) {
     this.#navigation = options.navigation;
     this.#config = options.config;
-    this.#canonicalizer = new RouteCanonicalizer(options.config);
   }
 
   public prepare(input: {
