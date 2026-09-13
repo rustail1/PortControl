@@ -149,10 +149,15 @@ async function main() {
     await page.keyboard.press('Escape');
     await page.mouse.up();
     await advance(20);
-    await page.waitForFunction(() => globalThis.__REDRAW_SCENE__.children.list.some(object =>
-      object.type === 'Graphics' && object.depth === 5 && object.visible &&
-      object.commandBuffer.length > 0));
-    assert.deepEqual((await snapshot()).ships.find(ship => ship.id === shipId).route, oldRoute);
+    await page.waitForFunction(({ shipId, previousRoute }) => {
+      const route = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
+        .find(ship => ship.id === shipId)?.route;
+      return route !== null && JSON.stringify(route) !== JSON.stringify(previousRoute);
+    }, { shipId, previousRoute: oldRoute }, { timeout: 5000 });
+    const sealed = (await snapshot()).ships.find(ship => ship.id === shipId).route;
+    assert.ok(sealed, 'Escape after an activated redraw must keep the sealed replacement route');
+    assert.notDeepEqual(sealed, oldRoute, 'Escape after an activated redraw must not roll back to old route');
+    assert.deepEqual(sealed.points.at(-1), straightTip, 'sealed redraw must end at the visible drawn tip');
     state = await snapshot();
     start = css(state, state.ships.find(ship => ship.id === shipId).position);
     await move(start.x, start.y);
@@ -205,7 +210,7 @@ async function main() {
     await page.keyboard.press('Escape');
     await page.mouse.up();
     assert.deepEqual(errors, []);
-    console.log('Redraw browser: PASS (moving straight/curved swipe, stable bends, smooth hull, cancel/commit)');
+    console.log('Redraw browser: PASS (moving straight/curved swipe, stable bends, smooth hull, seal/commit)');
   } finally {
     try { await browser?.close(); }
     finally { await terminateOwnedProcess(server); }
