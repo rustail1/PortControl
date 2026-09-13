@@ -88,18 +88,14 @@ test('COR-12 FIX-3 docking uses a guided curve rather than a linear side-slide',
   assert.ok(ship.rotationDeg > 0 && ship.rotationDeg < 90);
 });
 
-test('COR-12 FIX-3 docking stays continuous and reaches exact pose at 350ms', async () => {
+test('COR-12 FIX-3 docking stays continuous and reaches exact pose at speed-based completion', async () => {
   const { s, ship, dock, controller, candidates } = await dockingHarness();
   let previous = ship.position;
-  let elapsed = 0;
-  while (elapsed < 0.35 - 1e-12) {
-    const delta = Math.min(1 / 60, 0.35 - elapsed);
-    controller.step(candidates, delta);
+  for (let step = 0; step < 1200 && ship.state === s.ShipState.Docking; step += 1) {
+    controller.step(candidates, 1 / 60);
     const travel = Math.hypot(ship.x - previous.x, ship.y - previous.y);
     assert.ok(travel > 0 && travel < 50);
     previous = ship.position;
-    elapsed += delta;
-    if (elapsed < 0.35 - 1e-12) assert.equal(ship.state, s.ShipState.Docking);
   }
   assert.deepEqual(ship.position, dock.definition.position);
   assert.equal(ship.rotationDeg, dock.definition.dockAngle);
@@ -137,7 +133,12 @@ test('COR-12 FIX-3 two different docks can be occupied while each remains single
   ];
   controller.step(candidates, 0);
   controller.step(candidates, 0);
-  controller.step(candidates, 0.35);
+  for (let step = 0; step < 1200 &&
+      (first.state === s.ShipState.Docking || second.state === s.ShipState.Docking); step += 1) {
+    controller.step(candidates, 1 / 60);
+  }
+  assert.equal(first.state, s.ShipState.Unloading);
+  assert.equal(second.state, s.ShipState.Unloading);
   assert.equal(docks.require('dock_a').occupiedBy, first.id);
   assert.equal(docks.require('dock_b').occupiedBy, second.id);
   assert.notEqual(docks.require('dock_a').occupiedBy, docks.require('dock_b').occupiedBy);
@@ -263,7 +264,7 @@ test('COR-12 FIX-3 remaining route clips the consumed tail without changing auth
   assert.deepEqual(route.toSnapshot(), authored);
 });
 
-test('COR-12 FIX-3 follower turns forward toward the next segment of a raw 90 degree route', async () => {
+test('COR-12 FIX-3 follower turns hull toward the next segment while centre stays on canonical route', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry);
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 150 }]));
@@ -275,12 +276,9 @@ test('COR-12 FIX-3 follower turns forward toward the next segment of a raw 90 de
     motor.stepRoute(ship, 8, 1 / 60);
     assert.ok(ship.routeProgress >= previousProgress);
     assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
-    const dx = ship.x - before.x;
-    const dy = ship.y - before.y;
-    if (Math.hypot(dx, dy) > 1e-9) {
-      const velocityHeading = Math.atan2(dy, dx) * 180 / Math.PI;
-      assert.ok(Math.abs(((velocityHeading - ship.rotationDeg + 540) % 360) - 180) < 1e-9);
-    }
+    const expected = ship.route.pointAtDistance(ship.routeProgress);
+    assert.ok(Math.hypot(ship.x - expected.x, ship.y - expected.y) < 1e-7,
+      `ship centre left route: actual=${ship.x},${ship.y} expected=${expected.x},${expected.y}`);
     if (ship.x < 100 && ship.routeCursor === 0 && ship.rotationDeg > 0) alignedTowardCorner = true;
     previousProgress = ship.routeProgress;
   }
