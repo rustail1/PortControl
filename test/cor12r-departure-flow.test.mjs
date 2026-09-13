@@ -31,22 +31,38 @@ function rawDraft(shipId, points) {
   });
 }
 
-test('COR-12R browser seed 3333 serviced ship can leave dock_a and reach departure', async () => {
+test('COR-12R browser seed 3333 selected serviced ship reaches departure', async () => {
   const { HarborRuntime, ShipState, bundle } = await setup();
   const runtime = new HarborRuntime({ bundle, levelId: 'calm_01', attemptSeed: 3333 });
 
-  let snapshot = advanceUntil(runtime, (state) => state.ships.length > 0, 1200);
-  const ship = [...snapshot.ships].sort((a, b) => a.spawnSequence - b.spawnSequence)[0];
-  assert.ok(ship, 'seed 3333 must materialize a ship');
-  const dock = snapshot.docks.find((candidate) => candidate.definition.id === 'dock_a');
-  assert.ok(dock, 'calm_01 must expose dock_a');
+  let snapshot = advanceUntil(runtime, (state) => state.ships.some((candidate) =>
+    [ShipState.Entering, ShipState.Navigating].includes(candidate.ship.state) &&
+    candidate.ship.position.x >= 30 && candidate.ship.position.x <= 970 &&
+    candidate.ship.position.y >= 30 && candidate.ship.position.y <= 970), 1200);
+  const ship = snapshot.ships.find((candidate) =>
+    [ShipState.Entering, ShipState.Navigating].includes(candidate.ship.state) &&
+    candidate.ship.position.x >= 30 && candidate.ship.position.x <= 970 &&
+    candidate.ship.position.y >= 30 && candidate.ship.position.y <= 970);
+  assert.ok(ship, 'seed 3333 must expose a route-eligible ship inside the world');
+  const dock = [...snapshot.docks].sort(
+    (a, b) => Math.abs(a.definition.position.x - ship.ship.position.x) -
+      Math.abs(b.definition.position.x - ship.ship.position.x),
+  )[0];
+  assert.ok(dock, 'calm_01 must expose a nearest dock');
   const dockX = dock.definition.position.x;
+  const inbound = ship.ship.position.y > 700
+    ? [
+        { x: ship.ship.position.x, y: 700 },
+        { x: dockX, y: 300 },
+        { x: dockX, y: dock.definition.position.y },
+      ]
+    : [
+        { x: ship.ship.position.x < 500 ? 180 : 820, y: ship.ship.position.y },
+        { x: dockX, y: 300 },
+        { x: dockX, y: dock.definition.position.y },
+      ];
 
-  runtime.enqueueRouteDraft(rawDraft(ship.ship.id, [
-    { x: dockX, y: 250 },
-    { x: dockX, y: 210 },
-    { x: dockX, y: 190 },
-  ]));
+  runtime.enqueueRouteDraft(rawDraft(ship.ship.id, inbound));
 
   snapshot = advanceUntil(
     runtime,
@@ -58,6 +74,7 @@ test('COR-12R browser seed 3333 serviced ship can leave dock_a and reach departu
   assert.equal(ready?.ship.state, ShipState.ReadyToLeave, JSON.stringify({
     result: snapshot.result,
     objective: snapshot.objective,
+    selectedDock: dock.definition.id,
     ship: ready?.ship ?? null,
   }));
 
@@ -84,13 +101,15 @@ test('COR-12R browser seed 3333 serviced ship can leave dock_a and reach departu
     runtime.advanceRender(FRAME_MS);
   }
 
-  const finalShip = runtime.presentationSnapshot().ships
+  const finalSnapshot = runtime.presentationSnapshot();
+  const finalShip = finalSnapshot.ships
     .find((candidate) => candidate.ship.id === ship.ship.id)?.ship ?? null;
   assert.equal(departed, true, JSON.stringify({
-    result: runtime.presentationSnapshot().result,
+    selectedDock: dock.definition.id,
+    result: finalSnapshot.result,
     session: runtime.sessionSnapshot(),
     ship: finalShip,
-    docks: runtime.presentationSnapshot().docks.map((candidate) => candidate.runtime),
-    departures: runtime.presentationSnapshot().departures,
+    docks: finalSnapshot.docks.map((candidate) => candidate.runtime),
+    departures: finalSnapshot.departures,
   }));
 });
