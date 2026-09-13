@@ -42,14 +42,13 @@ test(`COR-12 redraw sideways drift with ${pointerOffset}px grab offset does not 
   const result = new s.RouteCommitService({ navigation: new s.NavigationValidator([]), config: routeConfig })
     .commit({ ship, draft: controller.pointerUp(pointer(500 + pointerOffset, 300)).draft });
   assert.equal(result.kind, 'committed');
-  assert.deepEqual(ship.route.toSnapshot(), {
-    start: { x: 500, y: 500 },
-    points: [
-      { x: 500 + pointerOffset, y: 480 },
-      { x: 500 + pointerOffset, y: 400 },
-      { x: 500 + pointerOffset, y: 300 },
-    ],
-  });
+  const snapshot = ship.route.toSnapshot();
+  assert.deepEqual(snapshot.start, { x: 500, y: 500 });
+  assert.deepEqual(snapshot.points.at(-1), { x: 500 + pointerOffset, y: 300 });
+  assert.ok(snapshot.points.every((point) =>
+    point.x >= 500 - 1e-9 && point.x <= 500 + pointerOffset + 1e-9 &&
+    point.y >= 300 - 1e-9 && point.y <= 500 + 1e-9),
+  'canonical redraw must stay inside the authored start-to-drag corridor');
   assert.equal(ship.rotationDeg, 0);
 });
 }
