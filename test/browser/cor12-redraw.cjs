@@ -158,20 +158,29 @@ async function main() {
     assert.deepEqual(sealed, activeRoute, 'Escape after an activated redraw must preserve the active live route');
     assert.notDeepEqual(sealed, oldRoute, 'Escape after an activated redraw must not roll back to old route');
     assert.deepEqual(sealed.points.at(-1), straightTip, 'sealed redraw must end at the visible drawn tip');
+
+    // Hold the pointer while the ship moves on its previous route. The new route must
+    // start from the ship pose at threshold activation, never the older pointer-down pose.
     state = await snapshot();
     start = css(state, state.ships.find(ship => ship.id === shipId).position);
     await move(start.x, start.y);
     await down();
+    await advance(250);
+    const activationPose = (await snapshot()).ships.find(ship => ship.id === shipId).position;
     await move(start.x, start.y - 140, { steps: 6 });
+    const liveBeforeRelease = (await snapshot()).ships.find(ship => ship.id === shipId).route;
+    assert.ok(liveBeforeRelease, 'threshold activation must install the replacement route');
+    assert.deepEqual(liveBeforeRelease.start, activationPose,
+      'live route must start from activation pose instead of snapping back to pointerdown');
     await advance(600);
-    const release = (await snapshot()).ships.find(ship => ship.id === shipId).position;
     await page.mouse.up();
     await advance(20);
     const committed = (await snapshot()).ships.find(ship => ship.id === shipId).route;
     const committedTip = { x: start.x, y: start.y - 140 };
     assert.ok(committed.points.length >= 1, 'committed straight redraw must contain a route point');
     assert.deepEqual(committed.points.at(-1), committedTip, 'committed route must end at the drawn tip');
-    assert.deepEqual(committed.start, release, 'commit must originate at release, not pointerdown');
+    assert.deepEqual(committed.start, liveBeforeRelease.start,
+      'release must seal the active route without rebasing its already-followed prefix');
     const committedDx = committedTip.x - committed.start.x;
     const committedDy = committedTip.y - committed.start.y;
     const committedLength = Math.hypot(committedDx, committedDy);
@@ -185,9 +194,10 @@ async function main() {
         `committed straight redraw must not retain a geometric corner: ${JSON.stringify({ committed, point, perpendicularDistance })}`);
     }
     const angleError = pose => Math.abs(((pose.bodyHeading - pose.targetHeading) % 360 + 540) % 360 - 180);
-    assert.ok(angleError(await readVisible()) > 10, 'body must not snap through the entire turn at commit');
+    assert.ok(angleError(await readVisible()) < 5,
+      'rendered hull must track the already turn-rate-limited simulation heading without a second lag');
     await advance(600);
-    assert.ok(angleError(await readVisible()) < 2, 'visual turn must settle without changing navigation');
+    assert.ok(angleError(await readVisible()) < 5, 'visual hull must stay aligned with authoritative heading');
 
     state = await snapshot();
     start = css(state, state.ships.find(ship => ship.id === shipId).position);
@@ -210,7 +220,7 @@ async function main() {
     await page.keyboard.press('Escape');
     await page.mouse.up();
     assert.deepEqual(errors, []);
-    console.log('Redraw browser: PASS (moving straight/curved swipe, stable bends, smooth hull, seal/commit)');
+    console.log('Redraw browser: PASS (no start snap, no double heading lag, moving straight/curved swipe, stable bends)');
   } finally {
     try { await browser?.close(); }
     finally { await terminateOwnedProcess(server); }

@@ -41,71 +41,72 @@ function assertOnRoute(ship, epsilon = 1e-7) {
   );
 }
 
-test('COR-12 physical route follower brakes before a raw 90 degree corner without rewriting it', () => {
+test('COR-12 ordinary 90 degree bend keeps cruise progress and anticipates the turn without stopping', () => {
   const ship = makeShip();
   const authoredPoints = [{ x: 50, y: 0 }, { x: 50, y: 100 }];
   const authoredSnapshot = { points: authoredPoints, start: { x: 0, y: 0 } };
   ship.replaceRoute(new ShipRoute(authoredPoints, authoredSnapshot.start));
   const motor = new ShipMotor();
   const cruiseStep = ship.characteristics.speed / 60;
-  let sawPreCornerBraking = false;
+  let sawPreTurn = false;
+  let sawUnexpectedStall = false;
 
-  for (let step = 0; step < 180 && ship.routeProgress < 50; step += 1) {
-    const before = ship.routeProgress;
+  for (let step = 0; step < 240 && ship.routeProgress < ship.route.totalLength; step += 1) {
+    const beforeProgress = ship.routeProgress;
+    const beforeX = ship.x;
     motor.stepRoute(ship, 2, 1 / 60, false);
-    const travelled = ship.routeProgress - before;
+    const travelled = ship.routeProgress - beforeProgress;
     assertOnRoute(ship);
-    if (before < 50 && before > 5 && travelled < cruiseStep * 0.95) {
-      sawPreCornerBraking = true;
+    if (beforeX < 50 - 1e-7 && ship.rotationDeg > 0) sawPreTurn = true;
+    if (beforeProgress < ship.route.totalLength - cruiseStep - 1e-9 && travelled < cruiseStep - 1e-9) {
+      sawUnexpectedStall = true;
     }
   }
 
-  assert.equal(ship.routeProgress, 50, 'sharp corner must be reached exactly, not skipped');
-  assert.ok(sawPreCornerBraking, 'freighter should visibly brake before a 90 degree corner');
+  assert.equal(sawPreTurn, true, 'hull should begin its ordinary turn before the raw vertex');
+  assert.equal(sawUnexpectedStall, false, 'ordinary <=90 degree bends must not brake or park the ship');
+  assert.equal(ship.routeProgress, ship.route.totalLength);
   assert.deepEqual(ship.route.toSnapshot(), authoredSnapshot, 'movement must never rewrite the player route');
 });
 
-test('COR-12 raw 90 degree vertex uses one vertex turn tick then continues at reduced speed', () => {
-  const ship = makeShip();
-  ship.replaceRoute(new ShipRoute([{ x: 20, y: 0 }, { x: 20, y: 100 }], ship.position));
+test('COR-12 route behind the bow turns in place before any canonical progress', () => {
+  const ship = makeShip({ rotationDeg: 0 });
+  ship.replaceRoute(new ShipRoute([{ x: -120, y: 0 }], ship.position));
   const motor = new ShipMotor();
+  let resumed = false;
 
-  for (let step = 0; step < 240 && ship.routeProgress < 20; step += 1) {
+  for (let step = 0; step < 240 && ship.routeProgress < ship.route.totalLength; step += 1) {
+    const beforeProgress = ship.routeProgress;
     motor.stepRoute(ship, 2, 1 / 60, false);
+    assertOnRoute(ship);
+    const travelled = ship.routeProgress - beforeProgress;
+    if (travelled > 1e-9) {
+      resumed = true;
+      assert.ok(
+        angleDelta(ship.rotationDeg, 180) <= 90 + 1e-7,
+        `ship advanced while route was behind its bow: heading=${ship.rotationDeg}`,
+      );
+      break;
+    }
   }
-  assert.equal(ship.routeProgress, 20);
-  const rotationAtVertex = ship.rotationDeg;
-  const cruiseStep = ship.characteristics.speed / 60;
 
-  motor.stepRoute(ship, 2, 1 / 60, false);
-
-  assert.equal(ship.routeProgress, 20, 'first outgoing tick should turn at the exact authored vertex');
-  assert.ok(angleDelta(rotationAtVertex, ship.rotationDeg) > 0, 'hull must begin turning at the vertex');
-  assertOnRoute(ship);
-
-  motor.stepRoute(ship, 2, 1 / 60, false);
-
-  assert.ok(ship.routeProgress > 20, '90 degree corner must resume forward progress after the vertex turn tick');
-  assert.ok(
-    ship.routeProgress - 20 < cruiseStep,
-    '90 degree corner must remain slower than straight-line cruise',
-  );
-  assertOnRoute(ship);
+  assert.equal(resumed, true, 'ship should resume after turning far enough toward the route');
+  assert.ok(ship.x < 0, 'resumed motion must follow the canonical route, not sail backward off it');
+  assert.ok(Math.abs(ship.y) < 1e-9);
 });
 
-test('COR-12 exact 180 degree corner brakes to the authored vertex, pivots there, then continues on the same line', () => {
+test('COR-12 sharp greater-than-90 corner reaches the vertex then pivots there before continuing', () => {
   const ship = makeShip({ type: 'cargo_boat', speed: 105, turnRateDeg: 155 });
-  const points = [{ x: 45, y: 0 }, { x: 0, y: 0 }];
-  const snapshot = { points, start: { x: 0, y: 0 } };
-  ship.replaceRoute(new ShipRoute(points, snapshot.start));
+  const points = [{ x: 45, y: 0 }, { x: 0, y: 45 }];
+  ship.replaceRoute(new ShipRoute(points, ship.position));
   const motor = new ShipMotor();
 
   for (let step = 0; step < 300 && ship.routeProgress < 45; step += 1) {
     motor.stepRoute(ship, 2, 1 / 60, false);
     assertOnRoute(ship);
   }
-  assert.equal(ship.routeProgress, 45, 'U-turn must reach the exact authored turnaround point');
-  assert.ok(Math.abs(ship.x - 45) < 1e-7 && Math.abs(ship.y) < 1e-7);
+  assert.equal(ship.routeProgress, 45, 'sharp turn must reach the exact authored vertex');
+  assert.deepEqual(ship.position, { x: 45, y: 0 });
 
   let heldFrames = 0;
   let resumed = false;
@@ -116,16 +117,16 @@ test('COR-12 exact 180 degree corner brakes to the authored vertex, pivots there
     if (Math.abs(before - 45) < 1e-7 && Math.abs(ship.routeProgress - 45) < 1e-7) heldFrames += 1;
     if (ship.routeProgress > 45 + 1e-7) {
       resumed = true;
+      assert.ok(angleDelta(ship.rotationDeg, 135) <= 90 + 1e-7);
       break;
     }
   }
 
-  assert.ok(heldFrames >= 10, `180 degree turn should visibly pivot in place; heldFrames=${heldFrames}`);
-  assert.ok(resumed, 'ship must continue after turning around');
-  assert.deepEqual(ship.route.toSnapshot(), snapshot, '180 degree handling must not add a hidden hairpin or rewrite the route');
+  assert.ok(heldFrames > 0, 'sharp turn should pivot instead of translating while facing away');
+  assert.equal(resumed, true, 'ship must continue after the route is no longer behind its bow');
 });
 
-test('COR-12 small hand bend keeps cruise speed instead of creating a micro-brake', () => {
+test('COR-12 small hand bend keeps cruise speed instead of creating a micro-stop', () => {
   const ship = makeShip();
   const points = [{ x: 40, y: 0 }, { x: 240, y: 35.3 }];
   ship.replaceRoute(new ShipRoute(points, ship.position));
@@ -139,36 +140,23 @@ test('COR-12 small hand bend keeps cruise speed instead of creating a micro-brak
 
   assert.ok(
     Math.abs((ship.routeProgress - before) - cruiseStep) < 1e-9,
-    'a roughly 10 degree hand correction must not pulse the ship speed',
+    'a small hand correction must not pulse or stop the ship speed',
   );
   assertOnRoute(ship);
 });
 
-test('COR-12 live route tip brakes before the temporary end and resumes below cruise after extension', () => {
+test('COR-12 live route still cannot run beyond its temporary authored tip', () => {
   const ship = makeShip();
   const motor = new ShipMotor();
   const start = { x: 0, y: 0 };
-  const cruiseStep = ship.characteristics.speed / 60;
-  ship.replaceRoute(new ShipRoute([{ x: 30, y: 0 }], start), start, 25);
-  ship.setPosition(ship.route.pointAtDistance(25));
-  const beforeTipApproach = ship.routeProgress;
+  ship.replaceRoute(new ShipRoute([{ x: 30, y: 0 }], start), start, 29.5);
+  ship.setPosition(ship.route.pointAtDistance(29.5));
 
   motor.stepRoute(ship, 2, 1 / 60, false);
 
-  const approachStep = ship.routeProgress - beforeTipApproach;
-  assert.ok(approachStep > 0, 'ship should still approach the live tip');
-  assert.ok(approachStep < cruiseStep * 0.9, 'ship should already brake before reaching the live tip');
-  assertOnRoute(ship);
-
-  ship.replaceRoute(new ShipRoute([{ x: 30, y: 0 }], start), start, 30);
-  ship.setPosition(ship.route.pointAtDistance(30));
-  ship.replaceRoute(new ShipRoute([{ x: 30, y: 0 }, { x: 38, y: 0 }], start), start, 30);
-  const beforeExtension = ship.routeProgress;
-
+  assert.equal(ship.routeProgress, 30);
+  assert.deepEqual(ship.position, { x: 30, y: 0 });
   motor.stepRoute(ship, 2, 1 / 60, false);
-
-  const extensionStep = ship.routeProgress - beforeExtension;
-  assert.ok(extensionStep > 0, 'extending a held live tip should resume movement');
-  assert.ok(extensionStep < cruiseStep * 0.9, 'live extension should not jump straight back to cruise speed');
+  assert.equal(ship.routeProgress, 30, 'live follower must wait at the actual temporary tip, not drift past it');
   assertOnRoute(ship);
 });

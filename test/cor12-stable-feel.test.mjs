@@ -71,6 +71,22 @@ async function createPointerSubject() {
   return { ship, controller, pointer };
 }
 
+test('COR-12 route origin is captured at drag activation and never snaps back to pointerdown', async () => {
+  const { ship, controller, pointer } = await createPointerSubject();
+  controller.pointerDown(pointer(400));
+  ship.setPosition({ x: 408, y: 400 });
+
+  controller.pointerMove(pointer(412));
+  const active = controller.activeDraftSnapshot;
+  assert.ok(active, 'threshold crossing must activate a live route');
+  assert.deepEqual(active.start, { x: 408, y: 400 }, 'route must begin at the moving ship pose when drawing activates');
+
+  ship.setPosition({ x: 430, y: 400 });
+  const finished = controller.pointerUp(pointer(416));
+  assert.equal(finished.kind, 'finished');
+  assert.deepEqual(finished.draft.start, { x: 408, y: 400 }, 'release must not rebase an already active route');
+});
+
 test('COR-12 real pointer preview and released draft both include the unsampled live tip', async () => {
   const { controller, pointer } = await createPointerSubject();
   controller.pointerDown(pointer(400));
@@ -106,13 +122,13 @@ test('COR-12 ship movement cannot consume raw samples or the live tip', async ()
   assert.deepEqual(controller.activeDraftSnapshot, before);
 });
 
-test('COR-12 visual heading eases a sharp turn without owning ship movement', async () => {
+test('COR-12 visual heading helper still eases explicit presentation-only transitions', async () => {
   const { smoothShipHeading } = await import('../src/presentation/ShipHeadingPresentation.ts');
   const first = smoothShipHeading(0, 90, 1000 / 60);
   assert.ok(first > 0 && first < 30, `first-frame rotation was ${first}`);
   let heading = first;
   for (let i = 1; i < 30; i++) heading = smoothShipHeading(heading, 90, 1000 / 60);
-  assert.ok(Math.abs(90 - heading) < 1, 'turn should settle promptly, not produce slow rudder inertia');
+  assert.ok(Math.abs(90 - heading) < 1, 'presentation-only turn should settle promptly');
   assert.equal(smoothShipHeading(20, 90, 0), 20);
 });
 
@@ -125,10 +141,13 @@ test('COR-12 visual heading uses shortest wrap and equivalent elapsed time', asy
   assert.ok(Math.abs(once - twice) < 1e-9);
 });
 
-test('COR-12 docked vessel unloads bow-first into the berth', async () => {
+test('COR-12 navigation renders the already turn-rate-limited simulation heading without a second lag', async () => {
   const { resolveShipVisualHeading } = await import('../src/presentation/ShipHeadingPresentation.ts');
   assert.deepEqual(resolveShipVisualHeading('Docking', 45, 90), {
-    targetHeading: 45, snap: false,
+    targetHeading: 45, snap: true,
+  });
+  assert.deepEqual(resolveShipVisualHeading('Navigating', 45, undefined), {
+    targetHeading: 45, snap: true,
   });
   assert.deepEqual(resolveShipVisualHeading('Unloading', 90, 90), {
     targetHeading: 270, snap: false,
@@ -139,8 +158,5 @@ test('COR-12 ReadyToLeave snaps the docked vessel bow toward open water', async 
   const { resolveShipVisualHeading } = await import('../src/presentation/ShipHeadingPresentation.ts');
   assert.deepEqual(resolveShipVisualHeading('ReadyToLeave', 90, 90), {
     targetHeading: 90, snap: true,
-  });
-  assert.deepEqual(resolveShipVisualHeading('Navigating', 45, undefined), {
-    targetHeading: 45, snap: false,
   });
 });
