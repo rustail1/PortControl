@@ -5,6 +5,7 @@ import { ShipState } from '../ships/ShipState.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
 import type { RouteProcessingConfig } from './RouteProcessingConfig.ts';
 import { NavigationValidator } from './NavigationValidator.ts';
+import { RouteCanonicalizer } from './RouteCanonicalizer.ts';
 
 export type RouteCommitResult = {
   readonly kind:
@@ -31,6 +32,7 @@ function routeLength(
 export class RouteCommitService {
   readonly #navigation: NavigationValidator;
   readonly #config: RouteProcessingConfig;
+  readonly #canonicalizer: RouteCanonicalizer;
 
   public constructor(options: {
     readonly navigation: NavigationValidator;
@@ -38,6 +40,7 @@ export class RouteCommitService {
   }) {
     this.#navigation = options.navigation;
     this.#config = options.config;
+    this.#canonicalizer = new RouteCanonicalizer(options.config);
   }
 
   public commit(input: {
@@ -53,9 +56,10 @@ export class RouteCommitService {
       ? input.routeStart ?? ship.position
       : draft.start ?? input.routeStart ?? ship.position;
     const drawnPoints = materializeRouteDraft(draft);
+    const canonicalPoints = this.#canonicalizer.canonicalize(routeStart, drawnPoints);
     const validated = this.#navigation.validate(
       ship,
-      drawnPoints,
+      canonicalPoints,
       this.#config,
       routeStart,
     );
