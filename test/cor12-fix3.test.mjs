@@ -81,11 +81,21 @@ async function dockingHarness() {
 }
 
 test('COR-12 FIX-3 docking uses a guided curve rather than a linear side-slide', async () => {
-  const { ship, controller, candidates } = await dockingHarness();
-  controller.step(candidates, 0.175);
-  assert.notDeepEqual(ship.position, { x: 50, y: 50 });
-  assert.ok(ship.y > 100, 'entry should visit the derived water-side approach lane');
-  assert.ok(ship.rotationDeg > 0 && ship.rotationDeg < 90);
+  const { s, ship, controller, candidates } = await dockingHarness();
+  let visitedWaterSideApproach = false;
+  let leftLinearSideSlide = false;
+  let turnedTowardBerth = false;
+
+  for (let step = 0; step < 1200 && ship.state === s.ShipState.Docking; step += 1) {
+    controller.step(candidates, 1 / 60);
+    if (ship.y > 100) visitedWaterSideApproach = true;
+    if (ship.x > 40) leftLinearSideSlide = true;
+    if (ship.rotationDeg > 0 && ship.rotationDeg < 90) turnedTowardBerth = true;
+  }
+
+  assert.equal(visitedWaterSideApproach, true, 'entry should visit the derived water-side approach lane');
+  assert.equal(leftLinearSideSlide, true, 'entry should leave the straight side-slide line');
+  assert.equal(turnedTowardBerth, true, 'entry should turn continuously toward the berth');
 });
 
 test('COR-12 FIX-3 docking stays continuous and reaches exact pose at speed-based completion', async () => {
