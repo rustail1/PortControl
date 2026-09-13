@@ -13,6 +13,7 @@ interface UpcomingCorner {
 }
 
 const NORMAL_CORNER_MAX_DEG = 90;
+const FULL_SPEED_HEADING_ERROR_DEG = 60;
 const EPSILON = 1e-7;
 
 function assertFinite(value: number, label: string): void {
@@ -44,6 +45,18 @@ export function moveAngleTowardsDeg(
 
 function angleDeltaDeg(left: number, right: number): number {
   return Math.abs(((right - left + 540) % 360) - 180);
+}
+
+function alignmentSpeedScale(headingErrorDeg: number): number {
+  if (headingErrorDeg <= FULL_SPEED_HEADING_ERROR_DEG) return 1;
+  if (headingErrorDeg >= NORMAL_CORNER_MAX_DEG) return 0;
+
+  const ramp = (
+    NORMAL_CORNER_MAX_DEG - headingErrorDeg
+  ) / (
+    NORMAL_CORNER_MAX_DEG - FULL_SPEED_HEADING_ERROR_DEG
+  );
+  return ramp * ramp * (3 - 2 * ramp);
 }
 
 function segmentHeadingDeg(route: ShipRoute, index: number): number | null {
@@ -191,14 +204,13 @@ export class ShipMotor {
       ship.characteristics.turnRateDeg * deltaSeconds,
     ));
 
-    // Translation always belongs to the canonical route. Never advance while that
-    // route lies behind the bow: the ship turns in place instead of visually sailing
-    // backwards. Normal <=90-degree bends retain configured cruise speed.
+    // Translation always belongs to the canonical route. A route more than 90 degrees
+    // behind the bow still forces an in-place pivot, but the first frames after that
+    // pivot ease back into motion instead of snapping from zero to full cruise speed.
+    // Once the hull is within 60 degrees of the route, configured cruise speed is kept.
     const travelHeadingErrorDeg = angleDeltaDeg(ship.rotationDeg, travelHeadingDeg);
-    const mayAdvance = travelHeadingErrorDeg <= NORMAL_CORNER_MAX_DEG + EPSILON;
-    const maximumDistance = mayAdvance
-      ? ship.characteristics.speed * deltaSeconds
-      : 0;
+    const speedScale = alignmentSpeedScale(travelHeadingErrorDeg);
+    const maximumDistance = ship.characteristics.speed * speedScale * deltaSeconds;
     let nextProgress = Math.min(
       ship.routeProgress + maximumDistance,
       route.totalLength,
