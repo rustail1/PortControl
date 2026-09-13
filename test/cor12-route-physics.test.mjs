@@ -65,7 +65,7 @@ test('COR-12 physical route follower brakes before a raw 90 degree corner withou
   assert.deepEqual(ship.route.toSnapshot(), authoredSnapshot, 'movement must never rewrite the player route');
 });
 
-test('COR-12 physical route follower turns at a 90 degree vertex before advancing down the next leg', () => {
+test('COR-12 raw 90 degree vertex slows but does not hard-stop the ship', () => {
   const ship = makeShip();
   ship.replaceRoute(new ShipRoute([{ x: 20, y: 0 }, { x: 20, y: 100 }], ship.position));
   const motor = new ShipMotor();
@@ -75,11 +75,16 @@ test('COR-12 physical route follower turns at a 90 degree vertex before advancin
   }
   assert.equal(ship.routeProgress, 20);
   const rotationAtVertex = ship.rotationDeg;
+  const cruiseStep = ship.characteristics.speed / 60;
 
   motor.stepRoute(ship, 2, 1 / 60, false);
 
-  assert.equal(ship.routeProgress, 20, 'ship must not slide sideways down the next leg while still broadside');
-  assert.ok(angleDelta(rotationAtVertex, ship.rotationDeg) > 0, 'hull must keep turning at the vertex');
+  assert.ok(ship.routeProgress > 20, '90 degree corner must keep controlled forward progress');
+  assert.ok(
+    ship.routeProgress - 20 < cruiseStep,
+    '90 degree corner must remain slower than straight-line cruise',
+  );
+  assert.ok(angleDelta(rotationAtVertex, ship.rotationDeg) > 0, 'hull must keep turning through the corner');
   assertOnRoute(ship);
 });
 
@@ -113,4 +118,52 @@ test('COR-12 exact 180 degree corner brakes to the authored vertex, pivots there
   assert.ok(heldFrames >= 10, `180 degree turn should visibly pivot in place; heldFrames=${heldFrames}`);
   assert.ok(resumed, 'ship must continue after turning around');
   assert.deepEqual(ship.route.toSnapshot(), snapshot, '180 degree handling must not add a hidden hairpin or rewrite the route');
+});
+
+test('COR-12 small hand bend keeps cruise speed instead of creating a micro-brake', () => {
+  const ship = makeShip();
+  const points = [{ x: 40, y: 0 }, { x: 240, y: 35.3 }];
+  ship.replaceRoute(new ShipRoute(points, ship.position));
+  ship.advanceRouteProgress(40);
+  ship.setPosition(ship.route.pointAtDistance(40));
+  const motor = new ShipMotor();
+  const cruiseStep = ship.characteristics.speed / 60;
+  const before = ship.routeProgress;
+
+  motor.stepRoute(ship, 2, 1 / 60, true);
+
+  assert.ok(
+    Math.abs((ship.routeProgress - before) - cruiseStep) < 1e-9,
+    'a roughly 10 degree hand correction must not pulse the ship speed',
+  );
+  assertOnRoute(ship);
+});
+
+test('COR-12 live route tip brakes before the temporary end and resumes below cruise after extension', () => {
+  const ship = makeShip();
+  const motor = new ShipMotor();
+  const start = { x: 0, y: 0 };
+  const cruiseStep = ship.characteristics.speed / 60;
+  ship.replaceRoute(new ShipRoute([{ x: 30, y: 0 }], start), start, 25);
+  ship.setPosition(ship.route.pointAtDistance(25));
+  const beforeTipApproach = ship.routeProgress;
+
+  motor.stepRoute(ship, 2, 1 / 60, false);
+
+  const approachStep = ship.routeProgress - beforeTipApproach;
+  assert.ok(approachStep > 0, 'ship should still approach the live tip');
+  assert.ok(approachStep < cruiseStep * 0.9, 'ship should already brake before reaching the live tip');
+  assertOnRoute(ship);
+
+  ship.replaceRoute(new ShipRoute([{ x: 30, y: 0 }], start), start, 30);
+  ship.setPosition(ship.route.pointAtDistance(30));
+  ship.replaceRoute(new ShipRoute([{ x: 30, y: 0 }, { x: 38, y: 0 }], start), start, 30);
+  const beforeExtension = ship.routeProgress;
+
+  motor.stepRoute(ship, 2, 1 / 60, false);
+
+  const extensionStep = ship.routeProgress - beforeExtension;
+  assert.ok(extensionStep > 0, 'extending a held live tip should resume movement');
+  assert.ok(extensionStep < cruiseStep * 0.9, 'live extension should not jump straight back to cruise speed');
+  assertOnRoute(ship);
 });
