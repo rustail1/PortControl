@@ -162,13 +162,26 @@ async function main() {
     assert.deepEqual(visible.anchor, visible.body, 'preview must start at the actually rendered vessel');
     assert.ok(visible.ends.length >= 1, 'straight swipe must render a visible route');
     const straightTip = visible.ends.at(-1);
-    assert.ok(Math.hypot(straightTip.x - visible.anchor.x, straightTip.y - visible.anchor.y) > 0,
-      'straight swipe tip must differ from the rendered vessel');
+    const straightDx = straightTip.x - visible.anchor.x;
+    const straightDy = straightTip.y - visible.anchor.y;
+    const straightLength = Math.hypot(straightDx, straightDy);
+    assert.ok(straightLength > 0, 'straight swipe tip must differ from the rendered vessel');
+    for (const point of visible.ends.slice(0, -1)) {
+      const perpendicularDistance = Math.abs(
+        straightDx * (point.y - visible.anchor.y) -
+        straightDy * (point.x - visible.anchor.x),
+      ) / straightLength;
+      assert.ok(perpendicularDistance <= 0.5,
+        `straight swipe must not retain a geometric corner: ${JSON.stringify({ visible, point, perpendicularDistance })}`);
+    }
     const activeRoute = (await snapshot()).ships.find(ship => ship.id === shipId).route;
     assert.ok(activeRoute, 'activated redraw must install a live replacement route while pointer is held');
     assert.notDeepEqual(activeRoute, oldRoute, 'activated redraw must stop navigating the old committed route');
-    assert.deepEqual(visible.ends, activeRoute.points,
-      'browser preview must render the exact authored route points without smoothing');
+    const visibleSuffixStart = activeRoute.points.findIndex(point =>
+      point.x === visible.ends[0].x && point.y === visible.ends[0].y);
+    assert.ok(visibleSuffixStart >= 0, 'browser preview must begin at an authored future point');
+    assert.deepEqual(visible.ends, activeRoute.points.slice(visibleSuffixStart),
+      'browser preview may consume only a prefix of the exact authored route');
     assert.deepEqual(activeRoute.points.at(-1), straightTip,
       'active live replacement route must end at the visible drawn tip');
     await page.keyboard.press('Escape');
@@ -202,8 +215,20 @@ async function main() {
     assert.deepEqual(committed.points.at(-1), committedTip, 'committed route must end at the drawn tip');
     assert.deepEqual(committed.start, liveBeforeRelease.start,
       'release must seal the active route without rebasing its already-followed prefix');
+    const committedDx = committedTip.x - committed.start.x;
+    const committedDy = committedTip.y - committed.start.y;
+    const committedLength = Math.hypot(committedDx, committedDy);
+    assert.ok(committedLength > 0, 'committed straight redraw must have non-zero length');
+    for (const point of committed.points.slice(0, -1)) {
+      const perpendicularDistance = Math.abs(
+        committedDx * (point.y - committed.start.y) -
+        committedDy * (point.x - committed.start.x),
+      ) / committedLength;
+      assert.ok(perpendicularDistance <= 0.5,
+        `committed straight redraw must not retain a geometric corner: ${JSON.stringify({ committed, point, perpendicularDistance })}`);
+    }
     assert.deepEqual(committed.points, liveBeforeRelease.points,
-      'release must preserve the exact authored live geometry without smoothing');
+      'release must preserve the exact authored live geometry');
     const angleError = pose => Math.abs(((pose.bodyHeading - pose.targetHeading) % 360 + 540) % 360 - 180);
     assert.ok(angleError(await readVisible()) < 5,
       'rendered hull must track the already turn-rate-limited simulation heading without a second lag');

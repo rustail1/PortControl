@@ -2,7 +2,7 @@ import type { Point, Size } from '../camera/SquareWorldViewport.ts';
 import { SquareWorldViewport } from '../camera/SquareWorldViewport.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
 import { ShipState } from '../ships/ShipState.ts';
-import type { SimplifyConfig } from './RouteSimplifier.ts';
+import { simplifyRouteDraft, type SimplifyConfig } from './RouteSimplifier.ts';
 
 export interface RouteSamplingConfig {
   readonly sampleDistance: number;
@@ -57,6 +57,7 @@ interface ActiveRouteInteraction {
   readonly pointerId: number;
   readonly ship: ShipModel;
   readonly initialCssPosition: Point;
+  gestureWorldOrigin: Point;
   routeStart: Point;
   readonly points: Point[];
   lastWorldPosition: Point;
@@ -160,12 +161,14 @@ export function isRouteInputState(state: ShipModel['state']): boolean {
 export class RouteInputController {
   readonly #viewport: SquareWorldViewport;
   readonly #sampling: RouteSamplingConfig;
+  readonly #processing: SimplifyConfig | undefined;
   readonly #hitTest: (worldPoint: Point, worldToCssPixelScale: number) => ShipModel | null;
   #active: ActiveRouteInteraction | null = null;
 
   public constructor(options: RouteInputControllerOptions) {
     this.#viewport = options.viewport;
     this.#sampling = assertSamplingConfig(options.sampling);
+    this.#processing = options.processing;
     this.#hitTest = options.hitTest;
   }
 
@@ -185,9 +188,8 @@ export class RouteInputController {
     return Object.freeze({
       shipId: active.ship.id,
       pointerId: active.pointerId,
-      points: copyPoints(active.points),
+      ...this.#draftGeometry(active),
       start: Object.freeze({ ...active.routeStart }),
-      ...copyLiveTip(active),
     });
   }
 
@@ -206,6 +208,7 @@ export class RouteInputController {
     const active = this.#active;
     if (active === null || !active.activated) return;
     active.routeStart = { ...active.ship.position };
+    active.gestureWorldOrigin = { ...active.lastWorldPosition };
     active.points.splice(0);
   }
 
@@ -226,6 +229,7 @@ export class RouteInputController {
       pointerId: input.pointerId,
       ship,
       initialCssPosition: { ...input.cssPosition },
+      gestureWorldOrigin: { ...worldPoint },
       routeStart: { ...ship.position },
       points: [],
       lastWorldPosition: { ...worldPoint },
@@ -287,6 +291,23 @@ export class RouteInputController {
     return true;
   }
 
+  #draftGeometry(active: ActiveRouteInteraction): {
+    readonly points: readonly Point[];
+    readonly tip?: Point;
+  } {
+    const tip = copyLiveTip(active);
+    if (this.#processing === undefined) {
+      return { points: copyPoints(active.points), ...tip };
+    }
+    return {
+      points: copyPoints(simplifyRouteDraft({
+        points: active.points,
+        start: active.gestureWorldOrigin,
+        ...tip,
+      }, this.#processing)),
+    };
+  }
+
   #sample(point: Point): boolean {
     const active = this.#active;
     if (active === null || active.points.length >= this.#sampling.maxRawPoints) {
@@ -316,8 +337,7 @@ export class RouteInputController {
       draft: Object.freeze({
         shipId: active.ship.id,
         start: Object.freeze({ ...active.routeStart }),
-        points: copyPoints(active.points),
-        ...copyLiveTip(active),
+        ...this.#draftGeometry(active),
       }),
     };
   }
