@@ -147,16 +147,12 @@ test('COR-12 nearby sharp raw route completes without a circular excursion', asy
     position.y >= -1e-9 && position.y <= 10 + 1e-9));
 });
 
-test('COR-12 drawn 90 degree bend is canonicalized locally without overshoot', async () => {
+test('COR-12 drawn 90 degree bend remains the exact authored polyline', async () => {
   const subject = await setup('freighter');
-  assert.equal(commit(subject, subject.ship, [{ x: 100, y: 0 }, { x: 100, y: 140 }]).kind, 'committed');
-  const routePoints = subject.ship.route.toSnapshot().points;
-  assert.ok(routePoints.length > 2);
-  assert.ok(!routePoints.some((point) => point.x === 100 && point.y === 0));
-  assert.deepEqual(routePoints.at(-1), { x: 100, y: 140 });
-  assert.ok(routePoints.every((point) =>
-    point.x >= -1e-9 && point.x <= 100 + 1e-9 &&
-    point.y >= -1e-9 && point.y <= 140 + 1e-9));
+  const drawn = [{ x: 100, y: 0 }, { x: 100, y: 140 }];
+  assert.equal(commit(subject, subject.ship, drawn).kind, 'committed');
+  assert.deepEqual(subject.ship.route.toSnapshot().points, drawn,
+    'committing a turn must not round or replace its authored vertex');
   const samples = runRoute(subject.ships, subject.ship);
   assert.equal(subject.ship.routeProgress, subject.ship.route.totalLength);
   assert.deepEqual(subject.ship.position, { x: 100, y: 140 });
