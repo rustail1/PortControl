@@ -274,25 +274,36 @@ test('COR-12 FIX-3 remaining route clips the consumed tail without changing auth
   assert.deepEqual(route.toSnapshot(), authored);
 });
 
-test('COR-12 FIX-3 follower turns hull toward the next segment while centre stays on canonical route', async () => {
+test('COR-12 FIX-3 follower brakes before the next segment, then turns at the authored vertex', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry);
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 100, y: 150 }]));
   const motor = new s.ShipMotor();
-  let alignedTowardCorner = false;
+  const cruiseStep = ship.characteristics.speed / 60;
+  let brakedBeforeCorner = false;
+  let turnedAtCorner = false;
   let previousProgress = 0;
   for (let step = 0; step < 600 && ship.routeCursor < 2; step += 1) {
     const before = ship.position;
+    const rotationBefore = ship.rotationDeg;
     motor.stepRoute(ship, 8, 1 / 60);
+    const travelled = ship.routeProgress - previousProgress;
     assert.ok(ship.routeProgress >= previousProgress);
-    assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
+    assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= cruiseStep + 1e-9);
     const expected = ship.route.pointAtDistance(ship.routeProgress);
     assert.ok(Math.hypot(ship.x - expected.x, ship.y - expected.y) < 1e-7,
       `ship centre left route: actual=${ship.x},${ship.y} expected=${expected.x},${expected.y}`);
-    if (ship.x < 100 && ship.routeCursor === 0 && ship.rotationDeg > 0) alignedTowardCorner = true;
+    if (ship.x < 100 && ship.routeCursor === 0) {
+      assert.ok(Math.abs(ship.rotationDeg) < 1e-9, 'incoming straight leg must not rotate hull early');
+      if (travelled < cruiseStep * 0.95) brakedBeforeCorner = true;
+    }
+    if (Math.abs(ship.x - 100) < 1e-9 && Math.abs(ship.y) < 1e-9 && ship.rotationDeg > rotationBefore) {
+      turnedAtCorner = true;
+    }
     previousProgress = ship.routeProgress;
   }
-  assert.equal(alignedTowardCorner, true);
+  assert.equal(brakedBeforeCorner, true);
+  assert.equal(turnedAtCorner, true);
   assert.equal(ship.routeCursor, 2);
   assert.deepEqual(ship.route.toSnapshot().points, [{ x: 100, y: 0 }, { x: 100, y: 150 }]);
 });
