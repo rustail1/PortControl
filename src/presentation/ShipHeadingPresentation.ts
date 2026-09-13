@@ -15,11 +15,12 @@ export function resolveShipVisualHeading(
       dockAngle !== undefined && !Number.isFinite(dockAngle)) {
     throw new RangeError('ship visual headings must be finite');
   }
-  if (dockAngle === undefined) {
-    return Object.freeze({ targetHeading: simulationHeading, snap: false });
-  }
-  if (state === 'Docking') {
-    return Object.freeze({ targetHeading: simulationHeading, snap: false });
+
+  // Navigation and docking headings are already simulation-owned, turn-rate limited,
+  // and render-interpolated. A second exponential lag made the visible hull trail the
+  // authoritative heading far enough to look as if the vessel was sailing backwards.
+  if (dockAngle === undefined || state === 'Docking') {
+    return Object.freeze({ targetHeading: simulationHeading, snap: true });
   }
   if (state === 'Unloading') {
     return Object.freeze({
@@ -33,7 +34,7 @@ export function resolveShipVisualHeading(
       snap: true,
     });
   }
-  return Object.freeze({ targetHeading: simulationHeading, snap: false });
+  return Object.freeze({ targetHeading: simulationHeading, snap: true });
 }
 
 export function smoothShipHeading(previous: number, target: number, deltaMs: number): number {

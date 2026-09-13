@@ -23,7 +23,7 @@ export const ROUTE_DRAG_ACTIVATION_CSS_PX = 12;
 export interface RawRouteDraft {
   readonly shipId: string;
   readonly points: readonly Point[];
-  /** Gesture origin, used only to simplify its shape; commit starts at the live ship. */
+  /** Gesture origin, sealed when drawing activates; later ship movement never rebases it. */
   readonly start?: Point;
   readonly tip?: Point;
 }
@@ -267,6 +267,12 @@ export class RouteInputController {
     ) {
       return false;
     }
+
+    // Pointer-down only selects the ship. The route origin is sealed at the moment
+    // the drag actually becomes a route, so a moving ship can never be snapped back
+    // to the older pointer-down pose on the first live commit.
+    active.routeStart = { ...active.ship.position };
+    active.points.splice(0);
     active.activated = true;
     return true;
   }
@@ -381,5 +387,4 @@ export class RouteInputController {
       }),
     };
   }
-
 }
