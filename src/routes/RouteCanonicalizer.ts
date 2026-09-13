@@ -1,5 +1,4 @@
 import type { Point } from '../camera/SquareWorldViewport.ts';
-import type { SimplifyConfig } from './RouteSimplifier.ts';
 
 const CORNER_MIN_TURN_RAD = Math.PI / 18;
 const HAIRPIN_TURN_RAD = (5 * Math.PI) / 6;
@@ -56,7 +55,6 @@ function cubic(a: Point, c1: Point, c2: Point, b: Point, t: number): Point {
 export function canonicalizeRoute(
   start: Point,
   points: readonly Point[],
-  config: SimplifyConfig,
 ): readonly Point[] {
   const controls = stableControls(start, points);
   if (controls.length <= 1) return Object.freeze([]);
@@ -155,13 +153,7 @@ export function canonicalizeRoute(
 }
 
 export class RouteCanonicalizer {
-  readonly #config: SimplifyConfig;
-
-  public constructor(config: SimplifyConfig) {
-    this.#config = Object.freeze({ ...config });
-  }
-
   public canonicalize(start: Point, points: readonly Point[]): readonly Point[] {
-    return canonicalizeRoute(start, points, this.#config);
+    return canonicalizeRoute(start, points);
   }
 }
