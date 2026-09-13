@@ -1,5 +1,8 @@
 import type { RawRouteDraft } from './RouteInputController.ts';
-import { isRouteInputState, materializeRouteDraft } from './RouteInputController.ts';
+import {
+  isRouteInputState,
+  materializeRouteDraftFromStart,
+} from './RouteInputController.ts';
 import { ShipRoute } from '../ships/ShipRoute.ts';
 import { ShipState } from '../ships/ShipState.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
@@ -57,7 +60,7 @@ export class RouteCommitService {
     const routeStart = ship.state === ShipState.ReadyToLeave || ship.state === ShipState.Leaving
       ? input.routeStart ?? ship.position
       : draft.start ?? input.routeStart ?? ship.position;
-    const drawnPoints = materializeRouteDraft(draft);
+    const drawnPoints = materializeRouteDraftFromStart(draft, routeStart);
     const prepared = this.#preparation.prepare({
       ship,
       points: drawnPoints,
