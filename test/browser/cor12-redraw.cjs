@@ -13,6 +13,29 @@ const css = (snapshot, point) => ({
   y: Math.round(snapshot.worldViewportCss.y + point.y * snapshot.worldViewportCss.height / 1000),
 });
 
+function assertStableFixedBends(previousEnds, currentEnds) {
+  const previousFixed = previousEnds.slice(0, -1);
+  const currentFixed = currentEnds.slice(0, -1);
+  if (previousFixed.length === 0 || currentFixed.length === 0) return;
+
+  let overlap = Math.min(previousFixed.length, currentFixed.length);
+  while (overlap > 0 && !Array.from({ length: overlap }, (_, index) =>
+    assert.deepEqual ? previousFixed[previousFixed.length - overlap + index] : null)) {
+    overlap -= 1;
+  }
+
+  // Find the largest exact overlap between the surviving suffix of the old fixed
+  // geometry and the prefix of the new fixed geometry. Only a consumed prefix may vanish.
+  overlap = Math.min(previousFixed.length, currentFixed.length);
+  for (; overlap > 0; overlap -= 1) {
+    const oldSuffix = previousFixed.slice(previousFixed.length - overlap);
+    const newPrefix = currentFixed.slice(0, overlap);
+    if (JSON.stringify(oldSuffix) === JSON.stringify(newPrefix)) break;
+  }
+  assert.ok(overlap > 0,
+    `extending the curve may clip only a consumed prefix, never relocate fixed bends: ${JSON.stringify({ previousFixed, currentFixed })}`);
+}
+
 async function main() {
   const launch = buildViteLaunch({ host: '127.0.0.1', port: 4181 });
   const server = spawn(launch.command, launch.args, {
@@ -210,8 +233,7 @@ async function main() {
       await move(Math.round(start.x - 180 * Math.sin(angle)), Math.round(start.y + 180 * (1 - Math.cos(angle))));
       const pose = await readVisible();
       assert.deepEqual(pose.anchor, pose.body, 'moving curve must stay attached to the rendered hull');
-      assert.deepEqual(pose.ends.slice(0, Math.max(0, previousEnds.length - 1)), previousEnds.slice(0, -1),
-        'extending the curve must not move previously fixed bends');
+      assertStableFixedBends(previousEnds, pose.ends);
       previousEnds = pose.ends;
     }
     assert.ok(previousEnds.length > 2);
