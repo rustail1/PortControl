@@ -34,7 +34,9 @@ export function moveAngleTowardsDeg(
   );
 }
 
-const LIVE_TIP_EPSILON = 1e-6;
+function angleDeltaDeg(left: number, right: number): number {
+  return Math.abs(((right - left + 540) % 360) - 180);
+}
 
 export class ShipMotor {
   public stepRoute(
@@ -88,12 +90,6 @@ export class ShipMotor {
       throw new RangeError('waypointTolerance must be non-negative');
     }
 
-    this.#advanceReachedOrPassedWaypoints(
-      ship,
-      route,
-      waypointTolerance,
-      continueAfterRouteEnd,
-    );
     if (ship.routeProgress >= route.totalLength) {
       if (continueAfterRouteEnd && (
         ship.state === ShipState.Entering ||
@@ -105,10 +101,10 @@ export class ShipMotor {
       return;
     }
 
-    const target = ship.currentWaypoint;
-    if (target === null) return;
+    const tangent = route.tangentAtDistance(ship.routeProgress);
+    if (tangent === null) return;
     const desiredAngleDeg = normalizeRotationDeg(
-      Math.atan2(target.y - ship.y, target.x - ship.x) * 180 / Math.PI,
+      Math.atan2(tangent.y, tangent.x) * 180 / Math.PI,
     );
     ship.setRotationDeg(moveAngleTowardsDeg(
       ship.rotationDeg,
@@ -116,37 +112,20 @@ export class ShipMotor {
       ship.characteristics.turnRateDeg * deltaSeconds,
     ));
 
-    const isHeldLiveTip =
-      !continueAfterRouteEnd && ship.routeCursor === route.length - 1;
+    // COR-12 canonical-follow contract:
+    // - the navigation point/ship centre advances on the exact visible route;
+    // - hull rotation is independent and turn-rate limited;
+    // - large heading errors reduce forward progress instead of pushing the ship off-route.
+    const headingErrorDeg = angleDeltaDeg(ship.rotationDeg, desiredAngleDeg);
+    const alignment = Math.max(0, Math.cos(headingErrorDeg * Math.PI / 180));
     const maximumDistance = ship.characteristics.speed * deltaSeconds;
-    const movedDistance = isHeldLiveTip
-      ? this.#stepForwardTowardLiveTip(ship, target, maximumDistance)
-      : this.#stepForwardDistance(ship, maximumDistance);
-
-    let projectedProgress = route.projectProgress(
-      ship.position,
-      ship.routeProgress,
-      movedDistance + waypointTolerance,
+    const nextProgress = Math.min(
+      ship.routeProgress + maximumDistance * alignment,
+      route.totalLength,
     );
-    if (isHeldLiveTip) {
-      const distanceToTip = Math.hypot(target.x - ship.x, target.y - ship.y);
-      if (distanceToTip <= LIVE_TIP_EPSILON) {
-        ship.setPosition(target);
-        projectedProgress = route.totalLength;
-      } else if (projectedProgress >= route.totalLength) {
-        projectedProgress = Math.max(
-          ship.routeProgress,
-          route.totalLength - Number.EPSILON * Math.max(1, route.totalLength),
-        );
-      }
-    }
-    ship.advanceRouteProgress(projectedProgress);
-    this.#advanceReachedOrPassedWaypoints(
-      ship,
-      route,
-      waypointTolerance,
-      continueAfterRouteEnd,
-    );
+    const nextPosition = route.pointAtDistance(nextProgress);
+    ship.setPosition(nextPosition);
+    ship.advanceRouteProgress(nextProgress);
   }
 
   public step(ship: ShipModel, target: SteeringTarget, deltaSeconds: number): void {
@@ -175,48 +154,6 @@ export class ShipMotor {
     ship.setPositionXY(
       ship.x + Math.cos(rotationRadians) * ship.characteristics.speed * deltaSeconds,
       ship.y + Math.sin(rotationRadians) * ship.characteristics.speed * deltaSeconds,
-    );
-  }
-
-  #advanceReachedOrPassedWaypoints(
-    ship: ShipModel,
-    route: ShipRoute,
-    waypointTolerance: number,
-    continueAfterRouteEnd: boolean,
-  ): void {
-    while (ship.routeProgress < route.totalLength) {
-      const cursor = ship.routeCursor;
-      const target = route.at(cursor);
-      const segmentStart = route.segmentStartAt(cursor);
-      if (target === null || segmentStart === null) return;
-      const targetDistance = Math.hypot(target.x - ship.x, target.y - ship.y);
-      const segmentX = target.x - segmentStart.x;
-      const segmentY = target.y - segmentStart.y;
-      const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
-      const passed = segmentLengthSquared > 0 &&
-        ((ship.x - segmentStart.x) * segmentX +
-          (ship.y - segmentStart.y) * segmentY) >= segmentLengthSquared;
-      const isHeldLiveTip = !continueAfterRouteEnd && cursor === route.length - 1;
-      const tolerance = isHeldLiveTip ? LIVE_TIP_EPSILON : waypointTolerance;
-      if (targetDistance > tolerance && (!passed || isHeldLiveTip)) return;
-      ship.advanceRouteCursor();
-    }
-  }
-
-  #stepForwardTowardLiveTip(
-    ship: ShipModel,
-    target: SteeringTarget,
-    maximumDistance: number,
-  ): number {
-    const rotationRadians = (ship.rotationDeg * Math.PI) / 180;
-    const forwardX = Math.cos(rotationRadians);
-    const forwardY = Math.sin(rotationRadians);
-    const toTargetX = target.x - ship.x;
-    const toTargetY = target.y - ship.y;
-    const forwardDistanceToTarget = toTargetX * forwardX + toTargetY * forwardY;
-    return this.#stepForwardDistance(
-      ship,
-      Math.min(maximumDistance, Math.max(0, forwardDistanceToTarget)),
     );
   }
 

@@ -39,27 +39,31 @@ function commit(subject, ship, points, start = ship.position) {
   }).commit({ ship, draft: { shipId: ship.id, points }, routeStart: start });
 }
 
+function assertOnRoute(ship, epsilon = 1e-6) {
+  const expected = ship.route.pointAtDistance(ship.routeProgress);
+  assert.ok(Math.hypot(ship.x - expected.x, ship.y - expected.y) <= epsilon,
+    `left canonical route: actual=${ship.x},${ship.y} expected=${expected.x},${expected.y}`);
+}
+
 function runRoute(ships, ship, maximumSteps = 1200) {
   const motor = new ships.ShipMotor();
   const samples = [];
   for (let step = 0; step < maximumSteps && ship.routeProgress < ship.route.totalLength; step += 1) {
-    const before = ship.position;
     const progressBefore = ship.routeProgress;
+    const rotationBefore = ship.rotationDeg;
     motor.stepRoute(ship, 8, 1 / 60);
-    const dx = ship.x - before.x;
-    const dy = ship.y - before.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance <= 1e-9) continue;
-    const velocityHeading = Math.atan2(dy, dx) * 180 / Math.PI;
-    assert.ok(angleDelta(ship.rotationDeg, velocityHeading) < 1e-9);
     assert.ok(ship.routeProgress >= progressBefore);
-    assert.ok(distance <= ship.characteristics.speed / 60 + 1e-9);
-    samples.push({ position: ship.position, heading: ship.rotationDeg });
+    assert.ok(ship.routeProgress - progressBefore <= ship.characteristics.speed / 60 + 1e-9);
+    assert.ok(angleDelta(rotationBefore, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9);
+    assertOnRoute(ship);
+    if (ship.routeProgress > progressBefore) {
+      samples.push({ position: ship.position, heading: ship.rotationDeg });
+    }
   }
   return samples;
 }
 
-test('COR-12 path follower keeps hull aligned with velocity through a sharp turn', async () => {
+test('COR-12 path follower keeps centre canonical and hull turn-rate limited through a sharp turn', async () => {
   const { ships, ship } = await setup();
   ship.replaceRoute(new ships.ShipRoute([
     { x: 50, y: 0 },
@@ -67,21 +71,16 @@ test('COR-12 path follower keeps hull aligned with velocity through a sharp turn
   ]));
   const motor = new ships.ShipMotor();
 
-  for (let step = 0; step < 180 && ship.routeProgress < ship.route.totalLength; step += 1) {
-    const before = ship.position;
+  for (let step = 0; step < 300 && ship.routeProgress < ship.route.totalLength; step += 1) {
+    const beforeRotation = ship.rotationDeg;
     motor.stepRoute(ship, 8, 1 / 60);
-    const dx = ship.x - before.x;
-    const dy = ship.y - before.y;
-    if (Math.hypot(dx, dy) <= 1e-9) continue;
-    const velocityHeading = Math.atan2(dy, dx) * 180 / Math.PI;
-    assert.ok(
-      angleDelta(ship.rotationDeg, velocityHeading) < 1e-9,
-      `side-slip at step ${step}: hull=${ship.rotationDeg}, velocity=${velocityHeading}`,
-    );
+    assertOnRoute(ship);
+    assert.ok(angleDelta(beforeRotation, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9,
+      `rotation snapped at step ${step}`);
   }
 });
 
-test('COR-12 path follower advances by speed dt and faces its actual movement delta', async () => {
+test('COR-12 opposite heading turns before advancing and never leaves the route', async () => {
   const { ships, ship } = await setup('freighter');
   ship.setRotationDeg(180);
   ship.replaceRoute(new ships.ShipRoute([{ x: 100, y: 0 }]));
@@ -89,12 +88,9 @@ test('COR-12 path follower advances by speed dt and faces its actual movement de
 
   new ships.ShipMotor().stepRoute(ship, 8, 1 / 60);
 
-  const dx = ship.x - before.x;
-  const dy = ship.y - before.y;
-  const expectedDistance = ship.characteristics.speed / 60;
-  assert.ok(Math.abs(Math.hypot(dx, dy) - expectedDistance) < 1e-9);
-  assert.ok(Math.abs(ship.routeProgress - expectedDistance) < 1e-9);
-  assert.ok(angleDelta(ship.rotationDeg, Math.atan2(dy, dx) * 180 / Math.PI) < 1e-9);
+  assertOnRoute(ship);
+  assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) < 1e-9);
+  assert.ok(angleDelta(180, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9);
 });
 
 test('COR-12 sharp route movement stays on the drawn polyline without progress jumps', async () => {
@@ -105,28 +101,14 @@ test('COR-12 sharp route movement stays on the drawn polyline without progress j
   ]));
   const motor = new ships.ShipMotor();
 
-  for (let step = 0; step < 300 && ship.routeProgress < ship.route.totalLength; step += 1) {
-    const before = ship.position;
+  for (let step = 0; step < 600 && ship.routeProgress < ship.route.totalLength; step += 1) {
     const progressBefore = ship.routeProgress;
     motor.stepRoute(ship, 8, 1 / 60);
-    const dx = ship.x - before.x;
-    const dy = ship.y - before.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance <= 1e-9) continue;
-    const expected = ship.routeProgress <= 30
-      ? { x: ship.routeProgress, y: 0 }
-      : { x: 30, y: ship.routeProgress - 30 };
-    assert.ok(
-      Math.hypot(ship.x - expected.x, ship.y - expected.y) < 1e-6,
-      `left route at step ${step}: ${ship.x},${ship.y}`,
-    );
-    assert.ok(angleDelta(ship.rotationDeg, Math.atan2(dy, dx) * 180 / Math.PI) < 1e-9);
-    const expectedProgressDelta = Math.min(
-      ship.characteristics.speed / 60,
-      ship.route.totalLength - progressBefore,
-    );
-    assert.ok(Math.abs((ship.routeProgress - progressBefore) - expectedProgressDelta) < 1e-6);
+    assertOnRoute(ship);
+    assert.ok(ship.routeProgress >= progressBefore);
+    assert.ok(ship.routeProgress - progressBefore <= ship.characteristics.speed / 60 + 1e-9);
   }
+  assert.equal(ship.routeProgress, ship.route.totalLength);
 });
 
 test('COR-12 player commit preserves the drawn polyline without an effective replacement', async () => {
@@ -137,7 +119,7 @@ test('COR-12 player commit preserves the drawn polyline without an effective rep
   assert.deepEqual(subject.ship.route.toSnapshot().points, drawn);
 });
 
-test('COR-12 path step crossing a raw corner faces its actual chord delta', async () => {
+test('COR-12 path step crossing a raw corner does not snap hull rotation', async () => {
   const { ships, ship } = await setup('freighter');
   const stepDistance = ship.characteristics.speed / 60;
   ship.replaceRoute(new ships.ShipRoute([
@@ -147,9 +129,10 @@ test('COR-12 path step crossing a raw corner faces its actual chord delta', asyn
 
   new ships.ShipMotor().stepRoute(ship, 8, 1 / 60);
 
+  assertOnRoute(ship);
   assert.ok(Math.abs(ship.x - stepDistance / 2) < 1e-9);
   assert.ok(Math.abs(ship.y - stepDistance / 2) < 1e-9);
-  assert.ok(angleDelta(ship.rotationDeg, 45) < 1e-9);
+  assert.ok(angleDelta(0, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9);
 });
 
 test('COR-12 nearby sharp raw route completes without a circular excursion', async () => {
@@ -164,7 +147,7 @@ test('COR-12 nearby sharp raw route completes without a circular excursion', asy
     position.y >= -1e-9 && position.y <= 10 + 1e-9));
 });
 
-test('COR-12 drawn 90 degree bend stays raw while the ship turns forward', async () => {
+test('COR-12 drawn 90 degree bend stays raw while the ship turns without leaving it', async () => {
   const subject = await setup('freighter');
   assert.equal(commit(subject, subject.ship, [{ x: 100, y: 0 }, { x: 100, y: 140 }]).kind, 'committed');
   assert.deepEqual(subject.ship.route.toSnapshot().points, [{ x: 100, y: 0 }, { x: 100, y: 140 }]);
@@ -172,16 +155,16 @@ test('COR-12 drawn 90 degree bend stays raw while the ship turns forward', async
   assert.ok(samples.at(-1).position.y > 100);
 });
 
-test('COR-12 reverse swipe follows the straight raw line nose-first', async () => {
+test('COR-12 reverse swipe remains canonical while the hull turns around', async () => {
   const subject = await setup('speedboat');
   assert.equal(commit(subject, subject.ship, [{ x: -140, y: 0 }]).kind, 'committed');
   assert.deepEqual(subject.ship.route.toSnapshot().points, [{ x: -140, y: 0 }]);
-  const samples = runRoute(subject.ships, subject.ship);
+  const samples = runRoute(subject.ships, subject.ship, 1800);
   assert.ok(samples[0].position.x < 0);
   assert.ok(samples.every(({ position }) => Math.abs(position.y) < 1e-9));
 });
 
-test('COR-12 different ship speeds advance different distances on the same route', async () => {
+test('COR-12 different ship speeds advance different distances on the same aligned route', async () => {
   const subject = await setup('speedboat');
   const tanker = new subject.ships.ShipModel({
     id: 'tanker',
@@ -224,5 +207,6 @@ test('COR-12 live extension preserves the fixed route origin and monotonic progr
 
   assert.deepEqual(subject.ship.route.toSnapshot().start, gestureStart);
   assert.ok(subject.ship.routeProgress >= progressBeforeExtension);
+  assertOnRoute(subject.ship);
   runRoute(subject.ships, subject.ship);
 });
