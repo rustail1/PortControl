@@ -210,7 +210,7 @@ async function main() {
     await page.mouse.up();
     await advance(20);
     const committed = (await snapshot()).ships.find(ship => ship.id === shipId).route;
-    const committedTip = { x: start.x, y: start.y - 140 };
+    const committedTip = { x: activationPose.x, y: activationPose.y - 140 };
     assert.ok(committed.points.length >= 1, 'committed straight redraw must contain a route point');
     assert.deepEqual(committed.points.at(-1), committedTip, 'committed route must end at the drawn tip');
     assert.deepEqual(committed.start, liveBeforeRelease.start,

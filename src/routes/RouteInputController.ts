@@ -2,7 +2,7 @@ import type { Point, Size } from '../camera/SquareWorldViewport.ts';
 import { SquareWorldViewport } from '../camera/SquareWorldViewport.ts';
 import type { ShipModel } from '../ships/ShipModel.ts';
 import { ShipState } from '../ships/ShipState.ts';
-import { simplifyRouteDraft, type SimplifyConfig } from './RouteSimplifier.ts';
+import type { SimplifyConfig } from './RouteSimplifier.ts';
 
 export interface RouteSamplingConfig {
   readonly sampleDistance: number;
@@ -59,7 +59,9 @@ interface ActiveRouteInteraction {
   readonly initialCssPosition: Point;
   gestureWorldOrigin: Point;
   routeStart: Point;
+  routePointOffset: Point;
   readonly points: Point[];
+  lastPointerWorldPosition: Point;
   lastWorldPosition: Point;
   activated: boolean;
 }
@@ -161,14 +163,12 @@ export function isRouteInputState(state: ShipModel['state']): boolean {
 export class RouteInputController {
   readonly #viewport: SquareWorldViewport;
   readonly #sampling: RouteSamplingConfig;
-  readonly #processing: SimplifyConfig | undefined;
   readonly #hitTest: (worldPoint: Point, worldToCssPixelScale: number) => ShipModel | null;
   #active: ActiveRouteInteraction | null = null;
 
   public constructor(options: RouteInputControllerOptions) {
     this.#viewport = options.viewport;
     this.#sampling = assertSamplingConfig(options.sampling);
-    this.#processing = options.processing;
     this.#hitTest = options.hitTest;
   }
 
@@ -188,8 +188,9 @@ export class RouteInputController {
     return Object.freeze({
       shipId: active.ship.id,
       pointerId: active.pointerId,
-      ...this.#draftGeometry(active),
+      points: copyPoints(active.points),
       start: Object.freeze({ ...active.routeStart }),
+      ...copyLiveTip(active),
     });
   }
 
@@ -208,7 +209,12 @@ export class RouteInputController {
     const active = this.#active;
     if (active === null || !active.activated) return;
     active.routeStart = { ...active.ship.position };
-    active.gestureWorldOrigin = { ...active.lastWorldPosition };
+    active.gestureWorldOrigin = { ...active.lastPointerWorldPosition };
+    active.routePointOffset = {
+      x: active.routeStart.x - active.gestureWorldOrigin.x,
+      y: active.routeStart.y - active.gestureWorldOrigin.y,
+    };
+    active.lastWorldPosition = { ...active.routeStart };
     active.points.splice(0);
   }
 
@@ -231,8 +237,13 @@ export class RouteInputController {
       initialCssPosition: { ...input.cssPosition },
       gestureWorldOrigin: { ...worldPoint },
       routeStart: { ...ship.position },
+      routePointOffset: {
+        x: ship.position.x - worldPoint.x,
+        y: ship.position.y - worldPoint.y,
+      },
       points: [],
-      lastWorldPosition: { ...worldPoint },
+      lastPointerWorldPosition: { ...worldPoint },
+      lastWorldPosition: { ...ship.position },
       activated: false,
     };
     return { kind: 'started', shipId: ship.id };
@@ -245,11 +256,11 @@ export class RouteInputController {
     const worldPoint = this.#toWorld(input);
     if (worldPoint === null) return this.#finishAtWorldBoundary(input);
     if (!this.#activateIfThresholdReached(input)) {
-      if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
+      this.#recordPointerWorldPosition(worldPoint);
       return { kind: 'ignored' };
     }
-    if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
-    if (!this.#sample(worldPoint)) return { kind: 'ignored' };
+    const routePoint = this.#recordPointerWorldPosition(worldPoint);
+    if (routePoint === null || !this.#sample(routePoint)) return { kind: 'ignored' };
     return { kind: 'updated', pointCount: this.#active?.points.length ?? 0 };
   }
 
@@ -262,8 +273,8 @@ export class RouteInputController {
     if (!this.#activateIfThresholdReached(input)) {
       return this.#tap();
     }
-    if (this.#active !== null) this.#active.lastWorldPosition = { ...worldPoint };
-    this.#sample(worldPoint);
+    const routePoint = this.#recordPointerWorldPosition(worldPoint);
+    if (routePoint !== null) this.#sample(routePoint);
     return this.#finish();
   }
 
@@ -286,26 +297,30 @@ export class RouteInputController {
       return false;
     }
     active.routeStart = { ...active.ship.position };
+    active.routePointOffset = {
+      x: active.routeStart.x - active.gestureWorldOrigin.x,
+      y: active.routeStart.y - active.gestureWorldOrigin.y,
+    };
+    active.lastWorldPosition = this.#routePoint(active.lastPointerWorldPosition);
     active.points.splice(0);
     active.activated = true;
     return true;
   }
 
-  #draftGeometry(active: ActiveRouteInteraction): {
-    readonly points: readonly Point[];
-    readonly tip?: Point;
-  } {
-    const tip = copyLiveTip(active);
-    if (this.#processing === undefined) {
-      return { points: copyPoints(active.points), ...tip };
-    }
+  #routePoint(pointerWorldPosition: Point): Point {
+    const offset = this.#active?.routePointOffset ?? { x: 0, y: 0 };
     return {
-      points: copyPoints(simplifyRouteDraft({
-        points: active.points,
-        start: active.gestureWorldOrigin,
-        ...tip,
-      }, this.#processing)),
+      x: pointerWorldPosition.x + offset.x,
+      y: pointerWorldPosition.y + offset.y,
     };
+  }
+
+  #recordPointerWorldPosition(pointerWorldPosition: Point): Point | null {
+    const active = this.#active;
+    if (active === null) return null;
+    active.lastPointerWorldPosition = { ...pointerWorldPosition };
+    active.lastWorldPosition = this.#routePoint(pointerWorldPosition);
+    return active.lastWorldPosition;
   }
 
   #sample(point: Point): boolean {
@@ -337,7 +352,8 @@ export class RouteInputController {
       draft: Object.freeze({
         shipId: active.ship.id,
         start: Object.freeze({ ...active.routeStart }),
-        ...this.#draftGeometry(active),
+        points: copyPoints(active.points),
+        ...copyLiveTip(active),
       }),
     };
   }
@@ -366,7 +382,7 @@ export class RouteInputController {
     }
     const boundaryPoint = this.#worldBoundaryIntersection(
       active.lastWorldPosition,
-      this.#toUnboundedWorld(input),
+      this.#routePoint(this.#toUnboundedWorld(input)),
     );
     if (boundaryPoint !== null) {
       active.lastWorldPosition = boundaryPoint;
