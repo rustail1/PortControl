@@ -23,12 +23,13 @@ async function setup(type = 'freighter') {
     navigation: new routes.NavigationValidator([]),
     config: routes.createRouteProcessingConfig(bundle),
   });
-  return { ship, service };
+  return { routes, ship, service };
 }
 
-test('COR-12 canonical route locally rounds a drawn 90 degree corner without overshoot', async () => {
+test('COR-12 canonical route preserves an authored 90 degree corner exactly', async () => {
   const { ship, service } = await setup();
   const start = { x: 0, y: 0 };
+  const corner = { x: 100, y: 0 };
   const endpoint = { x: 100, y: 140 };
 
   assert.equal(service.commit({
@@ -36,27 +37,20 @@ test('COR-12 canonical route locally rounds a drawn 90 degree corner without ove
     draft: {
       shipId: ship.id,
       start,
-      points: [{ x: 100, y: 0 }, endpoint],
+      points: [corner, endpoint],
     },
   }).kind, 'committed');
 
   const route = ship.route.toSnapshot();
   assert.deepEqual(route.start, start);
-  assert.deepEqual(route.points.at(-1), endpoint, 'canonical route must preserve authored endpoint');
-  assert.ok(route.points.length > 2, '90 degree corner must expand into local canonical curve samples');
-  assert.ok(!route.points.some(point => point.x === 100 && point.y === 0),
-    'raw square vertex must not remain as a hard corner in canonical geometry');
-  assert.ok(route.points.some(point => point.x < 100 && point.y > 0),
-    'rounded corner must contain an interior transition sample');
-  assert.ok(route.points.every(point =>
-    point.x >= -1e-9 && point.x <= 100 + 1e-9 &&
-    point.y >= -1e-9 && point.y <= 140 + 1e-9),
-  'local smoothing must stay inside the authored corner bounds instead of globally overshooting');
+  assert.deepEqual(route.points, [corner, endpoint],
+    'commit must not round, replace or insert geometry around an authored corner');
 });
 
-test('COR-12 near reverse draw becomes a compact deterministic turnaround instead of a raw cusp', async () => {
+test('COR-12 exact reverse draw remains the exact authored out-and-back polyline', async () => {
   const { ship, service } = await setup('speedboat');
   const start = { x: 0, y: 0 };
+  const turn = { x: 100, y: 0 };
   const endpoint = { x: 0, y: 0 };
 
   assert.equal(service.commit({
@@ -64,17 +58,30 @@ test('COR-12 near reverse draw becomes a compact deterministic turnaround instea
     draft: {
       shipId: ship.id,
       start,
-      points: [{ x: 100, y: 0 }, endpoint],
+      points: [turn, endpoint],
     },
   }).kind, 'committed');
 
   const route = ship.route.toSnapshot();
   assert.deepEqual(route.start, start);
-  assert.deepEqual(route.points.at(-1), endpoint, 'turnaround must preserve authored endpoint');
-  assert.ok(route.points.length > 2, 'turnaround must have explicit canonical geometry');
-  assert.ok(route.points.some(point => Math.abs(point.y) > 1),
-    'exact reverse must use a compact hairpin instead of retracing one raw line through a cusp');
-  assert.ok(route.points.every(point =>
-    point.x >= -1e-9 && point.x <= 110 && Math.abs(point.y) <= 40),
-  'turnaround must remain compact and local to the authored reverse');
+  assert.deepEqual(route.points, [turn, endpoint],
+    'reverse input must not be replaced by a generated hairpin');
+});
+
+test('COR-12 canonicalization removes only consecutive zero-length samples', async () => {
+  const { routes } = await setup();
+  const start = { x: 0, y: 0 };
+  const authored = [
+    { x: 0, y: 0 },
+    { x: 30, y: 0 },
+    { x: 30, y: 0 },
+    { x: 60, y: 20 },
+    { x: 30, y: 0 },
+  ];
+
+  assert.deepEqual(routes.canonicalizeRoute(start, authored), [
+    { x: 30, y: 0 },
+    { x: 60, y: 20 },
+    { x: 30, y: 0 },
+  ]);
 });
