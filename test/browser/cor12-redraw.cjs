@@ -102,7 +102,7 @@ async function main() {
     await advance(600);
     const afterMovement = (await snapshot()).ships.find(ship => ship.id === shipId).position;
     assert.ok(Math.hypot(afterMovement.x - beforeMovement.x, afterMovement.y - beforeMovement.y) > 20,
-      'vessel must continue the old route while pointer is held');
+      'vessel must continue moving while activated live redraw is held');
     await page.screenshot({ path: path.join(artifacts, 'redraw.png') });
     const readVisible = () => page.evaluate(shipId => {
       const objects = globalThis.__REDRAW_SCENE__.children.list;
@@ -145,17 +145,17 @@ async function main() {
       assert.ok(perpendicularDistance <= 0.5,
         `straight swipe must not retain a geometric corner: ${JSON.stringify({ visible, point, perpendicularDistance })}`);
     }
-    assert.deepEqual((await snapshot()).ships.find(ship => ship.id === shipId).route, oldRoute);
+    const activeRoute = (await snapshot()).ships.find(ship => ship.id === shipId).route;
+    assert.ok(activeRoute, 'activated redraw must install a live replacement route while pointer is held');
+    assert.notDeepEqual(activeRoute, oldRoute, 'activated redraw must stop navigating the old committed route');
+    assert.deepEqual(activeRoute.points.at(-1), straightTip,
+      'active live replacement route must end at the visible drawn tip');
     await page.keyboard.press('Escape');
     await page.mouse.up();
     await advance(20);
-    await page.waitForFunction(({ shipId, previousRoute }) => {
-      const route = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
-        .find(ship => ship.id === shipId)?.route;
-      return route !== null && JSON.stringify(route) !== JSON.stringify(previousRoute);
-    }, { shipId, previousRoute: oldRoute }, { timeout: 5000 });
     const sealed = (await snapshot()).ships.find(ship => ship.id === shipId).route;
     assert.ok(sealed, 'Escape after an activated redraw must keep the sealed replacement route');
+    assert.deepEqual(sealed, activeRoute, 'Escape after an activated redraw must preserve the active live route');
     assert.notDeepEqual(sealed, oldRoute, 'Escape after an activated redraw must not roll back to old route');
     assert.deepEqual(sealed.points.at(-1), straightTip, 'sealed redraw must end at the visible drawn tip');
     state = await snapshot();
