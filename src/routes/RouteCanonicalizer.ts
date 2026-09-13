@@ -8,39 +8,16 @@ const MAX_CORNER_TRIM = 24;
 const HAIRPIN_WIDTH_FRACTION = 0.6;
 const POINT_EPSILON = 1e-9;
 
-function distance(point: Point, start: Point, end: Point): number {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  if (dx === 0 && dy === 0) return Math.hypot(point.x - start.x, point.y - start.y);
-  const t = Math.max(0, Math.min(1,
-    ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy),
-  ));
-  return Math.hypot(point.x - start.x - dx * t, point.y - start.y - dy * t);
-}
-
 function stableControls(
   start: Point,
   points: readonly Point[],
-  epsilon: number,
 ): readonly Point[] {
-  if (points.length === 0) return [start];
-  const raw = [start, ...points];
-  if (raw.length <= 2) return raw;
-  const controls: Point[] = [start];
-  for (let index = 1; index < raw.length - 1; index += 1) {
+  const controls: Point[] = [{ ...start }];
+  for (const point of points) {
     const previous = controls.at(-1)!;
-    const current = raw[index]!;
-    const next = raw[index + 1]!;
-    const incoming = { x: current.x - previous.x, y: current.y - previous.y };
-    const outgoing = { x: next.x - current.x, y: next.y - current.y };
-    const incomingLength = Math.hypot(incoming.x, incoming.y);
-    const outgoingLength = Math.hypot(outgoing.x, outgoing.y);
-    if (incomingLength <= POINT_EPSILON || outgoingLength <= POINT_EPSILON) continue;
-    const dot = incoming.x * outgoing.x + incoming.y * outgoing.y;
-    if (dot >= 0 && distance(current, previous, next) <= epsilon) continue;
-    controls.push(current);
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) <= POINT_EPSILON) continue;
+    controls.push({ ...point });
   }
-  controls.push(raw.at(-1)!);
   return controls;
 }
 
@@ -71,16 +48,17 @@ function cubic(a: Point, c1: Point, c2: Point, b: Point, t: number): Point {
 
 /**
  * Produces the single canonical route geometry used by validation, rendering and movement.
- * Decisions for a sealed corner depend only on its immediate neighbours, so extending the
- * live tail cannot make an earlier corner breathe. Ordinary corners stay inside their local
- * convex hull; near-reversals use a deterministic compact hairpin instead of a raw cusp.
+ * Canonicalization never performs route simplification: authored/sample anchors are preserved
+ * so validation can still return the exact safe prefix. Only duplicate points are removed.
+ * Ordinary corners stay inside their local convex hull; near-reversals use a deterministic
+ * compact hairpin instead of a raw cusp.
  */
 export function canonicalizeRoute(
   start: Point,
   points: readonly Point[],
   config: SimplifyConfig,
 ): readonly Point[] {
-  const controls = stableControls(start, points, config.simplifyEpsilon);
+  const controls = stableControls(start, points);
   if (controls.length <= 1) return Object.freeze([]);
   if (controls.length === 2) {
     return Object.freeze([Object.freeze({ ...controls[1]! })]);
