@@ -163,8 +163,22 @@ async function main() {
     await page.mouse.up();
     await advance(20);
     const committed = (await snapshot()).ships.find(ship => ship.id === shipId).route;
-    assert.deepEqual(committed.points, [{ x: start.x, y: start.y - 140 }]);
+    const committedTip = { x: start.x, y: start.y - 140 };
+    assert.ok(committed.points.length >= 1, 'committed straight redraw must contain a route point');
+    assert.deepEqual(committed.points.at(-1), committedTip, 'committed route must end at the drawn tip');
     assert.deepEqual(committed.start, release, 'commit must originate at release, not pointerdown');
+    const committedDx = committedTip.x - committed.start.x;
+    const committedDy = committedTip.y - committed.start.y;
+    const committedLength = Math.hypot(committedDx, committedDy);
+    assert.ok(committedLength > 0, 'committed straight redraw must have non-zero length');
+    for (const point of committed.points.slice(0, -1)) {
+      const perpendicularDistance = Math.abs(
+        committedDx * (point.y - committed.start.y) -
+        committedDy * (point.x - committed.start.x),
+      ) / committedLength;
+      assert.ok(perpendicularDistance <= 0.5,
+        `committed straight redraw must not retain a geometric corner: ${JSON.stringify({ committed, point, perpendicularDistance })}`);
+    }
     const angleError = pose => Math.abs(((pose.bodyHeading - pose.targetHeading) % 360 + 540) % 360 - 180);
     assert.ok(angleError(await readVisible()) > 10, 'body must not snap through the entire turn at commit');
     await advance(600);
