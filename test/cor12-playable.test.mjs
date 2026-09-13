@@ -462,7 +462,7 @@ test('COR-12 #29 full calm_01 integration result is Completed', async () => {
 
 test('COR-12 #30 completion score and stars are frozen GameSession result values', async () => {
   const { s, bundle } = await setup();
-  const runtime = runCalm01ToCompletion(s, bundle, 10101);
+  const runtime = runCalm01ToCompletion(s, bundle, 9999);
   const result = runtime.presentationSnapshot().result;
   assert.equal(result?.kind, 'completed');
   assert.equal(runtime.presentationSnapshot().score, result?.score);
