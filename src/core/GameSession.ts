@@ -1,5 +1,6 @@
 import type { ConfigBundle } from '../config/types.ts';
 import type { TerminalCollision } from '../collision/CollisionSystem.ts';
+import type { GroundingTerminalCandidate } from './TerminalFailureArbitrator.ts';
 import type { CargoUnloadFact } from '../docks/CargoSystem.ts';
 import type { ExitedShipFact } from '../exits/ExitSystem.ts';
 import type { CargoManifest } from '../ships/ShipModel.ts';
@@ -20,12 +21,10 @@ import {
   type WrongDockAttemptFact,
 } from '../objectives/index.ts';
 import { SessionState, type SessionState as SessionStateValue } from './SessionState.ts';
+import { SimulationScheduler, type SimulationPorts } from './SimulationScheduler.ts';
+import type { SimulationStepResult } from './SimulationStepResult.ts';
 
-export interface GroundingTerminalCandidate {
-  readonly shipId: string;
-  readonly failReason: 'grounding';
-  readonly details?: Readonly<Record<string, unknown>>;
-}
+export type { GroundingTerminalCandidate } from './TerminalFailureArbitrator.ts';
 
 export interface SessionStepInput {
   readonly deltaSeconds: number;
@@ -196,8 +195,9 @@ export class GameSession {
   readonly #attemptSeed: number;
   readonly #objective: ObjectiveSystem;
   readonly #stars: StarEvaluator;
-  readonly #metrics = new SessionMetrics();
+  readonly #metrics: SessionMetrics;
   readonly #score: ScoreService;
+  readonly #scheduler = new SimulationScheduler();
   #simulationTime = 0;
   #state: SessionStateValue = SessionState.Active;
   #result: SessionResult | null = null;
@@ -207,7 +207,13 @@ export class GameSession {
     assertAttemptSeed(options.attemptSeed);
     this.#attemptSeed = options.attemptSeed;
     this.#objective = new ObjectiveSystem(parseObjectiveDefinition(options.level));
-    this.#stars = new StarEvaluator(parseStarConditions(options.level));
+    const starConditions = parseStarConditions(options.level);
+    this.#stars = new StarEvaluator(starConditions);
+    this.#metrics = new SessionMetrics({
+      serviceTimeThresholds: starConditions
+        .filter((condition) => condition.type === 'service_ships_under_time')
+        .map((condition) => condition.maxSeconds),
+    });
     this.#score = new ScoreService(options.scoreConfig);
   }
 
@@ -243,6 +249,15 @@ export class GameSession {
     return this.#metrics.toSnapshot();
   }
 
+
+  public runSimulationStep<TCollision, TGrounding, TDocking, TCargo, TExit>(
+    deltaSeconds: number,
+    ports: SimulationPorts<TCollision, TGrounding, TDocking, TCargo, TExit>,
+  ): SimulationStepResult<TCollision, TDocking, TCargo, TExit> | null {
+    if (this.#state !== SessionState.Active) return null;
+    return this.#scheduler.step(deltaSeconds, ports);
+  }
+
   public registerSpawnedShip(input: {
     readonly shipId: string;
     readonly shipType: string;
@@ -252,6 +267,10 @@ export class GameSession {
       return;
     }
     this.#metrics.registerSpawnedShip(input);
+  }
+
+  public forgetShip(shipId: string): void {
+    this.#metrics.forgetShip(shipId);
   }
 
   public step(input: SessionStepInput): SessionResult | null {

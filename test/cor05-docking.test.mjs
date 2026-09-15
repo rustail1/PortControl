@@ -15,7 +15,7 @@ async function subject() {
 
 function definition(id, x, y, dockAngle = 0) {
   return {
-    id, position: { x, y }, rotationDeg: dockAngle, dockAngle, snapRadius: 20,
+    id, position: { x, y }, rotationDeg: dockAngle, dockAngle, approachRadius: 20,
     acceptedCargoTypes: ['general'], helperFlag: false, visualVariant: 'dock_general',
   };
 }
@@ -27,7 +27,7 @@ async function setup(definitions = [definition('dock_a', 10, 0)]) {
   const dockSystem = new s.DockSystem();
   const controller = new s.DockingController({ docks, dockSystem, config: s.createDockingConfig(bundle) });
   const characteristics = s.createShipCharacteristicsRegistry(bundle).require('speedboat');
-  const ship = (id, x = 0, y = 0, rotationDeg = 0) => new s.ShipModel({
+  const ship = (id, x = 30, y = 0, rotationDeg = 0) => new s.ShipModel({
     id, characteristics, position: { x, y }, rotationDeg, state: s.ShipState.Navigating,
     cargo: { general: 1 },
   });
@@ -38,20 +38,24 @@ function candidate(ship, spawnSequence) {
   return { ship, spawnSequence };
 }
 
-test('docking config reads every COR-05 machine field from validated balance.json', async () => {
+test('docking config maps Frozen docking keys into the v1.8 runtime contract', async () => {
   const { s, bundle } = await setup();
   const config = s.createDockingConfig(bundle);
-  const docking = readBaselineSource().configs['balance.json'].docking;
-  assert.deepEqual(config, docking);
+  const frozen = readBaselineSource().configs['balance.json'].docking;
+  assert.deepEqual(config, {
+    reservationTieBreak: frozen.reservationTieBreak,
+    collisionEnabledDuringHarborAssist: frozen.collisionEnabledUntilSnapComplete,
+  });
+  assert.equal(config.baseSnapDurationMs, undefined);
+  assert.equal(config.collisionEnabledUntilSnapComplete, undefined);
 });
 
-test('only a compatible free ship inside snapRadius reserves and enters ApproachingDock', async () => {
+test('only a compatible free ship inside the dock approach radius reserves and enters ApproachingDock', async () => {
   const { controller, docks, ship, s } = await setup();
   const outside = ship('outside', -11);
-  const inside = ship('inside', 0);
-  const wrong = ship('wrong', 0);
-  wrong.setPositionXY(0, 0);
-  wrong.setState(s.ShipState.Navigating);
+  const inside = ship('inside', 30);
+  const wrong = ship('wrong', 30);
+  wrong.setPositionXY(30, 0);
   const wrongCargo = new s.ShipModel({ ...wrong.toSnapshot(), characteristics: wrong.characteristics, cargo: { oil: 1 } });
 
   controller.step([candidate(outside, 1)], 0);
@@ -78,7 +82,7 @@ test('busy compatible dock leaves the loser state and route unchanged', async ()
 
 test('snap starts once, blocks route input by state, and completes with exact pose and occupancy', async () => {
   const { controller, docks, ship, s } = await setup([definition('dock_a', 10, 0, 0)]);
-  const model = ship('ship', 0, 0, 359);
+  const model = ship('ship', 30, 0, 359);
   controller.step([candidate(model, 1)], 0);
   assert.equal(model.state, s.ShipState.ApproachingDock);
   assert.equal(s.isRouteInputState(model.state), false);
@@ -88,7 +92,7 @@ test('snap starts once, blocks route input by state, and completes with exact po
   assert.equal(controller.isShipCollidable(model), true);
   model.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }]));
   const snapStart = model.position;
-  new s.ShipMotor().stepRoute(model, 8, 1 / 60);
+  new s.ShipMotor().stepRoute(model, 1 / 60);
   assert.deepEqual(model.position, snapStart);
   const input = new s.RouteInputController({
     viewport: new s.SquareWorldViewport({ width: 1000, height: 1000 }),
@@ -115,13 +119,13 @@ test('snap starts once, blocks route input by state, and completes with exact po
 
 test('one ship nominates nearest dock, then lexical id on an equal-distance tie', async () => {
   const nearest = await setup([definition('dock_a', 10, 0), definition('dock_b', 5, 0)]);
-  const ship = nearest.ship('ship');
+  const ship = nearest.ship('ship', 22);
   nearest.controller.step([candidate(ship, 1)], 0);
   assert.equal(nearest.docks.require('dock_b').reservedBy, ship.id);
   assert.equal(nearest.docks.require('dock_a').reservedBy, null);
 
   const tied = await setup([definition('dock_z', -10, 0), definition('dock_a', 10, 0)]);
-  const tiedShip = tied.ship('ship');
+  const tiedShip = tied.ship('ship', 20);
   tied.controller.step([candidate(tiedShip, 1)], 0);
   assert.equal(tied.docks.require('dock_a').reservedBy, tiedShip.id);
   assert.equal(tied.docks.require('dock_z').reservedBy, null);
@@ -130,8 +134,8 @@ test('one ship nominates nearest dock, then lexical id on an equal-distance tie'
 test('arbitration is input-order independent and uses distance then spawnSequence', async () => {
   const run = async (shipOrder, dockOrder, equalDistance = false) => {
     const setupResult = await setup(dockOrder.map((id) => definition(id, 0, 0)));
-    const first = setupResult.ship('first', equalDistance ? 2 : 4);
-    const second = setupResult.ship('second', 2);
+    const first = setupResult.ship('first', equalDistance ? 18 : 16);
+    const second = setupResult.ship('second', equalDistance ? 22 : 18);
     const byId = { first, second };
     setupResult.controller.step(shipOrder.map((id) => candidate(byId[id], id === 'first' ? 4 : 9)), 0);
     return [...setupResult.docks.values()].map((dock) => [dock.id, dock.reservedBy]).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
@@ -145,8 +149,8 @@ test('arbitration is input-order independent and uses distance then spawnSequenc
 
 test('same-step loser does not fall back, but may nominate a newly free alternative next step', async () => {
   const { controller, docks, ship, s } = await setup([definition('dock_a', 0, 0), definition('dock_b', 10, 0)]);
-  const winner = ship('winner', 1);
-  const loser = ship('loser', 2);
+  const winner = ship('winner', 19);
+  const loser = ship('loser', 18);
   controller.step([candidate(loser, 9), candidate(winner, 1)], 0);
   assert.equal(docks.require('dock_a').reservedBy, winner.id);
   assert.equal(docks.require('dock_b').reservedBy, null);
@@ -160,7 +164,7 @@ test('Destroyed active snap cancels transaction and releases its reservation wit
   const model = ship('ship');
   controller.step([candidate(model, 1)], 0);
   controller.step([candidate(model, 1)], 0);
-  model.setState(s.ShipState.Destroyed);
+  model.destroy('collision');
   const result = controller.step([], 1 / 60);
   assert.deepEqual(result.cancelledShipIds, ['ship']);
   assert.equal(docks.require('dock_a').reservedBy, null);

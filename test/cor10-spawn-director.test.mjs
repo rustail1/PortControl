@@ -608,38 +608,39 @@ cases.push([57, 'safe retry after initial defer does not reroll ship or cargo', 
   assert.equal(retry.command.payload.shipType, before.shipType);
   assert.deepEqual(retry.command.payload.cargo, before.cargo);
 }]);
-cases.push([58, 'actual-ready point becoming unsafe returns retry and no approval', async () => {
+cases.push([58, 'committed ready spawn remains approved when geometry changes during warning lead', async () => {
   const { s, config, points, characteristics } = await setup();
   const director = makeDirector({ s, config, points: [points[0]], characteristics });
   const scheduled = director.step(makeInput());
   director.confirmScheduled(scheduled.command.transactionId, 0);
   const blocker = activeShip(s, characteristics, { x: points[0].x, y: points[0].y, state: s.ShipState.Leaving });
   const resolution = director.resolveReadySpawn(readyFrom(scheduled), makeInput({ activeShips: [blocker], owner: () => scheduled.command.transactionId }));
-  assert.equal(resolution.kind, 'retry');
+  assert.equal(resolution.kind, 'approved');
+  assert.equal(resolution.command.transactionId, scheduled.command.transactionId);
 }]);
-cases.push([59, 'actual retry preserves logical identity', async () => {
+cases.push([59, 'committed ready spawn preserves exact logical identity and placement', async () => {
   const { s, config, points, characteristics } = await setup();
   const director = makeDirector({ s, config, points, characteristics });
   const scheduled = director.step(makeInput());
   director.confirmScheduled(scheduled.command.transactionId, 0);
   const blocker = activeShip(s, characteristics, { x: scheduled.command.spawnPoint.x, y: scheduled.command.spawnPoint.y, state: s.ShipState.Leaving });
   const resolution = director.resolveReadySpawn(readyFrom(scheduled), makeInput({ activeShips: [blocker], owner: () => scheduled.command.transactionId }));
-  const retry = director.step(makeInput({ simulationTime: resolution.retryDueTime }));
-  assert.equal(retry.logicalSpawnId, scheduled.logicalSpawnId);
-  assert.equal(retry.command.payload.shipId, scheduled.command.payload.shipId);
-  assert.equal(retry.command.payload.spawnSequence, scheduled.command.payload.spawnSequence);
+  assert.equal(resolution.kind, 'approved');
+  assert.equal(resolution.logicalSpawnId, scheduled.logicalSpawnId);
+  assert.equal(resolution.command.payload.shipId, scheduled.command.payload.shipId);
+  assert.equal(resolution.command.payload.spawnSequence, scheduled.command.payload.spawnSequence);
+  assert.equal(resolution.command.spawnPointId, scheduled.command.spawnPoint.id);
 }]);
-cases.push([60, 'eventual safe retry can approve the same logical spawn', async () => {
+cases.push([60, 'committed warning remains approved when pressure gate closes during lead', async () => {
   const { s, config, points, characteristics } = await setup();
-  const director = makeDirector({ s, config, points, characteristics });
-  const first = director.step(makeInput());
-  director.confirmScheduled(first.command.transactionId, 0);
-  const blocker = activeShip(s, characteristics, { x: first.command.spawnPoint.x, y: first.command.spawnPoint.y, state: s.ShipState.Leaving });
-  const failed = director.resolveReadySpawn(readyFrom(first), makeInput({ activeShips: [blocker], owner: () => first.command.transactionId }));
-  const retry = director.step(makeInput({ simulationTime: failed.retryDueTime }));
-  director.confirmScheduled(retry.command.transactionId, failed.retryDueTime);
-  const approved = director.resolveReadySpawn(readyFrom(retry), makeInput({ simulationTime: failed.retryDueTime, owner: () => retry.command.transactionId }));
+  const custom = copyConfig(config, { level: { director: { maxAlive: 1, pressureCap: 1 } } });
+  const director = makeDirector({ s, config: custom, points, characteristics });
+  const scheduled = director.step(makeInput());
+  director.confirmScheduled(scheduled.command.transactionId, 0);
+  const blocker = activeShip(s, characteristics, { x: 500, y: 500, state: s.ShipState.Leaving });
+  const approved = director.resolveReadySpawn(readyFrom(scheduled), makeInput({ activeShips: [blocker], owner: () => scheduled.command.transactionId }));
   assert.equal(approved.kind, 'approved');
+  assert.equal(director.retryDueTime, null);
 }]);
 
 // 61-73 burst curve
@@ -744,7 +745,7 @@ cases.push([71, 'post-burst RNG order is jitter then breath then nextTarget', as
   makeDirector({ s, config: custom, points: [points[0]], characteristics, rng }).step(makeInput());
   assert.deepEqual(rng.trace, ['cargo', 'point', 'jitter', 'breath', 'nextTarget']);
 }]);
-cases.push([72, 'wave ordinal advances once per logical event and not on placement retry', async () => {
+cases.push([72, 'wave ordinal advances once when the committed warning is scheduled and not again at materialization', async () => {
   const { s, config, points, characteristics } = await setup();
   const custom = copyConfig(config, { level: { scriptedIntroShip: 'speedboat', director: { wave: { burstMin: 2, burstMax: 2 } } } });
   const director = makeDirector({ s, config: custom, points, characteristics });
@@ -752,9 +753,9 @@ cases.push([72, 'wave ordinal advances once per logical event and not on placeme
   director.confirmScheduled(first.command.transactionId, 0);
   assert.equal(director.burstOrdinal, 1);
   const blocker = activeShip(s, characteristics, { state: s.ShipState.Leaving, x: first.command.spawnPoint.x, y: first.command.spawnPoint.y });
-  const retry = director.resolveReadySpawn(readyFrom(first), makeInput({ activeShips: [blocker], owner: () => first.command.transactionId }));
-  const secondAttempt = director.step(makeInput({ simulationTime: retry.retryDueTime }));
-  director.confirmScheduled(secondAttempt.command.transactionId, retry.retryDueTime);
+  const approved = director.resolveReadySpawn(readyFrom(first), makeInput({ activeShips: [blocker], owner: () => first.command.transactionId }));
+  assert.equal(approved.kind, 'approved');
+  director.confirmMaterialized(first.logicalSpawnId);
   assert.equal(director.burstOrdinal, 1);
 }]);
 cases.push([73, 'next due time follows exact PA-01 formula from successful schedule time', async () => {
@@ -827,7 +828,7 @@ cases.push([78, 'no-safe initial point stops after ship/cargo and before point/j
   director.step(makeInput({ activeShips: [blocker] }));
   assert.deepEqual(rng.calls.map((call) => call.method), ['next']);
 }]);
-cases.push([79, 'actual placement retry does not reroll ship/cargo/jitter', async () => {
+cases.push([79, 'committed ready resolution consumes no additional RNG even if late geometry changed', async () => {
   const { s, config, points, characteristics } = await setup();
   const custom = copyConfig(config, { level: { scriptedIntroShip: 'speedboat', cargoTypes: ['general'], cargoGeneration: { mode: 'single', weights: { general: 1 }, multiCargoChance: 0 } } });
   const rng = countingRng(0);
@@ -836,9 +837,9 @@ cases.push([79, 'actual placement retry does not reroll ship/cargo/jitter', asyn
   director.confirmScheduled(first.command.transactionId, 0);
   const drawCount = rng.calls.length;
   const blocker = activeShip(s, characteristics, { state: s.ShipState.Leaving, x: first.command.spawnPoint.x, y: first.command.spawnPoint.y });
-  const retry = director.resolveReadySpawn(readyFrom(first), makeInput({ activeShips: [blocker], owner: () => first.command.transactionId }));
-  director.step(makeInput({ simulationTime: retry.retryDueTime }));
-  assert.equal(rng.calls.length, drawCount + 1);
+  const resolution = director.resolveReadySpawn(readyFrom(first), makeInput({ activeShips: [blocker], owner: () => first.command.transactionId }));
+  assert.equal(resolution.kind, 'approved');
+  assert.equal(rng.calls.length, drawCount);
 }]);
 
 // 80-87 determinism
@@ -1014,7 +1015,7 @@ cases.push([89, 'SpawnDirector production source does not embed forbidden baseli
   assert.doesNotMatch(source, /calm_01|spawn_l|spawn_r|spawn_b/);
   assert.doesNotMatch(source, /\b0\.45\b|\b0\.12\b|\b250\b/);
 }]);
-cases.push([90, 'IncomingSpawnSystem exposes read-only pending owner lookup used by actual recheck', async () => {
+cases.push([90, 'IncomingSpawnSystem exposes read-only pending owner lookup for pre-commit reservation', async () => {
   const { s, points } = await setup();
   const incoming = new s.IncomingSpawnSystem();
   assert.equal(incoming.getSpawnPointOwner(points[0].id), null);

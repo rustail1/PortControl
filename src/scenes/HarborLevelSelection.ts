@@ -1,4 +1,4 @@
-export const DEFAULT_HUMAN_FEEL_LEVEL_ID = 'calm_07';
+export const DEFAULT_HUMAN_FEEL_LEVEL_ID = 'calm_01';
 
 export function resolveDevelopmentLevelId(
   search: string,

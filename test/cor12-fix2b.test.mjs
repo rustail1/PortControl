@@ -58,14 +58,14 @@ async function createInputController() {
   return { subject, bundle, registry, ship, controller };
 }
 
-test('COR-12 FIX-2B level query resolves real configured IDs and falls back to calm_07', async () => {
+test('COR-12 FIX-2B level query resolves real configured IDs and falls back to calm_01', async () => {
   const subject = await loadSubject();
   const bundle = subject.validateConfigSource(readBaselineSource());
 
   assert.equal(subject.resolveDevelopmentLevelId('?level=calm_01', bundle.levels), 'calm_01');
   assert.equal(subject.resolveDevelopmentLevelId('?level=calm_07', bundle.levels), 'calm_07');
-  assert.equal(subject.resolveDevelopmentLevelId('', bundle.levels), 'calm_07');
-  assert.equal(subject.resolveDevelopmentLevelId('?level=missing', bundle.levels), 'calm_07');
+  assert.equal(subject.resolveDevelopmentLevelId('', bundle.levels), 'calm_01');
+  assert.equal(subject.resolveDevelopmentLevelId('?level=missing', bundle.levels), 'calm_01');
 });
 
 for (const [edge, inside, outside, expected] of [
@@ -111,7 +111,7 @@ test('COR-12 FIX-2B former close-waypoint orbit advances instead of circling for
   const motor = new subject.ShipMotor();
 
   for (let step = 0; step < 1200 && ship.routeCursor === 0; step += 1) {
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
   }
 
   assert.equal(ship.routeCursor, 1);
@@ -138,7 +138,7 @@ test('COR-12 FIX-2B route cursor makes monotonic progress through close polyline
   let previousCursor = 0;
 
   for (let step = 0; step < 1800 && ship.routeCursor < 4; step += 1) {
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
     assert.ok(ship.routeCursor >= previousCursor);
     previousCursor = ship.routeCursor;
   }
@@ -146,7 +146,7 @@ test('COR-12 FIX-2B route cursor makes monotonic progress through close polyline
   assert.equal(ship.routeCursor, 4);
 });
 
-test('COR-12 FIX-2B Navigating holds at canonical route exhaustion', async () => {
+test('COR-12 FIX-2B Navigating continues forward after canonical route exhaustion', async () => {
   const { subject, registry } = await createInputController();
   const ship = new subject.ShipModel({
     id: 'route-end-Navigating',
@@ -157,12 +157,13 @@ test('COR-12 FIX-2B Navigating holds at canonical route exhaustion', async () =>
     route: { points: [{ x: 200, y: 300 }] },
   });
   const motor = new subject.ShipMotor();
-  motor.stepRoute(ship, 8, 1 / 60);
+  motor.stepRoute(ship, 1 / 60);
   const routeEnd = ship.position;
-  motor.stepRoute(ship, 8, 0.5);
+  motor.stepRoute(ship, 0.5);
 
   assert.equal(ship.routeCursor, 1);
-  assert.deepEqual(ship.position, routeEnd);
+  assert.ok(Math.abs(ship.x - routeEnd.x) < 1e-9);
+  assert.ok(ship.y > routeEnd.y, 'navigating ship should continue along the last authored heading');
   assert.equal(ship.routeProgress, ship.route.totalLength);
 });
 
@@ -177,9 +178,9 @@ test('COR-12 FIX-2B Leaving continues forward after route exhaustion', async () 
     route: { points: [{ x: 200, y: 300 }] },
   });
   const motor = new subject.ShipMotor();
-  motor.stepRoute(ship, 8, 1 / 60);
+  motor.stepRoute(ship, 1 / 60);
   const beforeContinuation = ship.position;
-  motor.stepRoute(ship, 8, 0.5);
+  motor.stepRoute(ship, 0.5);
 
   assert.equal(ship.routeCursor, 1);
   assert.ok(Math.abs(ship.x - beforeContinuation.x) < 1e-9);
@@ -196,7 +197,7 @@ test('COR-12 FIX-2B ReadyToLeave remains stopped without an outbound route', asy
     state: subject.ShipState.ReadyToLeave,
   });
   const before = ship.toSnapshot();
-  new subject.ShipMotor().stepRoute(ship, 8, 2);
+  new subject.ShipMotor().stepRoute(ship, 2);
   assert.deepEqual(ship.toSnapshot(), before);
 });
 
@@ -222,7 +223,7 @@ test('COR-12 FIX-3B controlled loaded ship keeps moving through repeatable bound
   assert.equal(ship.route, null);
   const rejectedPosition = ship.position;
   const motor = new subject.ShipMotor();
-  motor.stepRoute(ship, 8, 0.25);
+  motor.stepRoute(ship, 0.25);
 
   assert.ok(Math.abs(
     Math.hypot(ship.x - rejectedPosition.x, ship.y - rejectedPosition.y) -
@@ -240,13 +241,13 @@ test('COR-12 FIX-3B controlled loaded ship keeps moving through repeatable bound
   const restored = subject.ShipModel.restore(ship.toSnapshot(), registry);
   for (let step = 0; step < 180 && restored.routeRecoveryHeadingDeg !== null; step += 1) {
     const before = restored.position;
-    motor.stepRoute(restored, 8, 1 / 60);
+    motor.stepRoute(restored, 1 / 60);
     assert.ok(Math.hypot(restored.x - before.x, restored.y - before.y) > 0);
   }
   assert.equal(restored.rotationDeg, recoveryTarget);
   assert.equal(restored.routeRecoveryHeadingDeg, null);
   const alignedX = restored.x;
-  motor.stepRoute(restored, 8, 1 / 60);
+  motor.stepRoute(restored, 1 / 60);
   assert.ok(restored.x > alignedX);
 
   restored.setPositionXY(500, 500);
@@ -279,10 +280,10 @@ test('COR-12 FIX-2B entering cargo ship can cross its spawn-side ExitZone into t
   });
 
   assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, []);
-  ship.setState(subject.ShipState.Navigating);
   ship.replaceRoute(new subject.ShipRoute([{ x: 800, y: 500 }]));
+  ship.beginNavigationFromRoute();
   assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, []);
-  new subject.ShipMotor().stepRoute(ship, 8, 0.5);
+  new subject.ShipMotor().stepRoute(ship, 0.5);
 
   assert.equal(ship.routeMotionHeld, false);
   assert.ok(ship.x < 980);
@@ -305,8 +306,8 @@ test('COR-12 FIX-2B entering cargo ship routed outward is recovered instead of e
     events: new subject.DomainEventQueue(),
   });
   assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, []);
-  ship.setState(subject.ShipState.Navigating);
   ship.replaceRoute(new subject.ShipRoute([{ x: 1000, y: 500 }]));
+  ship.beginNavigationFromRoute();
   ship.setRotationDeg(0);
 
   assert.deepEqual(exit.step([ship]).rejectedCargoShipIds, [ship.id]);
@@ -351,7 +352,7 @@ test('COR-12 FIX-3B untouched Entering returns once then neutral-despawns on its
   assert.equal(ship.routeRecoveryHeadingDeg, 0);
 
   const beforeArc = ship.position;
-  new subject.ShipMotor().stepRoute(ship, 8, 0.1);
+  new subject.ShipMotor().stepRoute(ship, 0.1);
   assert.ok(Math.hypot(ship.x - beforeArc.x, ship.y - beforeArc.y) > 0);
   ship.finishRouteRecovery();
   ship.setPositionXY(500, 500);
@@ -415,7 +416,7 @@ test('COR-12 FIX-3B loaded boundary return near a corner curves toward the world
   assert.ok(ship.routeRecoveryHeadingDeg > 90 && ship.routeRecoveryHeadingDeg < 180);
   const motor = new subject.ShipMotor();
   for (let step = 0; step < 600; step += 1) {
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
     exit.step([ship]);
   }
 
@@ -564,7 +565,7 @@ for (const shipType of ['speedboat', 'cargo_boat', 'freighter']) {
       let previousProgress = ship.routeProgress;
       for (let step = 0; step < 3600 && ship.routeCursor < points.length; step += 1) {
         const before = ship.position;
-        motor.stepRoute(ship, 8, 1 / 60);
+        motor.stepRoute(ship, 1 / 60);
         const distance = Math.hypot(ship.x - before.x, ship.y - before.y);
         assert.ok(distance <= ship.characteristics.speed / 60 + 1e-9);
         assert.ok(ship.routeProgress >= previousProgress);
@@ -587,11 +588,11 @@ test('COR-12 FIX-2B follower snapshot restore preserves monotonic segment origin
     route: { points: [{ x: 20, y: 34 }, { x: 55, y: 50 }] },
   });
   const motor = new subject.ShipMotor();
-  for (let step = 0; step < 20; step += 1) motor.stepRoute(original, 8, 1 / 60);
+  for (let step = 0; step < 20; step += 1) motor.stepRoute(original, 1 / 60);
   const restored = subject.ShipModel.restore(original.toSnapshot(), registry);
   for (let step = 0; step < 300; step += 1) {
-    motor.stepRoute(original, 8, 1 / 60);
-    motor.stepRoute(restored, 8, 1 / 60);
+    motor.stepRoute(original, 1 / 60);
+    motor.stepRoute(restored, 1 / 60);
   }
   assert.deepEqual(restored.toSnapshot(), original.toSnapshot());
 });
@@ -610,7 +611,7 @@ test('COR-12 FIX-2B close-route follower is equivalent at 30 60 and 120 render F
     const motor = new subject.ShipMotor();
     const clock = new subject.FixedStepClock({ fixedHz: 60, maxCatchUpSteps: 6 });
     for (let frame = 0; frame < fps * 3; frame += 1) {
-      clock.advance(1000 / fps, (dt) => motor.stepRoute(ship, 8, dt));
+      clock.advance(1000 / fps, (dt) => motor.stepRoute(ship, dt));
     }
     return ship.toSnapshot();
   };
@@ -620,8 +621,17 @@ test('COR-12 FIX-2B close-route follower is equivalent at 30 60 and 120 render F
 });
 
 test('COR-12 FIX-2B outbound edge route enters ExitZone and scores exactly once', async () => {
-  const { subject, bundle, ship, controller } = await createInputController();
-  ship.setState(subject.ShipState.ReadyToLeave);
+  const { subject, bundle, registry } = await createInputController();
+  const ship = new subject.ShipModel({
+    id: 'outbound-edge', characteristics: registry.require('speedboat'),
+    position: { x: 500, y: 500 }, rotationDeg: 0,
+    state: subject.ShipState.Leaving, cargo: {},
+  });
+  const controller = new subject.RouteInputController({
+    viewport: new subject.SquareWorldViewport({ width: 1000, height: 1000 }),
+    sampling: { sampleDistance: 8, maxRawPoints: 256 },
+    hitTest: () => ship,
+  });
   controller.pointerDown(pointer(500, 500));
   controller.pointerMove(pointer(600, 500));
   const finished = controller.pointerUp(pointer(1100, 500));
@@ -647,7 +657,7 @@ test('COR-12 FIX-2B outbound edge route enters ExitZone and scores exactly once'
   const motor = new subject.ShipMotor();
   let result;
   for (let step = 0; step < 600; step += 1) {
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
     result = exit.step([ship]);
     if (result.despawnedShipIds.length > 0) break;
   }

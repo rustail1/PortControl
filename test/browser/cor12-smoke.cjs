@@ -153,6 +153,29 @@ async function main() {
       throw new Error('Forced browser smoke failure for cleanup verification');
     }
 
+    await check('BROWSER-04A incoming warning shows entry-location double-pulse presentation before spawn', async () => {
+      const warningHandle = await page.waitForFunction(
+        () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incomingWarnings[0] ?? null,
+        null,
+        { timeout: 5000 },
+      );
+      const warning = await warningHandle.jsonValue();
+      assert.ok(warning);
+      assert.ok(['left', 'right', 'top', 'bottom'].includes(warning.side));
+      assert.ok([0, 90, 180, 270].includes(warning.arrowRotationDeg));
+      assert.ok(warning.alpha > 0 && warning.alpha <= 1);
+      assert.ok(warning.scale >= 0.9 && warning.scale <= 1.1);
+      assert.ok(warning.edgeAnchorRatio >= 0 && warning.edgeAnchorRatio <= 1);
+      assert.equal('shipType' in warning, false);
+      assert.equal('spawnPosition' in warning, false);
+      await page.waitForFunction(
+        (transactionId) => !globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incomingWarnings
+          .some((candidate) => candidate.transactionId === transactionId),
+        warning.transactionId,
+        { timeout: 2500 },
+      );
+    });
+
     await check('BROWSER-04 incoming vessel moves from fully offscreen toward its spawn', async () => {
       const beforeHandle = await page.waitForFunction(
         () => globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().incoming[0] ?? null,
@@ -475,7 +498,7 @@ async function main() {
       }
     });
 
-    await check('BROWSER-17 stable route, guided dock, cargo pips and short outbound complete once', async () => {
+    await check('BROWSER-17 stable route, guided dock, cargo pips and outbound complete once', async () => {
       await page.evaluate(() => window.dispatchEvent(new Event('blur')));
       const flowPage = await context.newPage();
       const flowErrors = [];
@@ -593,7 +616,7 @@ async function main() {
               Math.hypot(right.x - selected.position.x, right.y - selected.position.y))[0];
           const heading = ((body.rotation * 180 / Math.PI) % 360 + 360) % 360;
           return Math.abs(((heading - targetHeading + 540) % 360) - 180) < 5;
-        }, { shipId: ship.id, targetHeading: (dock.definition.dockAngle + 180) % 360 }).catch(async error => {
+        }, { shipId: ship.id, targetHeading: dock.definition.dockAngle }).catch(async error => {
           const evidence = await flowPage.evaluate((shipId) => {
             const selected = globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
               .find((candidate) => candidate.id === shipId);
@@ -666,7 +689,7 @@ async function main() {
         assert.equal(stillReady.state, 'ReadyToLeave');
         assert.deepEqual(stillReady.position, ready.position);
         const scoreBeforeExit = snapshot.score;
-        await dragWorldRoute(flowPage, ship.id, [{ x: dockX, y: ready.position.y + 60 }]);
+        await dragWorldRoute(flowPage, ship.id, [{ x: dockX, y: ready.position.y + 160 }]);
         await flowPage.waitForFunction((shipId) =>
           globalThis.__PORT_CONTROL_SMOKE__.getSnapshot().ships
             .find((candidate) => candidate.id === shipId)?.state === 'Leaving',

@@ -1,4 +1,4 @@
-import type { ShipPosition } from './ShipModel.ts';
+import type { ShipPosition } from '../shared/geometry/Point.ts';
 
 export interface ShipRouteSnapshot {
   readonly points: readonly ShipPosition[];

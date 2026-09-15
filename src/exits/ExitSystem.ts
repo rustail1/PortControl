@@ -1,5 +1,6 @@
+import type { LevelDefinition } from '../config/LevelDefinition.ts';
+import { RuntimeConfigRegistry } from '../config/RuntimeConfigRegistry.ts';
 import type { ConfigBundle } from '../config/types.ts';
-import type { DomainEventQueue } from '../core/DomainEventQueue.ts';
 import { ShipState, type ShipModel } from '../ships/index.ts';
 
 export interface ExitZoneDefinition {
@@ -33,6 +34,16 @@ export interface ExitStepResult {
   readonly exitedShipFacts: readonly ExitedShipFact[];
 }
 
+export interface ExitSystemSnapshot {
+  readonly pendingShipIds: readonly string[];
+  readonly done: readonly string[];
+  readonly insideCargo: readonly string[];
+  readonly enteringThroughExit: readonly string[];
+  readonly untouchedEnteredWorld: readonly string[];
+  readonly untouchedReturned: readonly string[];
+  readonly insideUntouchedBoundary: readonly string[];
+}
+
 type ExitBlock = {
   blockType?: string;
   enabled?: boolean;
@@ -59,11 +70,9 @@ interface ExitWorldBounds {
 }
 
 export function createExitZones(
-  level: Record<string, unknown>,
+  level: Pick<LevelDefinition, 'layout'>,
 ): readonly ExitZoneDefinition[] {
-  const blocks = (
-    (level.layout as { blocks?: unknown[] }).blocks ?? []
-  ) as ExitBlock[];
+  const blocks = level.layout.blocks as readonly ExitBlock[];
   return Object.freeze(
     blocks
       .filter(
@@ -84,17 +93,12 @@ export function createExitZones(
 }
 
 export function createExitScore(bundle: ConfigBundle): number {
-  return (
-    bundle.configs['balance.json'] as {
-      score: { shipExit: number };
-    }
-  ).score.shipExit;
+  return new RuntimeConfigRegistry(bundle).balance().score.shipExit;
 }
 
 export class ExitSystem {
   readonly #zones: readonly ExitZoneDefinition[];
   readonly #score: number;
-  readonly #events: DomainEventQueue<ExitDomainEvents>;
   readonly #worldBounds: ExitWorldBounds;
   readonly #pending = new Map<string, ShipModel>();
   readonly #done = new Set<string>();
@@ -109,7 +113,6 @@ export class ExitSystem {
     zones: readonly ExitZoneDefinition[];
     worldBounds: ExitWorldBounds;
     score: number;
-    events: DomainEventQueue<ExitDomainEvents>;
   }) {
     if (
       !Number.isFinite(options.worldBounds.width) ||
@@ -122,7 +125,57 @@ export class ExitSystem {
     this.#zones = options.zones;
     this.#worldBounds = Object.freeze({ ...options.worldBounds });
     this.#score = options.score;
-    this.#events = options.events;
+  }
+
+  public toSnapshot(): ExitSystemSnapshot {
+    return Object.freeze({
+      pendingShipIds: Object.freeze([...this.#pending.keys()]),
+      done: Object.freeze([...this.#done]),
+      insideCargo: Object.freeze([...this.#insideCargo]),
+      enteringThroughExit: Object.freeze([...this.#enteringThroughExit]),
+      untouchedEnteredWorld: Object.freeze([...this.#untouchedEnteredWorld]),
+      untouchedReturned: Object.freeze([...this.#untouchedReturned]),
+      insideUntouchedBoundary: Object.freeze([...this.#insideUntouchedBoundary]),
+    });
+  }
+
+  public restore(
+    snapshot: ExitSystemSnapshot,
+    resolveShip: (shipId: string) => ShipModel | null,
+  ): void {
+    this.#pending.clear();
+    this.#done.clear();
+    this.#insideCargo.clear();
+    this.#enteringThroughExit.clear();
+    this.#untouchedEnteredWorld.clear();
+    this.#untouchedReturned.clear();
+    this.#insideUntouchedBoundary.clear();
+    this.#seen.clear();
+
+    for (const id of snapshot.pendingShipIds) {
+      const ship = resolveShip(id);
+      if (ship === null) {
+        throw new RangeError(`exit snapshot references missing ship: ${id}`);
+      }
+      this.#pending.set(id, ship);
+    }
+    for (const id of snapshot.done) this.#done.add(id);
+    for (const id of snapshot.insideCargo) this.#insideCargo.add(id);
+    for (const id of snapshot.enteringThroughExit) this.#enteringThroughExit.add(id);
+    for (const id of snapshot.untouchedEnteredWorld) this.#untouchedEnteredWorld.add(id);
+    for (const id of snapshot.untouchedReturned) this.#untouchedReturned.add(id);
+    for (const id of snapshot.insideUntouchedBoundary) this.#insideUntouchedBoundary.add(id);
+  }
+
+  public forgetShip(shipId: string): void {
+    this.#pending.delete(shipId);
+    this.#done.delete(shipId);
+    this.#insideCargo.delete(shipId);
+    this.#enteringThroughExit.delete(shipId);
+    this.#untouchedEnteredWorld.delete(shipId);
+    this.#untouchedReturned.delete(shipId);
+    this.#insideUntouchedBoundary.delete(shipId);
+    this.#seen.delete(shipId);
   }
 
   public step(ships: readonly ShipModel[]): ExitStepResult {
@@ -171,7 +224,6 @@ export class ExitSystem {
         scoreDelta: this.#score,
       });
       result.exitedShipFacts.push(fact);
-      this.#events.emit('ship_exited', fact);
     }
   }
 
@@ -240,7 +292,7 @@ export class ExitSystem {
         return;
       }
       if (!this.#insideCargo.has(ship.id) || ship.route !== null) {
-        ship.setState(ShipState.Navigating);
+        ship.rejectExitWithCargo();
         ship.beginRouteRecovery(this.#returnHeadingDeg(ship));
         result.rejectedCargoShipIds.push(ship.id);
       }

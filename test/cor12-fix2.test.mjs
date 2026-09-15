@@ -273,7 +273,7 @@ test('COR-12 FIX-2 micro-drag cannot create a waypoint orbit', async () => {
   assert.equal(controller.pointerUp(pointer(111, 100)).kind, 'tapped');
   const motor = new subject.ShipMotor();
   for (let step = 0; step < 600; step += 1) {
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
   }
 
   assert.equal(ship.route, null);
@@ -304,7 +304,7 @@ test('COR-12 FIX-2 route-less Entering moves exactly speed times dt at cardinal 
       rotationDeg,
       state: subject.ShipState.Entering,
     });
-    motor.stepRoute(ship, 8, 0.5);
+    motor.stepRoute(ship, 0.5);
     assert.ok(Math.abs(ship.x - expected.x) < 1e-9);
     assert.ok(Math.abs(ship.y - expected.y) < 1e-9);
     assert.equal(ship.rotationDeg, rotationDeg);
@@ -328,7 +328,7 @@ test('COR-12 FIX-2 route-less Entering auto-motion is render-partition determini
     const motor = new subject.ShipMotor();
     const clock = new subject.FixedStepClock({ fixedHz: 60, maxCatchUpSteps: 6 });
     for (let frame = 0; frame < fps * 2; frame += 1) {
-      clock.advance(1000 / fps, (dt) => motor.stepRoute(ship, 8, dt));
+      clock.advance(1000 / fps, (dt) => motor.stepRoute(ship, dt));
     }
     assert.ok(Math.abs(ship.y - (975 - ship.characteristics.speed * 2)) < 1e-9);
     return ship.toSnapshot();
@@ -347,7 +347,7 @@ test('COR-12 FIX-2 route-less Entering auto-motion is render-partition determini
 test('COR-12 FIX-2 committed user route takes ownership after Entering auto-motion', async () => {
   const { subject, bundle, ship } = await createInputSubject('Entering');
   const motor = new subject.ShipMotor();
-  motor.stepRoute(ship, 8, 0.5);
+  motor.stepRoute(ship, 0.5);
   const afterAutomaticEntry = ship.position;
   assert.ok(Math.abs(afterAutomaticEntry.x - 175) < 1e-9);
   const config = subject.createRouteProcessingConfig(bundle);
@@ -364,7 +364,7 @@ test('COR-12 FIX-2 committed user route takes ownership after Entering auto-moti
     'committed',
   );
   assert.equal(ship.state, subject.ShipState.Navigating);
-  motor.stepRoute(ship, config.waypointTolerance, 0.5);
+  motor.stepRoute(ship, 0.5);
   assert.ok(ship.x > afterAutomaticEntry.x);
   assert.deepEqual(ship.route.toSnapshot(), {
     points: [{ x: afterAutomaticEntry.x + 100, y: afterAutomaticEntry.y }],
@@ -395,7 +395,7 @@ test('COR-12 FIX-2 ignored route-less Entering remains collision and grounding e
   );
 
   const previousPosition = ship.position;
-  new subject.ShipMotor().stepRoute(ship, 8, 1 / 60);
+  new subject.ShipMotor().stepRoute(ship, 1 / 60);
   assert.notDeepEqual(ship.position, previousPosition);
   const grounding = new subject.GroundingSystem({
     geometry: { blocksSegment: () => true },
@@ -404,9 +404,9 @@ test('COR-12 FIX-2 ignored route-less Entering remains collision and grounding e
   const groundingResult = grounding.resolve([
     { ship, spawnSequence: 0, previousPosition },
   ]);
-  assert.equal(groundingResult.terminalGrounding, null);
-  assert.deepEqual(groundingResult.avoidedShipIds, [ship.id]);
-  assert.notEqual(ship.routeRecoveryHeadingDeg, null);
+  assert.deepEqual(groundingResult.terminalGrounding, { shipId: ship.id, failReason: 'grounding' });
+  assert.deepEqual(groundingResult.avoidedShipIds, []);
+  assert.equal(ship.routeRecoveryHeadingDeg, null, 'GroundingSystem reports terminal facts without recovery mutation');
 });
 
 for (const shipType of ['speedboat', 'cargo_boat', 'freighter']) {
@@ -429,7 +429,7 @@ for (const shipType of ['speedboat', 'cargo_boat', 'freighter']) {
       });
       const motor = new subject.ShipMotor();
       for (let step = 0; step < 1200 && ship.routeCursor === 0; step += 1) {
-        motor.stepRoute(ship, 8, 1 / 60);
+        motor.stepRoute(ship, 1 / 60);
       }
 
       assert.equal(ship.routeCursor, 1);

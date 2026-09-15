@@ -1,16 +1,12 @@
+import { RuntimeConfigRegistry } from '../config/RuntimeConfigRegistry.ts';
 import type { ConfigBundle } from '../config/types.ts';
 
 export interface DockingConfig {
-  readonly baseSnapDurationMs: number;
   readonly reservationTieBreak: string;
-  readonly collisionEnabledUntilSnapComplete: boolean;
-}
-
-interface BalanceDocument {
-  readonly docking: DockingConfig;
+  readonly collisionEnabledDuringHarborAssist: boolean;
 }
 
 export function createDockingConfig(bundle: ConfigBundle): DockingConfig {
-  const balance = bundle.configs['balance.json'] as unknown as BalanceDocument;
-  return Object.freeze({ ...balance.docking });
+  const docking = new RuntimeConfigRegistry(bundle).balance().docking;
+  return Object.freeze({ ...docking });
 }

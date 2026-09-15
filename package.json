@@ -11,7 +11,9 @@
     "test": "npm run validate:configs && node --import tsx --test \"test/*.test.mjs\"",
     "test:browser": "node test/browser/cor12-smoke.cjs && node test/browser/cor12-redraw.cjs",
     "test:browser:redraw": "node test/browser/cor12-redraw.cjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "write:delivery-checksums": "node scripts/delivery-checksums.mjs --write",
+    "verify:delivery": "node scripts/delivery-checksums.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",

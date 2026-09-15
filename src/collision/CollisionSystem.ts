@@ -1,5 +1,5 @@
+import { RuntimeConfigRegistry } from '../config/RuntimeConfigRegistry.ts';
 import type { ConfigBundle } from '../config/types.ts';
-import type { DomainEventQueue } from '../core/DomainEventQueue.ts';
 import { ShipState, type ShipModel } from '../ships/index.ts';
 
 export interface CollisionConfig {
@@ -30,9 +30,23 @@ export interface TerminalCollision {
   readonly failReason: 'collision';
 }
 
+export interface DangerWarningFact { readonly shipAId: string; readonly shipBId: string; }
 export interface CollisionStepResult {
   readonly terminalCollision: TerminalCollision | null;
   readonly dangerWarningCount: number;
+  readonly dangerWarnings: readonly DangerWarningFact[];
+}
+
+export interface DangerPairSnapshotEntry {
+  readonly firstId: string;
+  readonly secondId: string;
+  readonly armed: boolean;
+  readonly outsideElapsedMs: number;
+}
+
+export interface CollisionSystemSnapshot {
+  readonly dangerPairs: readonly DangerPairSnapshotEntry[];
+  readonly terminal: TerminalCollision | null;
 }
 
 interface PairState {
@@ -102,6 +116,36 @@ export class DangerPairTracker {
     return false;
   }
 
+  public toSnapshot(): readonly DangerPairSnapshotEntry[] {
+    const entries: DangerPairSnapshotEntry[] = [];
+    for (const [firstId, seconds] of this.#pairs) {
+      for (const [secondId, state] of seconds) {
+        entries.push(Object.freeze({
+          firstId,
+          secondId,
+          armed: state.armed,
+          outsideElapsedMs: state.outsideElapsedMs,
+        }));
+      }
+    }
+    entries.sort(
+      (left, right) =>
+        left.firstId.localeCompare(right.firstId) ||
+        left.secondId.localeCompare(right.secondId),
+    );
+    return Object.freeze(entries);
+  }
+
+  public restore(entries: readonly DangerPairSnapshotEntry[]): void {
+    this.#pairs.clear();
+    for (const entry of entries) {
+      this.#set(entry.firstId, entry.secondId, {
+        armed: entry.armed,
+        outsideElapsedMs: entry.outsideElapsedMs,
+      });
+    }
+  }
+
   public forgetShip(shipId: string): void {
     this.#pairs.delete(shipId);
     for (const [firstId, seconds] of this.#pairs) {
@@ -138,16 +182,12 @@ export class DangerPairTracker {
 }
 
 export function createCollisionConfig(bundle: ConfigBundle): CollisionConfig {
-  const balance = bundle.configs['balance.json'] as {
-    readonly collision: { readonly warningRearmOutsideMs: number };
-  };
-  const warningRearmOutsideMs = balance.collision.warningRearmOutsideMs;
+  const warningRearmOutsideMs = new RuntimeConfigRegistry(bundle).balance().collision.warningRearmOutsideMs;
   assertNonNegativeFinite(warningRearmOutsideMs, 'warningRearmOutsideMs');
   return Object.freeze({ warningRearmOutsideMs });
 }
 
 export class CollisionSystem {
-  readonly #events: DomainEventQueue<CollisionDomainEvents>;
   readonly #config: CollisionConfig;
   readonly #dangerPairs = new DangerPairTracker();
   readonly #dangerFirst: CollisionShipCandidate[] = [];
@@ -157,11 +197,25 @@ export class CollisionSystem {
   #terminal: TerminalCollision | null = null;
 
   public constructor(options: {
-    readonly events: DomainEventQueue<CollisionDomainEvents>;
     readonly config: CollisionConfig;
   }) {
-    this.#events = options.events;
     this.#config = options.config;
+  }
+
+  public toSnapshot(): CollisionSystemSnapshot {
+    return Object.freeze({
+      dangerPairs: this.#dangerPairs.toSnapshot(),
+      terminal: this.#terminal === null
+        ? null
+        : Object.freeze({ ...this.#terminal }),
+    });
+  }
+
+  public restore(snapshot: CollisionSystemSnapshot): void {
+    this.#dangerPairs.restore(snapshot.dangerPairs);
+    this.#terminal = snapshot.terminal === null
+      ? null
+      : { ...snapshot.terminal };
   }
 
   public forgetShip(shipId: string): void {
@@ -174,7 +228,7 @@ export class CollisionSystem {
   ): CollisionStepResult {
     assertNonNegativeFinite(deltaSeconds, 'deltaSeconds');
     if (this.#terminal !== null) {
-      return { terminalCollision: null, dangerWarningCount: 0 };
+      return { terminalCollision: null, dangerWarningCount: 0, dangerWarnings: Object.freeze([]) };
     }
     this.#validateCandidates(candidates);
     this.#dangerFirst.length = 0;
@@ -261,22 +315,12 @@ export class CollisionSystem {
       this.#terminal = terminalCollision;
       this.#dangerFirst.length = 0;
       this.#dangerSecond.length = 0;
-      this.#events.emit('collision', {
-        shipAId: terminalCollision.shipAId,
-        shipBId: terminalCollision.shipBId,
-        failReason: 'collision',
-      });
-      return { terminalCollision, dangerWarningCount: 0 };
+      return { terminalCollision, dangerWarningCount: 0, dangerWarnings: Object.freeze([]) };
     }
 
     const dangerWarningCount = this.#dangerFirst.length;
-    for (let index = 0; index < dangerWarningCount; index += 1) {
-      this.#events.emit('danger_warning', {
-        shipAId: this.#dangerFirst[index].ship.id,
-        shipBId: this.#dangerSecond[index].ship.id,
-      });
-    }
-    return { terminalCollision: null, dangerWarningCount };
+    const dangerWarnings = Object.freeze(this.#dangerFirst.map((first, index) => Object.freeze({ shipAId: first.ship.id, shipBId: this.#dangerSecond[index]!.ship.id })));
+    return { terminalCollision: null, dangerWarningCount, dangerWarnings };
   }
 
   #validateCandidates(

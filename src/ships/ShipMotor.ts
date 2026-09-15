@@ -1,4 +1,4 @@
-import { normalizeRotationDeg, type ShipModel } from './ShipModel.ts';
+import { LandRecoveryMotion, normalizeRotationDeg, RouteTurnMode, type ShipModel } from './ShipModel.ts';
 import type { ShipRoute } from './ShipRoute.ts';
 import { ShipState } from './ShipState.ts';
 
@@ -13,19 +13,12 @@ interface UpcomingCorner {
 }
 
 const NORMAL_CORNER_MAX_DEG = 90;
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 const FULL_SPEED_HEADING_ERROR_DEG = 60;
 const MIN_CORNER_SLOWDOWN_DEG = 15;
+const ROUTE_HEADING_PIVOT_MIN_DEG = NORMAL_CORNER_MAX_DEG;
 const REVERSAL_PIVOT_MIN_DEG = 120;
-const PIVOT_RELEASE_ERROR_DEG = 60;
-=======
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
-=======
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
-=======
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
+const ROUTE_REORIENTATION_RELEASE_ERROR_DEG = NORMAL_CORNER_MAX_DEG;
+const REVERSAL_PIVOT_RELEASE_ERROR_DEG = 60;
 const EPSILON = 1e-7;
 
 function assertFinite(value: number, label: string): void {
@@ -55,13 +48,30 @@ export function moveAngleTowardsDeg(
   );
 }
 
+
+function moveAngleTowardsDirectedDeg(
+  rotationDeg: number,
+  desiredAngleDeg: number,
+  turnSign: -1 | 1,
+  maximumDeltaDeg: number,
+): number {
+  assertFinite(maximumDeltaDeg, 'maximumDeltaDeg');
+  if (maximumDeltaDeg < 0) {
+    throw new RangeError('maximumDeltaDeg must be non-negative');
+  }
+  const current = normalizeRotationDeg(rotationDeg);
+  const desired = normalizeRotationDeg(desiredAngleDeg);
+  const remaining = turnSign === 1
+    ? normalizeRotationDeg(desired - current)
+    : normalizeRotationDeg(current - desired);
+  if (remaining <= maximumDeltaDeg + EPSILON) return desired;
+  return normalizeRotationDeg(current + turnSign * maximumDeltaDeg);
+}
+
 function angleDeltaDeg(left: number, right: number): number {
   return Math.abs(((right - left + 540) % 360) - 180);
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 function alignmentSpeedScale(headingErrorDeg: number): number {
   if (headingErrorDeg <= FULL_SPEED_HEADING_ERROR_DEG) return 1;
   if (headingErrorDeg >= REVERSAL_PIVOT_MIN_DEG) return 0;
@@ -89,12 +99,6 @@ function brakingSpeedLimit(targetSpeed: number, acceleration: number, distance: 
   return Math.sqrt(Math.max(0, targetSpeed * targetSpeed + 2 * acceleration * distance));
 }
 
-=======
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
-=======
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
-=======
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
 function segmentHeadingDeg(route: ShipRoute, index: number): number | null {
   const start = route.segmentStartAt(index);
   const end = route.at(index);
@@ -133,13 +137,36 @@ function findUpcomingCorner(route: ShipRoute, progress: number): UpcomingCorner 
 
 function routeEndContinuesForward(ship: ShipModel, continueAfterRouteEnd: boolean): boolean {
   return continueAfterRouteEnd &&
-    (ship.state === ShipState.Entering || ship.state === ShipState.Leaving);
+    (ship.state === ShipState.Entering ||
+      ship.state === ShipState.Navigating ||
+      ship.state === ShipState.Leaving);
+}
+
+function stepRouteReorientation(
+  ship: ShipModel,
+  route: ShipRoute,
+  travelHeadingDeg: number,
+  deltaSeconds: number,
+): void {
+  ship.setRotationDeg(moveAngleTowardsDeg(
+    ship.rotationDeg,
+    travelHeadingDeg,
+    ship.characteristics.turnRateDeg * deltaSeconds,
+  ));
+  ship.setRouteSpeed(0);
+  const pivotProgress = ship.routePivotProgress;
+  if (pivotProgress === null) {
+    throw new Error('reorientation turn requires routePivotProgress');
+  }
+  ship.setPosition(route.pointAtDistance(pivotProgress));
+  if (angleDeltaDeg(ship.rotationDeg, travelHeadingDeg) <= ROUTE_REORIENTATION_RELEASE_ERROR_DEG + EPSILON) {
+    ship.finishRouteTurn();
+  }
 }
 
 export class ShipMotor {
   public stepRoute(
     ship: ShipModel,
-    waypointTolerance: number,
     deltaSeconds: number,
     continueAfterRouteEnd = true,
   ): void {
@@ -154,6 +181,30 @@ export class ShipMotor {
     if (route !== null && ship.routeMotionHeld) return;
 
     if (route === null) {
+      const landRecoveryHeading = ship.landRecoveryHeadingDeg;
+      if (landRecoveryHeading !== null) {
+        assertFinite(deltaSeconds, 'deltaSeconds');
+        if (deltaSeconds < 0) {
+          throw new RangeError('deltaSeconds must be non-negative');
+        }
+        const turnSign = ship.landRecoveryTurnSign;
+        const motion = ship.landRecoveryMotion;
+        if (turnSign === null || motion === null) {
+          throw new Error('land recovery requires heading, turn sign, and motion');
+        }
+        ship.setRotationDeg(moveAngleTowardsDirectedDeg(
+          ship.rotationDeg,
+          landRecoveryHeading,
+          turnSign,
+          ship.characteristics.turnRateDeg * deltaSeconds,
+        ));
+        if (motion === LandRecoveryMotion.Pivot) {
+          ship.setRouteSpeed(0);
+          return;
+        }
+        this.#stepForwardDistance(ship, ship.routeSpeed * deltaSeconds);
+        return;
+      }
       const recoveryHeading = ship.routeRecoveryHeadingDeg;
       if (recoveryHeading !== null) {
         assertFinite(deltaSeconds, 'deltaSeconds');
@@ -177,7 +228,13 @@ export class ShipMotor {
           ship.state === ShipState.Navigating ||
           ship.state === ShipState.Leaving)
       ) {
-        this.#stepForward(ship, deltaSeconds);
+        const nextSpeed = moveTowards(
+          ship.routeSpeed,
+          ship.characteristics.speed,
+          routeAcceleration(ship) * deltaSeconds,
+        );
+        ship.setRouteSpeed(nextSpeed);
+        this.#stepForwardDistance(ship, nextSpeed * deltaSeconds);
       }
       return;
     }
@@ -186,15 +243,15 @@ export class ShipMotor {
     if (deltaSeconds < 0) {
       throw new RangeError('deltaSeconds must be non-negative');
     }
-    assertFinite(waypointTolerance, 'waypointTolerance');
-    if (waypointTolerance < 0) {
-      throw new RangeError('waypointTolerance must be non-negative');
-    }
-
     if (ship.routeProgress >= route.totalLength) {
       if (routeEndContinuesForward(ship, continueAfterRouteEnd)) {
-        ship.setRouteSpeed(ship.characteristics.speed);
-        this.#stepForward(ship, deltaSeconds);
+        const nextSpeed = moveTowards(
+          ship.routeSpeed,
+          ship.characteristics.speed,
+          routeAcceleration(ship) * deltaSeconds,
+        );
+        ship.setRouteSpeed(nextSpeed);
+        this.#stepForwardDistance(ship, nextSpeed * deltaSeconds);
       } else {
         ship.setRouteSpeed(0);
       }
@@ -205,24 +262,31 @@ export class ShipMotor {
     if (travelHeadingDeg === null) return;
 
     if (ship.routePivotProgress !== null) {
+      const turnMode = ship.routeTurnMode;
+      if (turnMode === null) {
+        throw new Error('route turn requires an explicit routeTurnMode');
+      }
+      if (turnMode === RouteTurnMode.Reorientation) {
+        stepRouteReorientation(ship, route, travelHeadingDeg, deltaSeconds);
+        return;
+      }
+
+      ship.setRotationDeg(moveAngleTowardsDeg(
+        ship.rotationDeg,
+        travelHeadingDeg,
+        ship.characteristics.turnRateDeg * deltaSeconds,
+      ));
       const pivotPosition = route.pointAtDistance(ship.routePivotProgress);
       ship.setPosition(pivotPosition);
       ship.setRouteSpeed(0);
-      ship.setRotationDeg(moveAngleTowardsDeg(
-        ship.rotationDeg,
-        travelHeadingDeg,
-        ship.characteristics.turnRateDeg * deltaSeconds,
-      ));
-      if (angleDeltaDeg(ship.rotationDeg, travelHeadingDeg) > PIVOT_RELEASE_ERROR_DEG) return;
-      ship.finishRoutePivot();
+      if (angleDeltaDeg(ship.rotationDeg, travelHeadingDeg) > REVERSAL_PIVOT_RELEASE_ERROR_DEG) return;
+      ship.finishRouteTurn();
       return;
-    } else if (angleDeltaDeg(ship.rotationDeg, travelHeadingDeg) >= REVERSAL_PIVOT_MIN_DEG) {
-      ship.beginRoutePivot(ship.routeProgress);
-      ship.setRotationDeg(moveAngleTowardsDeg(
-        ship.rotationDeg,
-        travelHeadingDeg,
-        ship.characteristics.turnRateDeg * deltaSeconds,
-      ));
+    // More than 90 degrees puts the authored tangent behind the hull's forward
+    // half-plane. Reorient in place until forward exact-polyline motion is honest.
+    } else if (angleDeltaDeg(ship.rotationDeg, travelHeadingDeg) > ROUTE_HEADING_PIVOT_MIN_DEG + EPSILON) {
+      ship.beginRouteTurn(RouteTurnMode.Reorientation, ship.routeProgress);
+      stepRouteReorientation(ship, route, travelHeadingDeg, deltaSeconds);
       return;
     }
 
@@ -237,9 +301,6 @@ export class ShipMotor {
       ship.characteristics.turnRateDeg * deltaSeconds,
     ));
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
     const travelHeadingErrorDeg = angleDeltaDeg(ship.rotationDeg, travelHeadingDeg);
     const acceleration = routeAcceleration(ship);
     let targetSpeed = ship.characteristics.speed * alignmentSpeedScale(travelHeadingErrorDeg);
@@ -265,34 +326,6 @@ export class ShipMotor {
     );
     ship.setRouteSpeed(nextSpeed);
     const maximumDistance = nextSpeed * deltaSeconds;
-=======
-    // Translation always belongs to the canonical route. Never advance while that
-    // route lies behind the bow: the ship turns in place instead of visually sailing
-    // backwards. Normal <=90-degree bends retain configured cruise speed.
-    const travelHeadingErrorDeg = angleDeltaDeg(ship.rotationDeg, travelHeadingDeg);
-=======
-    // Translation always belongs to the canonical route. Never advance while that
-    // route lies behind the bow: the ship turns in place instead of visually sailing
-    // backwards. Normal <=90-degree bends retain configured cruise speed.
-    const travelHeadingErrorDeg = angleDeltaDeg(ship.rotationDeg, travelHeadingDeg);
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
-=======
-    // Translation always belongs to the canonical route. Never advance while that
-    // route lies behind the bow: the ship turns in place instead of visually sailing
-    // backwards. Normal <=90-degree bends retain configured cruise speed.
-    const travelHeadingErrorDeg = angleDeltaDeg(ship.rotationDeg, travelHeadingDeg);
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
-    const mayAdvance = travelHeadingErrorDeg <= NORMAL_CORNER_MAX_DEG + EPSILON;
-    const maximumDistance = mayAdvance
-      ? ship.characteristics.speed * deltaSeconds
-      : 0;
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
-=======
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
-=======
->>>>>>> parent of 4abb735 (COR-12R: ease route acceleration after pivots)
     let nextProgress = Math.min(
       ship.routeProgress + maximumDistance,
       route.totalLength,
@@ -314,7 +347,7 @@ export class ShipMotor {
       upcomingCorner.turnAngleDeg >= REVERSAL_PIVOT_MIN_DEG &&
       Math.abs(nextProgress - upcomingCorner.progress) <= EPSILON
     ) {
-      ship.beginRoutePivot(upcomingCorner.progress);
+      ship.beginRouteTurn(RouteTurnMode.AuthoredReversal, upcomingCorner.progress);
     } else if (
       nextProgress >= route.totalLength - EPSILON &&
       !routeEndContinuesForward(ship, continueAfterRouteEnd)

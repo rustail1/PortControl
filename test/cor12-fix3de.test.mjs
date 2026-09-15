@@ -25,9 +25,6 @@ async function setup() {
   return { subject, bundle, characteristics, registry };
 }
 
-function angleDelta(left, right) {
-  return Math.abs(((right - left + 540) % 360) - 180);
-}
 
 function dockDefinition() {
   return {
@@ -35,14 +32,14 @@ function dockDefinition() {
     position: { x: 500, y: 500 },
     rotationDeg: 0,
     dockAngle: 0,
-    snapRadius: 80,
+    approachRadius: 80,
     acceptedCargoTypes: ['general'],
     helperFlag: false,
     visualVariant: 'dock_general',
   };
 }
 
-test('COR-12 FIX-3D shore contact starts moving recovery without terminal grounding', async () => {
+test('COR-12 FIX-3D shore contact produces terminal grounding without recovery mutation', async () => {
   const { subject, characteristics } = await setup();
   const geometry = new subject.LandClearanceGeometry([{
     points: [
@@ -60,6 +57,7 @@ test('COR-12 FIX-3D shore contact starts moving recovery without terminal ground
     cargo: { general: 1 },
     route: { points: [{ x: 180, y: 150 }] },
   });
+  const before = ship.toSnapshot();
 
   const result = grounding.resolve([{
     ship,
@@ -67,35 +65,9 @@ test('COR-12 FIX-3D shore contact starts moving recovery without terminal ground
     previousPosition: { x: 70, y: 150 },
   }]);
 
-  assert.equal(result.terminalGrounding, null);
-  assert.deepEqual(result.avoidedShipIds, [ship.id]);
-  assert.equal(ship.state, subject.ShipState.Navigating);
-  assert.equal(ship.route, null);
-  assert.notEqual(ship.routeRecoveryHeadingDeg, null);
-  assert.equal(geometry.blocksSegment(ship.position, ship.position, characteristics.collisionRadius + 4), false);
-  assert.ok(Math.hypot(ship.x - 70, ship.y - 150) > 0);
-  assert.ok(Math.hypot(ship.x - 70, ship.y - 150) <= 13 + 1e-9);
-  const motor = new subject.ShipMotor();
-  let previousPosition = ship.position;
-  let previousRotation = ship.rotationDeg;
-  for (let step = 0; step < 240; step += 1) {
-    motor.stepRoute(ship, 8, 1 / 60);
-    const moved = Math.hypot(
-      ship.x - previousPosition.x,
-      ship.y - previousPosition.y,
-    );
-    assert.ok(moved > 0 && moved <= characteristics.speed / 60 + 1e-9);
-    const contact = grounding.resolve([{
-      ship, spawnSequence: 0, previousPosition,
-    }]);
-    assert.equal(contact.terminalGrounding, null);
-    assert.equal(geometry.blocksSegment(ship.position, ship.position, characteristics.collisionRadius + 4), false);
-    assert.ok(angleDelta(previousRotation, ship.rotationDeg) <= characteristics.turnRateDeg / 60 + 1e-9);
-    previousPosition = ship.position;
-    previousRotation = ship.rotationDeg;
-  }
-  assert.ok(ship.x < 100 - characteristics.collisionRadius - 4);
-  assert.equal(ship.state, subject.ShipState.Navigating);
+  assert.deepEqual(result.terminalGrounding, { shipId: ship.id, failReason: 'grounding' });
+  assert.deepEqual(result.avoidedShipIds, []);
+  assert.deepEqual(ship.toSnapshot(), before, 'GroundingSystem reports a terminal fact; terminal arbitration owns mutation');
 });
 
 test('COR-12 FIX-3E side entry follows derived water lane and finishes at exact berth pose', async () => {
@@ -111,32 +83,21 @@ test('COR-12 FIX-3E side entry follows derived water lane and finishes at exact 
   });
   const ship = new subject.ShipModel({
     id: 'entry', characteristics,
-    position: { x: 500, y: 560 }, rotationDeg: 270,
+    position: { x: 650, y: 530 }, rotationDeg: 270,
     state: subject.ShipState.Navigating, cargo: { general: 1 },
   });
 
   assert.deepEqual(subject.deriveDockLane(definition), {
     approach: { x: 580, y: 500 },
+    alignment: { x: 544, y: 500 },
     berth: { x: 500, y: 500 },
     release: { x: 580, y: 500 },
   });
   controller.step([{ ship, spawnSequence: 0 }], 0);
-  const positions = [];
-  let previousRotation = ship.rotationDeg;
-  let previousPosition = ship.position;
-  for (let step = 0; step < 240 && ship.state !== subject.ShipState.Unloading; step += 1) {
-    controller.step([{ ship, spawnSequence: 0 }], 1 / 60);
+  const positions = [ship.position];
+  for (let step = 0; step < 1200 && ship.state !== subject.ShipState.Unloading; step += 1) {
+    controller.step([], 1 / 60);
     positions.push(ship.position);
-    if (ship.state !== subject.ShipState.Unloading) {
-      assert.ok(angleDelta(previousRotation, ship.rotationDeg) <= characteristics.turnRateDeg / 60 + 1e-9);
-      const movementHeading = Math.atan2(
-        ship.y - previousPosition.y,
-        ship.x - previousPosition.x,
-      ) * 180 / Math.PI;
-      assert.ok(angleDelta(ship.rotationDeg, movementHeading) <= characteristics.turnRateDeg / 60 + 1e-9);
-    }
-    previousRotation = ship.rotationDeg;
-    previousPosition = ship.position;
   }
 
   assert.ok(Math.max(...positions.map((position) => position.x)) > 570);
@@ -146,9 +107,10 @@ test('COR-12 FIX-3E side entry follows derived water lane and finishes at exact 
   assert.equal(dock.occupiedBy, ship.id);
 });
 
-test('COR-12 dock curve advances by each ship speed instead of a shared duration', async () => {
+test('COR-12 harbor assist duration follows ship characteristics instead of a shared snap timer', async () => {
   const { subject, bundle, registry } = await setup();
-  const run = (type) => {
+  const elapsedByType = new Map();
+  for (const type of ['speedboat', 'cargo_boat', 'freighter', 'tanker']) {
     const dock = new subject.DockModel(dockDefinition());
     const controller = new subject.DockingController({
       docks: new subject.DockCollection([dock]),
@@ -156,19 +118,22 @@ test('COR-12 dock curve advances by each ship speed instead of a shared duration
       config: subject.createDockingConfig(bundle),
     });
     const ship = new subject.ShipModel({
-      id: type,
-      characteristics: registry.require(type),
-      position: { x: 500, y: 560 },
-      rotationDeg: 270,
-      state: subject.ShipState.Navigating,
-      cargo: { general: 1 },
+      id: type, characteristics: registry.require(type), position: { x: 580, y: 500 },
+      rotationDeg: 0, state: subject.ShipState.Navigating, cargo: { general: 1 },
     });
     controller.step([{ ship, spawnSequence: 0 }], 0);
-    controller.step([{ ship, spawnSequence: 0 }], 0.2);
-    return Math.hypot(ship.x - 500, ship.y - 560);
-  };
-
-  assert.ok(run('speedboat') > run('freighter'));
+    let elapsed = 0;
+    for (let step = 0; step < 1200 && ship.state !== subject.ShipState.Unloading; step += 1) {
+      controller.step([], 1 / 60);
+      elapsed += 1 / 60;
+    }
+    elapsedByType.set(type, elapsed);
+    assert.equal(ship.state, subject.ShipState.Unloading, type);
+    assert.deepEqual(ship.position, dockDefinition().position, type);
+    assert.equal(ship.rotationDeg, dockDefinition().dockAngle, type);
+  }
+  assert.ok(elapsedByType.get('freighter') > elapsedByType.get('speedboat'));
+  assert.ok(elapsedByType.get('tanker') > elapsedByType.get('speedboat'));
 });
 
 test('COR-12 FIX-3E derived lane extends along dock axis until the whole ship is in water', async () => {
@@ -177,7 +142,7 @@ test('COR-12 FIX-3E derived lane extends along dock axis until the whole ship is
     ...dockDefinition(),
     position: { x: 500, y: 175 },
     dockAngle: 90,
-    snapRadius: 58,
+    approachRadius: 58,
   };
   const geometry = new subject.LandClearanceGeometry([{
     points: [
@@ -223,15 +188,17 @@ test('COR-12 FIX-3E departure keeps dock busy then resumes held outbound route a
     navigation: new subject.NavigationValidator([]),
     config: subject.createRouteProcessingConfig(bundle),
   });
-  assert.equal(commit.commit({
+  const prepared = commit.prepare({
     ship,
     draft: { shipId: ship.id, points: [{ x: 620, y: 500 }, { x: 800, y: 500 }] },
     routeStart: controller.departureRouteStart(ship),
-  }).kind, 'committed');
-  assert.equal(controller.beginDeparture(ship), true);
+  });
+  assert.ok('route' in prepared);
+  const departure = new subject.DepartureCoordinator({ routes: commit, docking: controller });
+  assert.equal(departure.commit(ship, prepared).kind, 'committed');
   assert.equal(ship.routeMotionHeld, true);
   const motor = new subject.ShipMotor();
-  motor.stepRoute(ship, 8, 1 / 60);
+  motor.stepRoute(ship, 1 / 60);
   assert.deepEqual(ship.position, definition.position);
 
   controller.step([{ ship, spawnSequence: 0 }, { ship: waiting, spawnSequence: 1 }], 0.175);
@@ -246,7 +213,7 @@ test('COR-12 FIX-3E departure keeps dock busy then resumes held outbound route a
   assert.equal(ship.routeMotionHeld, false);
   assert.notEqual(ship.route, null);
   const released = ship.position;
-  motor.stepRoute(ship, 8, 1 / 60);
+  motor.stepRoute(ship, 1 / 60);
   assert.ok(ship.x > released.x);
   assert.equal(ship.y, released.y);
 });
@@ -273,12 +240,14 @@ test('COR-12 FIX-3E departure assist is identical across render partitions', asy
       navigation: new subject.NavigationValidator([]),
       config: subject.createRouteProcessingConfig(bundle),
     });
-    commit.commit({
+    const prepared = commit.prepare({
       ship,
       draft: { shipId: ship.id, points: [{ x: 620, y: 500 }, { x: 800, y: 500 }] },
       routeStart: controller.departureRouteStart(ship),
     });
-    controller.beginDeparture(ship);
+    assert.ok('route' in prepared);
+    const departure = new subject.DepartureCoordinator({ routes: commit, docking: controller });
+    assert.equal(departure.commit(ship, prepared).kind, 'committed');
     const clock = new subject.FixedStepClock({ fixedHz: 60, maxCatchUpSteps: 6 });
     for (let frame = 0; frame < fps; frame += 1) {
       clock.advance(1000 / fps, (deltaSeconds) => {
@@ -322,7 +291,7 @@ test('COR-12 FIX-3E outbound route is validated from release instead of creating
     config: subject.createRouteProcessingConfig(bundle),
   });
 
-  const result = commit.commit({
+  const result = commit.prepare({
     ship,
     routeStart: controller.departureRouteStart(ship),
     draft: {
@@ -336,7 +305,7 @@ test('COR-12 FIX-3E outbound route is validated from release instead of creating
   assert.equal(ship.route, null);
 });
 
-test('COR-12 FIX-3E short OUT gesture keeps its berth-drawn activation length', async () => {
+test('COR-12 FIX-3E short OUT gesture is measured from release and rejected when too short', async () => {
   const { subject, bundle, characteristics } = await setup();
   const ship = new subject.ShipModel({
     id: 'short-out', characteristics,
@@ -348,12 +317,12 @@ test('COR-12 FIX-3E short OUT gesture keeps its berth-drawn activation length', 
     config: subject.createRouteProcessingConfig(bundle),
   });
 
-  const result = commit.commit({
+  const result = commit.prepare({
     ship,
     routeStart: { x: 580, y: 500 },
     draft: { shipId: ship.id, points: [{ x: 582, y: 500 }] },
   });
 
-  assert.equal(result.kind, 'committed');
-  assert.equal(ship.state, subject.ShipState.Leaving);
+  assert.equal(result.kind, 'rejected_too_short');
+  assert.equal(ship.state, subject.ShipState.ReadyToLeave);
 });

@@ -1,3 +1,4 @@
+import { RuntimeConfigRegistry } from '../config/RuntimeConfigRegistry.ts';
 import type { ConfigBundle } from '../config/types.ts';
 
 export interface ScoreConfig {
@@ -28,10 +29,7 @@ function freezeScoreConfig(config: ScoreConfig): ScoreConfig {
 }
 
 export function createScoreConfig(bundle: ConfigBundle): ScoreConfig {
-  const balance = bundle.configs['balance.json'] as {
-    readonly score: ScoreConfig;
-  };
-  return freezeScoreConfig(balance.score);
+  return freezeScoreConfig(new RuntimeConfigRegistry(bundle).balance().score);
 }
 
 export class ScoreService {

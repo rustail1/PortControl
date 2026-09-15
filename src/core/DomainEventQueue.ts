@@ -43,6 +43,10 @@ export class DomainEventQueue<Events extends DomainEventMap> {
     this.#pending.push({ type, payload });
   }
 
+  public clear(): void {
+    this.#pending = [];
+  }
+
   /** Delivers the current FIFO batch; newly emitted events wait for next flush. */
   public flush(): void {
     const pending = this.#pending;

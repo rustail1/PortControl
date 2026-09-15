@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ShipModel } from '../src/ships/ShipModel.ts';
+import { RouteTurnMode, ShipModel } from '../src/ships/ShipModel.ts';
 import { ShipCharacteristicsRegistry } from '../src/ships/ShipCharacteristics.ts';
 import { ShipMotor } from '../src/ships/ShipMotor.ts';
 import { ShipRoute } from '../src/ships/ShipRoute.ts';
@@ -55,7 +55,7 @@ function assertOnRoute(ship, epsilon = EPSILON) {
 
 function step(motor, ship, continueAfterRouteEnd = false) {
   const before = ship.routeProgress;
-  motor.stepRoute(ship, 8, DT, continueAfterRouteEnd);
+  motor.stepRoute(ship, DT, continueAfterRouteEnd);
   assertOnRoute(ship);
   assert.ok(ship.routeProgress + EPSILON >= before, 'route progress regressed');
   return ship.routeProgress - before;
@@ -272,9 +272,10 @@ test('COR-12 authored motion 16: snapshot restore preserves braking and pivot mo
   const restored = ShipModel.restore(ship.toSnapshot(), registry);
   assert.equal(restored.routeSpeed, 0);
   assert.equal(restored.routePivotProgress, ship.routePivotProgress);
+  assert.equal(restored.routeTurnMode, RouteTurnMode.AuthoredReversal);
   for (let frame = 0; frame < 90; frame += 1) {
-    motor.stepRoute(ship, 8, DT, false);
-    motor.stepRoute(restored, 8, DT, false);
+    motor.stepRoute(ship, DT, false);
+    motor.stepRoute(restored, DT, false);
   }
   assert.deepEqual(restored.toSnapshot(), ship.toSnapshot());
 });

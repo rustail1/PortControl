@@ -1,57 +1,58 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { simplifyRouteDraft } from '../src/routes/RouteSimplifier.ts';
+import { canonicalizeRoute } from '../src/routes/RouteCanonicalizer.ts';
 
 const config = JSON.parse(readFileSync(new URL(
   '../Port_Control_Baseline_Source_FINAL_v1.5/src/config/balance.json', import.meta.url,
 ), 'utf8')).route;
 
-test('COR-12 extending a curved swipe never relocates its already drawn bends', () => {
+test('COR-12 extending a curved swipe never relocates its already authored bends', () => {
   const start = { x: 400, y: 400 };
   const points = [];
   let previous = [];
   for (let i = 1; i <= 24; i++) {
     const angle = i * Math.PI / 48;
     points.push({ x: 400 + 200 * Math.sin(angle), y: 400 + 200 * (1 - Math.cos(angle)) });
-    const current = simplifyRouteDraft({ start, points }, config);
-    assert.deepEqual(current.slice(0, Math.max(0, previous.length - 1)), previous.slice(0, -1),
+    const current = canonicalizeRoute(start, points);
+    assert.deepEqual(current.slice(0, previous.length), previous,
       `past bends moved when sample ${i} was appended`);
     previous = current;
   }
-  assert.ok(previous.length > 2, 'the curve must not become one straight segment');
+  assert.deepEqual(previous, points);
 });
 
-test('COR-12 stable swipe keeps straight gestures direct and retains a real reversal', () => {
+test('COR-12 exact-authored gestures retain straight samples and a real reversal', () => {
   const start = { x: 100, y: 100 };
-  assert.deepEqual(simplifyRouteDraft({ start, points: [{ x: 120, y: 100 }, { x: 200, y: 100 }] }, config),
-    [{ x: 200, y: 100 }]);
-  assert.deepEqual(simplifyRouteDraft({ start, points: [{ x: 200, y: 100 }, { x: 50, y: 100 }] }, config),
+  assert.deepEqual(canonicalizeRoute(start, [{ x: 120, y: 100 }, { x: 200, y: 100 }]),
+    [{ x: 120, y: 100 }, { x: 200, y: 100 }]);
+  assert.deepEqual(canonicalizeRoute(start, [{ x: 200, y: 100 }, { x: 50, y: 100 }]),
     [{ x: 200, y: 100 }, { x: 50, y: 100 }]);
 });
 
-test('COR-12 live tip follows sub-sample pointer movement without moving stored bends', () => {
+test('COR-12 live tip is presentation/input state and never rewrites stored authored samples', () => {
   const draft = { start: { x: 100, y: 100 }, points: [{ x: 120, y: 100 }], tip: { x: 123, y: 100 } };
-  assert.deepEqual(simplifyRouteDraft(draft, config), [{ x: 123, y: 100 }]);
+  assert.deepEqual(canonicalizeRoute(draft.start, draft.points), [{ x: 120, y: 100 }]);
+  assert.deepEqual(draft.tip, { x: 123, y: 100 });
   assert.deepEqual(draft.points, [{ x: 120, y: 100 }]);
 });
 
-test('COR-12 capped live stroke preserves fixed bends and updates only its endpoint', () => {
-  const draft = { start: { x: 100, y: 100 }, points: [
-    { x: 200, y: 100 }, { x: 200, y: 200 }, { x: 300, y: 200 }, { x: 300, y: 300 },
-  ] };
-  const limited = { ...config, maxSimplifiedPoints: 3 };
-  const before = simplifyRouteDraft(draft, limited);
-  const after = simplifyRouteDraft({ ...draft, points: [...draft.points, { x: 400, y: 300 }] }, limited);
-  assert.equal(after.length, 3);
-  assert.deepEqual(after.slice(0, -1), before.slice(0, -1));
-  assert.deepEqual(after.at(-1), { x: 400, y: 300 });
+test('COR-12 dense authored strokes are not capped by legacy maxSimplifiedPoints', () => {
+  const start = { x: 100, y: 100 };
+  const points = [
+    { x: 200, y: 100 }, { x: 200, y: 200 }, { x: 300, y: 200 },
+    { x: 300, y: 300 }, { x: 400, y: 300 },
+  ];
+  assert.deepEqual(canonicalizeRoute(start, points), points);
 });
 
-test('COR-12 sub-sample tip motion cannot repeatedly add and remove a bend', () => {
+test('COR-12 sub-sample tip motion cannot mutate authored bends', () => {
   const draft = { start: { x: 100, y: 100 }, points: [{ x: 200, y: 100 }] };
+  const before = canonicalizeRoute(draft.start, draft.points);
   for (const y of [107, 101, 106, 100]) {
-    assert.deepEqual(simplifyRouteDraft({ ...draft, tip: { x: 200, y } }, config), [{ x: 200, y }]);
+    const withTip = { ...draft, tip: { x: 200, y } };
+    assert.deepEqual(canonicalizeRoute(withTip.start, withTip.points), before);
+    assert.deepEqual(withTip.tip, { x: 200, y });
   }
 });
 
@@ -65,7 +66,7 @@ async function createPointerSubject() {
   const ship = new ShipModel({ id: 'live-tip', characteristics: { type: 'speedboat', ...ships.speedboat },
     position: { x: 400, y: 400 }, rotationDeg: 0, state: 'Navigating', cargo: { general: 1 } });
   const controller = new RouteInputController({ viewport: new SquareWorldViewport({ width: 1000, height: 1000 }),
-    sampling: config, processing: config, hitTest: () => ship });
+    sampling: { sampleDistance: config.sampleDistance, maxRawPoints: config.maxRawPoints }, hitTest: () => ship });
   const pointer = x => ({ source: 'mouse', pointerId: 1, screenPosition: { x, y: 400 },
     cssPosition: { x, y: 400 }, internalViewport: { width: 1000, height: 1000 }, worldToCssPixelScale: 1 });
   return { ship, controller, pointer };
@@ -92,8 +93,12 @@ test('COR-12 real pointer preview and released draft both include the unsampled 
   controller.pointerDown(pointer(400));
   controller.pointerMove(pointer(412));
   controller.pointerMove(pointer(415));
-  assert.deepEqual(simplifyRouteDraft(controller.activeDraftSnapshot, config), [{ x: 415, y: 400 }]);
-  assert.deepEqual(simplifyRouteDraft(controller.pointerUp(pointer(416)).draft, config), [{ x: 416, y: 400 }]);
+  const active = controller.activeDraftSnapshot;
+  assert.ok(active);
+  assert.deepEqual(active.tip, { x: 415, y: 400 });
+  const finished = controller.pointerUp(pointer(416));
+  assert.equal(finished.kind, 'finished');
+  assert.deepEqual(finished.draft.tip, { x: 416, y: 400 });
 });
 
 test('COR-12 moving along a held curve cannot relocate its raw future bends', async () => {
@@ -141,22 +146,10 @@ test('COR-12 visual heading uses shortest wrap and equivalent elapsed time', asy
   assert.ok(Math.abs(once - twice) < 1e-9);
 });
 
-test('COR-12 navigation renders the already turn-rate-limited simulation heading without a second lag', async () => {
-  const { resolveShipVisualHeading } = await import('../src/presentation/ShipHeadingPresentation.ts');
-  assert.deepEqual(resolveShipVisualHeading('Docking', 45, 90), {
-    targetHeading: 45, snap: true,
-  });
-  assert.deepEqual(resolveShipVisualHeading('Navigating', 45, undefined), {
-    targetHeading: 45, snap: true,
-  });
-  assert.deepEqual(resolveShipVisualHeading('Unloading', 90, 90), {
-    targetHeading: 270, snap: false,
-  });
-});
-
-test('COR-12 ReadyToLeave snaps the docked vessel bow toward open water', async () => {
-  const { resolveShipVisualHeading } = await import('../src/presentation/ShipHeadingPresentation.ts');
-  assert.deepEqual(resolveShipVisualHeading('ReadyToLeave', 90, 90), {
-    targetHeading: 90, snap: true,
-  });
+test('COR-12 authoritative ship heading has no second presentation resolver', () => {
+  const scene = readFileSync('src/scenes/HarborScene.ts', 'utf8');
+  const headingPresentation = readFileSync('src/presentation/ShipHeadingPresentation.ts', 'utf8');
+  assert.match(scene, /const rotation = simulationRotation;/);
+  assert.doesNotMatch(scene, /resolveShipVisualHeading|snapshot\.docks\.find/);
+  assert.doesNotMatch(headingPresentation, /resolveShipVisualHeading|ShipVisualHeading/);
 });

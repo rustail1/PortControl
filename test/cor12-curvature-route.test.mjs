@@ -51,7 +51,7 @@ function runRoute(ships, ship, maximumSteps = 1200) {
   for (let step = 0; step < maximumSteps && ship.routeProgress < ship.route.totalLength; step += 1) {
     const progressBefore = ship.routeProgress;
     const rotationBefore = ship.rotationDeg;
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
     assert.ok(ship.routeProgress >= progressBefore);
     assert.ok(ship.routeProgress - progressBefore <= ship.characteristics.speed / 60 + 1e-9);
     assert.ok(angleDelta(rotationBefore, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9);
@@ -73,7 +73,7 @@ test('COR-12 path follower keeps centre canonical and hull turn-rate limited thr
 
   for (let step = 0; step < 300 && ship.routeProgress < ship.route.totalLength; step += 1) {
     const beforeRotation = ship.rotationDeg;
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
     assertOnRoute(ship);
     assert.ok(angleDelta(beforeRotation, ship.rotationDeg) <= ship.characteristics.turnRateDeg / 60 + 1e-9,
       `rotation snapped at step ${step}`);
@@ -86,7 +86,7 @@ test('COR-12 opposite heading turns before advancing and never leaves the route'
   ship.replaceRoute(new ships.ShipRoute([{ x: 100, y: 0 }]));
   const before = ship.position;
 
-  new ships.ShipMotor().stepRoute(ship, 8, 1 / 60);
+  new ships.ShipMotor().stepRoute(ship, 1 / 60);
 
   assertOnRoute(ship);
   assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) < 1e-9);
@@ -103,7 +103,7 @@ test('COR-12 sharp route movement stays on the drawn polyline without progress j
 
   for (let step = 0; step < 600 && ship.routeProgress < ship.route.totalLength; step += 1) {
     const progressBefore = ship.routeProgress;
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
     assertOnRoute(ship);
     assert.ok(ship.routeProgress >= progressBefore);
     assert.ok(ship.routeProgress - progressBefore <= ship.characteristics.speed / 60 + 1e-9);
@@ -127,7 +127,7 @@ test('COR-12 path step reaches a raw corner exactly without snapping hull rotati
     { x: stepDistance / 2, y: 100 },
   ]));
 
-  new ships.ShipMotor().stepRoute(ship, 8, 1 / 60);
+  new ships.ShipMotor().stepRoute(ship, 1 / 60);
 
   assertOnRoute(ship);
   assert.ok(Math.abs(ship.x - stepDistance / 2) < 1e-9);
@@ -184,8 +184,8 @@ test('COR-12 different ship speeds advance different distances on the same align
   assert.equal(commit(subject, tanker, [{ x: 500, y: 0 }]).kind, 'committed');
   const motor = new subject.ships.ShipMotor();
   for (let step = 0; step < 60; step += 1) {
-    motor.stepRoute(subject.ship, 8, 1 / 60);
-    motor.stepRoute(tanker, 8, 1 / 60);
+    motor.stepRoute(subject.ship, 1 / 60);
+    motor.stepRoute(tanker, 1 / 60);
   }
   assert.ok(subject.ship.routeProgress > tanker.routeProgress);
   assert.ok(Math.abs(subject.ship.routeProgress - subject.ship.characteristics.speed) < 1e-6);
@@ -204,7 +204,7 @@ test('COR-12 live extension preserves the fixed route origin and monotonic progr
     draft: { shipId: subject.ship.id, start: gestureStart, points: [{ x: 200, y: 0 }, { x: 200, y: 160 }] },
   }).kind, 'committed');
   const motor = new subject.ships.ShipMotor();
-  for (let step = 0; step < 30; step += 1) motor.stepRoute(subject.ship, 8, 1 / 60);
+  for (let step = 0; step < 30; step += 1) motor.stepRoute(subject.ship, 1 / 60);
   const progressBeforeExtension = subject.ship.routeProgress;
   assert.equal(service.commit({
     ship: subject.ship,

@@ -10,7 +10,7 @@ function readIdSet(bundle: ConfigBundle, configName: string, field: string): Set
 }
 
 /**
- * Read-only lookup boundary for IDs owned by frozen JSON contracts.
+ * STAGED boundary: read-only lookup for IDs owned by frozen JSON contracts.
  * Future analytics/audio consumers validate requests here instead of owning
  * duplicate identifier lists.
  */

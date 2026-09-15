@@ -100,6 +100,10 @@ export class DeparturePresentationStore {
     });
   }
 
+  public clear(): void {
+    this.#records.clear();
+  }
+
   public advance(deltaSeconds: number): void {
     if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) {
       throw new RangeError('deltaSeconds must be a non-negative finite number');

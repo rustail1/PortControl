@@ -5,7 +5,10 @@ import {
   createDisplayCoordinateContract,
   SquareWorldViewport,
 } from '../camera/SquareWorldViewport.ts';
+import { RuntimeConfigRegistry } from '../config/RuntimeConfigRegistry.ts';
 import type { ConfigBundle } from '../config/types.ts';
+import { DebugOverlay } from '../debug/DebugOverlay.ts';
+import type { IPlatformAdapter, Unsubscribe } from '../platform/IPlatformAdapter.ts';
 import {
   clipRoutePolyline,
   createHarborUiLayout,
@@ -20,18 +23,26 @@ import {
 } from '../runtime/HarborRuntime.ts';
 import { createCargoPipLayout } from '../presentation/VesselFlowPresentation.ts';
 import {
-  resolveShipVisualHeading,
-  smoothShipHeading,
-} from '../presentation/ShipHeadingPresentation.ts';
+  layoutIncomingSpawnWarnings,
+  type LaidOutIncomingSpawnWarning,
+} from '../presentation/IncomingSpawnWarningPresentation.ts';
+import { smoothShipHeading } from '../presentation/ShipHeadingPresentation.ts';
+import {
+  ReadyToLeavePulsePresentation,
+  SelectionPulsePresentation,
+} from '../presentation/SelectionPulsePresentation.ts';
 import type { ShipModelSnapshot } from '../ships/ShipModel.ts';
 import { ShipState } from '../ships/ShipState.ts';
+import { DEFAULT_HUMAN_FEEL_LEVEL_ID } from './HarborLevelSelection.ts';
 
 interface ShipView {
   readonly body: Phaser.GameObjects.Graphics;
   readonly cargoPips: Phaser.GameObjects.Graphics;
   readonly route: Phaser.GameObjects.Graphics;
+  readonly routeHead: Phaser.GameObjects.Graphics;
   readonly label: Phaser.GameObjects.Text;
   cargoPipCount: number;
+  routeSignature: string | null;
   visualHeading: number | null;
 }
 
@@ -63,13 +74,13 @@ export interface HarborBrowserSmokeSnapshot {
   }>[];
   readonly cargoPips: readonly Readonly<{ shipId: string; count: number }>[];
   readonly incoming: HarborPresentationSnapshot['incoming'];
+  readonly incomingWarnings: HarborPresentationSnapshot['incomingWarnings'];
   readonly departures: HarborPresentationSnapshot['departures'];
   readonly docks: HarborPresentationSnapshot['docks'];
   readonly exits: HarborPresentationSnapshot['exits'];
   readonly land: HarborPresentationSnapshot['land'];
 }
 
-const PROTOTYPE_LEVEL_ID = 'calm_07';
 
 function cssColorToNumber(value: string, fallback: number): number {
   const parsed = Number.parseInt(value.replace('#', ''), 16);
@@ -100,6 +111,9 @@ export class HarborScene extends Phaser.Scene {
   readonly #bundle: ConfigBundle;
   readonly #levelId: string;
   readonly #seedProvider: AttemptSeedProvider;
+  readonly #platform: IPlatformAdapter | null;
+  #platformUnsubscribers: Unsubscribe[] = [];
+  #gameplayRunning = false;
   readonly #squareViewport: SquareWorldViewport;
   readonly #shipViews = new Map<string, ShipView>();
   readonly #busyDockLabels = new Map<string, Phaser.GameObjects.Text>();
@@ -113,18 +127,23 @@ export class HarborScene extends Phaser.Scene {
   #uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   #pageBestScore = 0;
   #terminalResultSeen = false;
+  #debugOverlay: DebugOverlay | null = null;
+  readonly #selectionPulse = new SelectionPulsePresentation();
+  readonly #readyToLeavePulse = new ReadyToLeavePulsePresentation();
 
   public constructor(
     logicalWorld: Size,
     bundle: ConfigBundle,
-    levelId = PROTOTYPE_LEVEL_ID,
+    levelId = DEFAULT_HUMAN_FEEL_LEVEL_ID,
     seedProvider: AttemptSeedProvider = createCryptoAttemptSeed,
+    platform: IPlatformAdapter | null = null,
   ) {
     super('HarborScene');
     this.#logicalWorld = logicalWorld;
     this.#bundle = bundle;
     this.#levelId = levelId;
     this.#seedProvider = seedProvider;
+    this.#platform = platform;
     this.#squareViewport = new SquareWorldViewport(logicalWorld);
   }
 
@@ -143,15 +162,42 @@ export class HarborScene extends Phaser.Scene {
     this.#uiCamera.setScroll(0, 0).setZoom(1);
     this.#startAttempt(this.#seedProvider());
 
+    if (import.meta.env.DEV) {
+      this.#debugOverlay = new DebugOverlay({
+        getDebugSnapshot: () => {
+          const runtime = this.#runtime;
+          if (runtime === null) {
+            return Object.freeze({
+              sessionState: null,
+              seed: null,
+              rngState: null,
+              pressure: null,
+            });
+          }
+          const authoritative = runtime.authoritativeSnapshot();
+          return Object.freeze({
+            sessionState: authoritative.session.state,
+            seed: runtime.attemptSeed,
+            rngState: authoritative.rngState,
+            pressure: null,
+          });
+        },
+      });
+      this.#debugOverlay.mount();
+    }
+
     this.scale.on(Phaser.Scale.Events.RESIZE, this.#onResize, this);
     this.input.on('pointerdown', this.#onPointerDown, this);
     this.input.on('pointermove', this.#onPointerMove, this);
     this.input.on('pointerup', this.#onPointerUp, this);
     this.input.on('pointerupoutside', this.#onPointerUp, this);
 
-    document.addEventListener('visibilitychange', this.#onVisibilityChange);
-    window.addEventListener('blur', this.#onWindowBlur);
-    window.addEventListener('focus', this.#onWindowFocus);
+    if (this.#platform !== null) {
+      this.#platformUnsubscribers = [
+        this.#platform.onPause(() => { this.#runtime?.setPageActive(false); this.#draftGraphics?.clear(); }),
+        this.#platform.onResume(() => this.#runtime?.setPageActive(true)),
+      ];
+    }
     window.addEventListener('keydown', this.#onWindowKeyDown);
     this.game.canvas.addEventListener('contextmenu', this.#onCanvasContextMenu);
 
@@ -161,11 +207,12 @@ export class HarborScene extends Phaser.Scene {
       this.input.off('pointermove', this.#onPointerMove, this);
       this.input.off('pointerup', this.#onPointerUp, this);
       this.input.off('pointerupoutside', this.#onPointerUp, this);
-      document.removeEventListener('visibilitychange', this.#onVisibilityChange);
-      window.removeEventListener('blur', this.#onWindowBlur);
-      window.removeEventListener('focus', this.#onWindowFocus);
+      for (const unsubscribe of this.#platformUnsubscribers.splice(0)) unsubscribe();
+      this.#stopGameplayLifecycle();
       window.removeEventListener('keydown', this.#onWindowKeyDown);
       this.game.canvas.removeEventListener('contextmenu', this.#onCanvasContextMenu);
+      this.#debugOverlay?.destroy();
+      this.#debugOverlay = null;
       this.#destroyShipViews();
       this.#destroyBusyDockLabels();
     });
@@ -252,6 +299,7 @@ export class HarborScene extends Phaser.Scene {
         })) ?? [],
       ),
       incoming: presentation?.incoming ?? Object.freeze([]),
+      incomingWarnings: presentation?.incomingWarnings ?? Object.freeze([]),
       departures: presentation?.departures ?? Object.freeze([]),
       docks: presentation?.docks ?? Object.freeze([]),
       exits: presentation?.exits ?? Object.freeze([]),
@@ -292,6 +340,19 @@ export class HarborScene extends Phaser.Scene {
     }
     this.#ensureTerminalUi();
     this.#layoutUi();
+    this.#startGameplayLifecycle();
+  }
+
+  #startGameplayLifecycle(): void {
+    if (this.#platform === null || this.#gameplayRunning) return;
+    this.#platform.gameplayStart();
+    this.#gameplayRunning = true;
+  }
+
+  #stopGameplayLifecycle(): void {
+    if (this.#platform === null || !this.#gameplayRunning) return;
+    this.#platform.gameplayStop();
+    this.#gameplayRunning = false;
   }
 
   #markWorld<T extends Phaser.GameObjects.GameObject>(object: T): T {
@@ -307,11 +368,9 @@ export class HarborScene extends Phaser.Scene {
   #rebuildStaticWorld(snapshot: HarborPresentationSnapshot): void {
     this.#staticGraphics?.destroy();
     const graphics = this.#markWorld(this.add.graphics().setDepth(0));
-    const visual = this.#bundle.configs['balance.json'] as {
-      readonly visual?: { readonly worldBackground?: string };
-    };
+    const visual = new RuntimeConfigRegistry(this.#bundle).balance().visual;
     graphics.fillStyle(
-      cssColorToNumber(visual.visual?.worldBackground ?? '', 0x2f8fb3),
+      cssColorToNumber(visual.worldBackground ?? '', 0x2f8fb3),
       1,
     );
     graphics.fillRect(0, 0, this.#logicalWorld.width, this.#logicalWorld.height);
@@ -374,6 +433,14 @@ export class HarborScene extends Phaser.Scene {
   }
 
   #render(snapshot: HarborPresentationSnapshot, alpha: number, deltaMs: number): void {
+    this.#selectionPulse.advance(deltaMs);
+    this.#readyToLeavePulse.advance(deltaMs);
+    this.#readyToLeavePulse.observe(
+      snapshot.ships.map((ship) => ({
+        id: ship.ship.id,
+        state: ship.ship.state,
+      })),
+    );
     this.#renderShips(snapshot, alpha, deltaMs);
     this.#renderOverlay(snapshot, alpha);
     this.#renderActiveDraft(snapshot);
@@ -381,6 +448,7 @@ export class HarborScene extends Phaser.Scene {
     this.#renderHud(snapshot);
     if (snapshot.result !== null && !this.#terminalResultSeen) {
       this.#terminalResultSeen = true;
+      this.#stopGameplayLifecycle();
       this.#pageBestScore = Math.max(this.#pageBestScore, snapshot.result.score);
       this.#showTerminal(snapshot);
     }
@@ -389,6 +457,7 @@ export class HarborScene extends Phaser.Scene {
   #renderShips(snapshot: HarborPresentationSnapshot, alpha: number, deltaMs: number): void {
     const alive = new Set<string>();
     const cargoRejectIds = new Set(snapshot.cargoRejectPulses.map((pulse) => pulse.shipId));
+    const routeRejectIds = new Set(snapshot.routeRejectPulses.map((pulse) => pulse.shipId));
     for (const ship of snapshot.ships) {
       alive.add(ship.ship.id);
       let view = this.#shipViews.get(ship.ship.id);
@@ -407,17 +476,7 @@ export class HarborScene extends Phaser.Scene {
         ship.ship.rotationDeg,
         alpha,
       );
-      const dock = snapshot.docks.find(({ runtime }) =>
-        runtime.reservedBy === ship.ship.id || runtime.occupiedBy === ship.ship.id,
-      );
-      const heading = resolveShipVisualHeading(
-        ship.ship.state,
-        simulationRotation,
-        dock?.definition.dockAngle,
-      );
-      const rotation = heading.snap || view.visualHeading === null
-        ? heading.targetHeading
-        : smoothShipHeading(view.visualHeading, heading.targetHeading, deltaMs);
+      const rotation = simulationRotation;
       view.visualHeading = rotation;
       view.body
         .setAlpha(1)
@@ -428,49 +487,49 @@ export class HarborScene extends Phaser.Scene {
         0,
       );
       const cargoRejected = cargoRejectIds.has(ship.ship.id);
+      const routeRejected = routeRejectIds.has(ship.ship.id);
+      const pivoting = ship.ship.routePivotProgress !== undefined;
       this.#renderCargoPips(view, cargoTotal, x, y, rotation);
       view.label
         .setVisible(true)
         .setPosition(x, y + 28)
-        .setColor(cargoRejected ? '#ff8b8b' : '#ffffff')
+        .setColor(cargoRejected || routeRejected ? '#ff8b8b' : '#ffffff')
         .setText(
           cargoRejected
             ? `CARGO! · ${ship.ship.shipType}`
-            : ship.ship.state === ShipState.ReadyToLeave
-              ? `OUT · ${ship.ship.shipType}`
-              : `${ship.ship.shipType} · ${ship.ship.state} · C${cargoTotal}`,
+            : routeRejected
+              ? `ROUTE! · ${ship.ship.shipType}`
+              : pivoting
+                ? `TURN · ${ship.ship.shipType}`
+                : ship.ship.state === ShipState.ReadyToLeave
+                  ? `OUT · ${ship.ship.shipType}`
+                  : `${ship.ship.shipType} · ${ship.ship.state} · C${cargoTotal}`,
         );
 
       const routePoints = ship.remainingRoute;
       const routeSelected = snapshot.selectedShipId === ship.ship.id;
-      view.route.clear();
-      if (routePoints !== null && routePoints.length > 1) {
-        const routeStart = { x, y };
-        const remainingPoints = routePoints.slice(1);
-        if (routeSelected) {
-          view.route.lineStyle(9, 0x17324d, 0.9);
-          this.#strokeRoute(view.route, routeStart, remainingPoints);
+      const routeSignature = `${routeSelected}:${ship.routeRenderKey}`;
+      if (view.routeSignature !== routeSignature) {
+        view.route.clear();
+        view.routeSignature = routeSignature;
+        if (routePoints !== null && routePoints.length > 2) {
+          const staticStart = routePoints[1]!;
+          const staticTail = routePoints.slice(2);
+          if (routeSelected) { view.route.lineStyle(9, 0x17324d, 0.9); this.#strokeRoute(view.route, staticStart, staticTail); }
+          view.route.lineStyle(5, 0xf7fafc, routeSelected ? 1 : 0.55);
+          this.#strokeRoute(view.route, staticStart, staticTail);
         }
-        view.route.lineStyle(5, 0xf7fafc, routeSelected ? 1 : 0.55);
-        this.#strokeRoute(view.route, routeStart, remainingPoints);
       }
-    }
-
-    for (const incoming of snapshot.incoming) {
-      alive.add(incoming.shipId);
-      let view = this.#shipViews.get(incoming.shipId);
-      if (view === undefined) {
-        view = this.#createShipView(incoming.shipType);
-        this.#shipViews.set(incoming.shipId, view);
+      view.routeHead.clear();
+      if (routePoints !== null && routePoints.length > 1) {
+        const headTarget = routePoints[1]!;
+        if (routeSelected) {
+          view.routeHead.lineStyle(9, 0x17324d, 0.9);
+          this.#strokeRoute(view.routeHead, { x, y }, [headTarget]);
+        }
+        view.routeHead.lineStyle(5, 0xf7fafc, routeSelected ? 1 : 0.55);
+        this.#strokeRoute(view.routeHead, { x, y }, [headTarget]);
       }
-      view.body
-        .setAlpha(0.7)
-        .setPosition(incoming.position.x, incoming.position.y)
-        .setRotation(Phaser.Math.DegToRad(incoming.rotationDeg));
-      view.route.clear();
-      view.cargoPips.clear().setVisible(false);
-      view.cargoPipCount = 0;
-      view.label.setVisible(false);
     }
 
     for (const departure of snapshot.departures) {
@@ -486,8 +545,8 @@ export class HarborScene extends Phaser.Scene {
         .setAlpha(0.85)
         .setPosition(departure.position.x, departure.position.y)
         .setRotation(Phaser.Math.DegToRad(view.visualHeading));
-      view.route.clear();
-      view.cargoPips.clear().setVisible(false);
+      if (view.routeSignature !== null) { view.route.clear(); view.routeSignature = null; } view.routeHead.clear();
+      view.cargoPips.setVisible(false);
       view.cargoPipCount = 0;
       view.label.setVisible(false);
     }
@@ -497,6 +556,7 @@ export class HarborScene extends Phaser.Scene {
         view.body.destroy();
         view.cargoPips.destroy();
         view.route.destroy();
+      view.routeHead.destroy();
         view.label.destroy();
         this.#shipViews.delete(shipId);
       }
@@ -525,6 +585,7 @@ export class HarborScene extends Phaser.Scene {
     body.fillCircle(10, 0, 2.5);
 
     const route = this.#markWorld(this.add.graphics().setDepth(5));
+    const routeHead = this.#markWorld(this.add.graphics().setDepth(5));
     const label = this.#markWorld(
       this.add
         .text(0, 0, '', {
@@ -536,7 +597,7 @@ export class HarborScene extends Phaser.Scene {
         .setOrigin(0.5, 0)
         .setDepth(11),
     );
-    return { body, cargoPips, route, label, cargoPipCount: 0, visualHeading: null };
+    return { body, cargoPips, route, routeHead, label, cargoPipCount: 0, routeSignature: null, visualHeading: null };
   }
 
   #renderCargoPips(
@@ -547,14 +608,13 @@ export class HarborScene extends Phaser.Scene {
     rotationDeg: number,
   ): void {
     const layout = createCargoPipLayout(cargoTotal);
-    view.cargoPips
-      .clear()
-      .setVisible(layout.length > 0)
-      .setPosition(x, y)
-      .setRotation(Phaser.Math.DegToRad(rotationDeg));
-    view.cargoPips.fillStyle(0xffd166, 1);
-    for (const pip of layout) view.cargoPips.fillRect(pip.x - 3, pip.y - 3, 6, 6);
-    view.cargoPipCount = layout.length;
+    if (view.cargoPipCount !== layout.length) {
+      view.cargoPips.clear().setVisible(layout.length > 0);
+      view.cargoPips.fillStyle(0xffd166, 1);
+      for (const pip of layout) view.cargoPips.fillRect(pip.x - 3, pip.y - 3, 6, 6);
+      view.cargoPipCount = layout.length;
+    }
+    view.cargoPips.setPosition(x, y).setRotation(Phaser.Math.DegToRad(rotationDeg));
   }
 
   #renderOverlay(snapshot: HarborPresentationSnapshot, alpha: number): void {
@@ -571,15 +631,51 @@ export class HarborScene extends Phaser.Scene {
       (ship) => ship.ship.id === snapshot.selectedShipId,
     );
     if (selected !== undefined) {
-      const selectedPosition = this.#interpolatedPosition(
-        selected,
-        alpha,
+      const pulseSample = this.#selectionPulse.sampleFor(selected.ship.id);
+      if (pulseSample !== null) {
+        const selectedPosition = this.#interpolatedPosition(
+          selected,
+          alpha,
+        );
+        graphics.lineStyle(
+          3 / worldToCssPixelScale,
+          0xfff0a6,
+          pulseSample.alpha,
+        );
+        graphics.strokeCircle(
+          selectedPosition.x,
+          selectedPosition.y,
+          pulseSample.radiusCssPx / worldToCssPixelScale,
+        );
+      }
+    }
+
+    for (const ship of snapshot.ships) {
+      const readySample = this.#readyToLeavePulse.sampleFor(ship.ship.id);
+      if (readySample === null) continue;
+      const readyPosition = this.#interpolatedPosition(ship, alpha);
+      graphics.lineStyle(
+        3 / worldToCssPixelScale,
+        0xfff0a6,
+        readySample.alpha,
       );
-      graphics.lineStyle(3 / worldToCssPixelScale, 0xfff0a6, 1);
       graphics.strokeCircle(
-        selectedPosition.x,
-        selectedPosition.y,
-        30 / worldToCssPixelScale,
+        readyPosition.x,
+        readyPosition.y,
+        readySample.radiusCssPx / worldToCssPixelScale,
+      );
+    }
+
+    const incomingWarnings = layoutIncomingSpawnWarnings(
+      snapshot.incomingWarnings,
+      this.#logicalWorld,
+      worldToCssPixelScale,
+    );
+    for (const warning of incomingWarnings) {
+      this.#renderIncomingSpawnWarning(
+        graphics,
+        warning,
+        worldToCssPixelScale,
       );
     }
 
@@ -717,9 +813,12 @@ export class HarborScene extends Phaser.Scene {
       view.body.destroy();
       view.cargoPips.destroy();
       view.route.destroy();
+      view.routeHead.destroy();
       view.label.destroy();
     }
     this.#shipViews.clear();
+    this.#selectionPulse.clear();
+    this.#readyToLeavePulse.clear();
     this.#draftGraphics?.clear();
     this.#overlayGraphics?.clear();
   }
@@ -758,7 +857,10 @@ export class HarborScene extends Phaser.Scene {
       this.#cancelActivatedDraft();
       return;
     }
-    runtime.pointerDown(this.#pointerInput(pointer));
+    const outcome = runtime.pointerDown(this.#pointerInput(pointer));
+    if (outcome.kind === 'started') {
+      this.#selectionPulse.begin(outcome.shipId);
+    }
     this.#renderActiveDraft(runtime.presentationSnapshot());
   }
 
@@ -782,7 +884,9 @@ export class HarborScene extends Phaser.Scene {
 
   #renderActiveDraft(snapshot: HarborPresentationSnapshot): void {
     for (const [id, view] of this.#shipViews) {
-      view.route.setVisible(snapshot.activeDraft?.shipId !== id);
+      const routeVisible = snapshot.activeDraft?.shipId !== id;
+      view.route.setVisible(routeVisible);
+      view.routeHead.setVisible(routeVisible);
     }
     const graphics = this.#draftGraphics;
     if (graphics === null) {
@@ -923,6 +1027,44 @@ export class HarborScene extends Phaser.Scene {
     this.#strokeRoute(graphics, clipped[0]!, clipped.slice(1));
   }
 
+  #renderIncomingSpawnWarning(
+    graphics: Phaser.GameObjects.Graphics,
+    warning: LaidOutIncomingSpawnWarning,
+    worldToCssPixelScale: number,
+  ): void {
+    const size = (15 * warning.scale) / worldToCssPixelScale;
+    const local = [
+      { x: size, y: 0 },
+      { x: -size * 0.65, y: -size * 0.72 },
+      { x: -size * 0.65, y: size * 0.72 },
+    ] as const;
+    const radians = Phaser.Math.DegToRad(warning.arrowRotationDeg);
+    const cosine = Math.cos(radians);
+    const sine = Math.sin(radians);
+    const rotated = local.map((point) => ({
+      x: warning.position.x + point.x * cosine - point.y * sine,
+      y: warning.position.y + point.x * sine + point.y * cosine,
+    }));
+    graphics.fillStyle(0xfff0a6, warning.alpha);
+    graphics.lineStyle(2 / worldToCssPixelScale, 0x17324d, warning.alpha);
+    graphics.fillTriangle(
+      rotated[0]!.x,
+      rotated[0]!.y,
+      rotated[1]!.x,
+      rotated[1]!.y,
+      rotated[2]!.x,
+      rotated[2]!.y,
+    );
+    graphics.strokeTriangle(
+      rotated[0]!.x,
+      rotated[0]!.y,
+      rotated[1]!.x,
+      rotated[1]!.y,
+      rotated[2]!.x,
+      rotated[2]!.y,
+    );
+  }
+
   #interpolatedPosition(
     ship: HarborShipPresentationSnapshot,
     interpolationAlpha: number,
@@ -940,24 +1082,6 @@ export class HarborScene extends Phaser.Scene {
       ),
     };
   }
-
-  readonly #onVisibilityChange = (): void => {
-    this.#runtime?.setPageActive(!document.hidden);
-    if (document.hidden) {
-      this.#draftGraphics?.clear();
-    }
-  };
-
-  readonly #onWindowBlur = (): void => {
-    this.#runtime?.setPageActive(false);
-    this.#draftGraphics?.clear();
-  };
-
-  readonly #onWindowFocus = (): void => {
-    if (!document.hidden) {
-      this.#runtime?.setPageActive(true);
-    }
-  };
 
   readonly #onWindowKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape' && this.#cancelActivatedDraft()) {

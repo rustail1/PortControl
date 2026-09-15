@@ -58,14 +58,14 @@ for (const [name, internalGameSize, canvasCssBounds, expectedWorldToCss] of [
   ['desktop', { width: 1600 / 0.9, height: 1000 }, { x: 0, y: 0, width: 1600, height: 900 }, 0.9],
   ['portrait', { width: 1000, height: 844 / 0.39 }, { x: 0, y: 0, width: 390, height: 844 }, 0.39],
 ]) {
-  test(`COR-12 HUMAN selection target is at least 48 CSS px on ${name}`, async () => {
+  test(`COR-12 HUMAN selection target is at least 64 CSS px on ${name}`, async () => {
     const subject = await setup();
     assert.equal(typeof subject.createDisplayCoordinateContract, 'function');
     const display = subject.createDisplayCoordinateContract({ internalGameSize, canvasCssBounds });
     const worldToCss = display.worldToCssPixelScale(1);
-    const selectionWorldRadius = 24 / worldToCss;
+    const selectionWorldRadius = 32 / worldToCss;
 
-    assertClose(selectionWorldRadius * worldToCss * 2, 48);
+    assertClose(selectionWorldRadius * worldToCss * 2, 64);
     const ship = {
       id: 'small',
       state: 'Navigating',

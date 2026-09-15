@@ -37,7 +37,7 @@ test('factory parses actual validated general, container, and oil dock definitio
 
   assert.deepEqual(general, {
     id: 'dock_g', position: { x: 350, y: 310 }, rotationDeg: 0,
-    dockAngle: 0, snapRadius: 58, acceptedCargoTypes: ['general'],
+    dockAngle: 0, approachRadius: 58, acceptedCargoTypes: ['general'],
     helperFlag: false, visualVariant: 'dock_general',
   });
   assert.deepEqual(container.acceptedCargoTypes, ['container']);

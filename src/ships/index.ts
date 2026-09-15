@@ -5,7 +5,10 @@ export {
 } from './ShipCharacteristics.ts';
 export {
   normalizeRotationDeg,
+  LandRecoveryMotion,
+  RouteTurnMode,
   ShipModel,
+  type LandRecoveryMotion as LandRecoveryMotionValue,
   type ShipModelInit,
   type ShipModelSnapshot,
   type ShipPosition,
@@ -21,3 +24,5 @@ export {
   ShipState,
   type ShipState as ShipStateValue,
 } from './ShipState.ts';
+
+export { canTransitionShip, type ShipTransitionReason } from './ShipLifecycle.ts';

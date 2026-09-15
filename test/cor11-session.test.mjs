@@ -244,7 +244,7 @@ async function cargoHarness(cargo = { general: 2 }, acceptedCargoTypes = ['gener
     position: { x: 0, y: 0 },
     rotationDeg: 0,
     dockAngle: 0,
-    snapRadius: 20,
+    approachRadius: 20,
     acceptedCargoTypes,
     helperFlag: false,
     visualVariant: 'dock_general',

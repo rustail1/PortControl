@@ -18,16 +18,19 @@ export class LocalPlatformAdapter implements IPlatformAdapter {
   private readonly resumeCallbacks = new Set<() => void>();
   private lifecycleState: LocalLifecycleState = 'running';
   private storedProfile: StoredProfile | null = null;
+  private detachBrowserLifecycle: (() => void) | null = null;
+  private gameplayRunning = false;
 
   async init(): Promise<PlatformInitResult> {
+    this.attachBrowserLifecycle();
     return { status: 'ready', mode: 'local' };
   }
 
   async gameReady(): Promise<void> {}
 
-  gameplayStart(): void {}
+  gameplayStart(): void { this.gameplayRunning = true; }
 
-  gameplayStop(): void {}
+  gameplayStop(): void { this.gameplayRunning = false; }
 
   onPause(cb: () => void): Unsubscribe {
     return this.subscribe(this.pauseCallbacks, cb);
@@ -89,6 +92,26 @@ export class LocalPlatformAdapter implements IPlatformAdapter {
 
     this.lifecycleState = 'running';
     this.emit(this.resumeCallbacks);
+  }
+
+  public dispose(): void {
+    this.detachBrowserLifecycle?.();
+    this.detachBrowserLifecycle = null;
+  }
+
+  private attachBrowserLifecycle(): void {
+    if (this.detachBrowserLifecycle !== null || typeof document === 'undefined' || typeof window === 'undefined') return;
+    const visibility = () => document.hidden ? this.simulatePause() : this.simulateResume();
+    const blur = () => this.simulatePause();
+    const focus = () => { if (!document.hidden) this.simulateResume(); };
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('blur', blur);
+    window.addEventListener('focus', focus);
+    this.detachBrowserLifecycle = () => {
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('blur', blur);
+      window.removeEventListener('focus', focus);
+    };
   }
 
   private subscribe(callbacks: Set<() => void>, cb: () => void): Unsubscribe {

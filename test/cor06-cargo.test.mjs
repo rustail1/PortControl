@@ -12,7 +12,7 @@ async function subject() {
 }
 async function setup(cargo = { general: 1 }, types = ['general']) {
   const s = await subject(), bundle = s.validateConfigSource(readBaselineSource());
-  const dock = new s.DockModel({ id: 'dock', position: { x: 0, y: 0 }, rotationDeg: 0, dockAngle: 0, snapRadius: 20, acceptedCargoTypes: types, helperFlag: false, visualVariant: 'dock_general' });
+  const dock = new s.DockModel({ id: 'dock', position: { x: 0, y: 0 }, rotationDeg: 0, dockAngle: 0, approachRadius: 20, acceptedCargoTypes: types, helperFlag: false, visualVariant: 'dock_general' });
   const docks = new s.DockSystem(), events = new s.DomainEventQueue(), characteristics = s.createShipCharacteristicsRegistry(bundle).require('speedboat');
   const ship = new s.ShipModel({ id: 'ship', characteristics, position: { x: 0, y: 0 }, rotationDeg: 0, state: s.ShipState.Unloading, cargo });
   assert.equal(docks.reserve(dock, ship).status, 'eligible'); assert.equal(docks.occupyReserved(dock, ship.id), true);
@@ -45,7 +45,7 @@ test('multi-accept dock uses authored cargo type order and accumulator emits onc
   assert.deepEqual(received.map((event) => event.cargoType), ['container', 'general']); assert.equal(ship.cargoTotal, 0); assert.equal(dock.occupiedBy, ship.id);
 });
 test('Destroyed or lost occupancy stops unload without zombie mutation', async () => {
-  const { s, cargoSystem, ship, dock, docks, received } = await setup({ general: 2 }); cargoSystem.step(active(ship, dock), 0); ship.setState(s.ShipState.Destroyed); cargoSystem.step([], 2);
+  const { s, cargoSystem, ship, dock, docks, received } = await setup({ general: 2 }); cargoSystem.step(active(ship, dock), 0); ship.destroy('collision'); cargoSystem.step([], 2);
   assert.equal(ship.cargoQuantity('general'), 2); assert.equal(received.length, 0); assert.equal(dock.occupiedBy, ship.id);
   const next = await setup({ general: 1 }); next.cargoSystem.step(active(next.ship, next.dock), 0); assert.equal(next.docks.releaseOccupancy(next.dock, next.ship.id), true); next.cargoSystem.step([], 2); assert.equal(next.ship.cargoQuantity('general'), 1); assert.equal(next.received.length, 0);
 });
@@ -55,7 +55,7 @@ test('30, 60, and 120 partitions preserve cargo, state, occupancy, and event seq
 });
 test('Map iteration processes a second simultaneous unload after the first completes', async () => {
   const first = await setup(), { s, cargoSystem, docks, events, received } = first;
-  const dock = new s.DockModel({ id: 'dock-2', position: { x: 1, y: 0 }, rotationDeg: 0, dockAngle: 0, snapRadius: 20, acceptedCargoTypes: ['general'], helperFlag: false, visualVariant: 'dock_general' });
+  const dock = new s.DockModel({ id: 'dock-2', position: { x: 1, y: 0 }, rotationDeg: 0, dockAngle: 0, approachRadius: 20, acceptedCargoTypes: ['general'], helperFlag: false, visualVariant: 'dock_general' });
   const ship = new s.ShipModel({ id: 'ship-2', characteristics: first.ship.characteristics, position: { x: 1, y: 0 }, rotationDeg: 0, state: s.ShipState.Unloading, cargo: { general: 1 } });
   assert.equal(docks.reserve(dock, ship).status, 'eligible'); assert.equal(docks.occupyReserved(dock, ship.id), true);
   cargoSystem.step([{ ship: first.ship, dock: first.dock }, { ship, dock }], 0); cargoSystem.step([], .8); events.flush();

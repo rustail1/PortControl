@@ -1,4 +1,15 @@
+import { RuntimeConfigRegistry } from '../config/RuntimeConfigRegistry.ts';
 import type { ConfigBundle } from '../config/types.ts';
-export interface RouteProcessingConfig { readonly simplifyEpsilon:number; readonly minValidRouteLength:number; readonly waypointTolerance:number; readonly maxSimplifiedPoints:number; readonly navigationClearanceExtra:number; }
-interface Balance { readonly route: RouteProcessingConfig; }
-export function createRouteProcessingConfig(bundle: ConfigBundle): RouteProcessingConfig { const route=(bundle.configs['balance.json'] as unknown as Balance).route; return Object.freeze({ simplifyEpsilon:route.simplifyEpsilon,minValidRouteLength:route.minValidRouteLength,waypointTolerance:route.waypointTolerance,maxSimplifiedPoints:route.maxSimplifiedPoints,navigationClearanceExtra:route.navigationClearanceExtra }); }
+
+export interface RouteProcessingConfig {
+  readonly minValidRouteLength: number;
+  readonly navigationClearanceExtra: number;
+}
+
+export function createRouteProcessingConfig(bundle: ConfigBundle): RouteProcessingConfig {
+  const route = new RuntimeConfigRegistry(bundle).balance().route;
+  return Object.freeze({
+    minValidRouteLength: route.minValidRouteLength,
+    navigationClearanceExtra: route.navigationClearanceExtra,
+  });
+}

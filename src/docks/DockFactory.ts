@@ -31,7 +31,7 @@ export function createDocksFromLevel(level: Record<string, unknown>): DockCollec
       position: { x: block.x, y: block.y },
       rotationDeg: block.rotation,
       dockAngle: block.props.dockAngle,
-      snapRadius: block.props.snapRadius,
+      approachRadius: block.props.snapRadius,
       acceptedCargoTypes: block.props.cargoTypes,
       helperFlag: block.props.helperFlag,
       visualVariant: block.props.visualVariant,

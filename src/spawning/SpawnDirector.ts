@@ -1,3 +1,5 @@
+import { toSpawnDirectorLevelDefinition } from '../config/LevelDefinition.ts';
+import { RuntimeConfigRegistry } from '../config/RuntimeConfigRegistry.ts';
 import type { ConfigBundle } from '../config/types.ts';
 import type { IRng } from '../core/SeededRng.ts';
 import { participatesInShipCollision } from '../collision/CollisionSystem.ts';
@@ -99,23 +101,14 @@ export type SpawnDirectorStepResult =
       readonly activeShips: number;
     };
 
-export type ReadySpawnResolution =
-  | {
-      readonly kind: 'approved';
-      readonly logicalSpawnId: string;
-      readonly command: ReadySpawnCommand;
-      readonly pressure: number;
-      readonly aliveShips: number;
-      readonly shipType: string;
-    }
-  | {
-      readonly kind: 'retry';
-      readonly logicalSpawnId: string;
-      readonly transactionId: string;
-      readonly retryDueTime: number;
-      readonly pressure: number;
-      readonly aliveShips: number;
-    };
+export interface ReadySpawnResolution {
+  readonly kind: 'approved';
+  readonly logicalSpawnId: string;
+  readonly command: ReadySpawnCommand;
+  readonly pressure: number;
+  readonly aliveShips: number;
+  readonly shipType: string;
+}
 
 interface LogicalSpawnEvent {
   readonly identity: SpawnIdentity;
@@ -161,25 +154,6 @@ export interface SpawnDirectorSnapshot {
   readonly scriptedIntroConsumed: boolean;
   readonly unresolved: LogicalSpawnEventSnapshot | null;
   readonly rngState: readonly number[];
-}
-
-interface LevelSource {
-  readonly allowedShips: readonly string[];
-  readonly shipWeights?: Readonly<Record<string, number>>;
-  readonly cargoTypes: readonly string[];
-  readonly cargoGeneration: {
-    readonly mode: 'single' | 'mixed';
-    readonly weights: Readonly<Record<string, number>>;
-    readonly multiCargoChance: number;
-  };
-  readonly director: SpawnDirectorLevelConfig['director'];
-  readonly flags: {
-    readonly scriptedIntroShip?: string | null;
-  };
-}
-
-interface BalanceSource {
-  readonly spawnDirector: SpawnDirectorBalanceConfig;
 }
 
 function freezeCargo(cargo: Record<string, number>): CargoManifest {
@@ -269,18 +243,16 @@ export function createSpawnDirectorConfig(
   bundle: ConfigBundle,
   levelId: string,
 ): SpawnDirectorConfig {
-  const level = bundle.levels[levelId] as unknown as LevelSource | undefined;
-  if (level === undefined) {
-    throw new RangeError(`Unknown level: ${levelId}`);
-  }
-  const balance = bundle.configs['balance.json'] as unknown as BalanceSource;
-  const spawnDirector = balance.spawnDirector;
+  const rawLevel = bundle.levels[levelId];
+  if (rawLevel === undefined) throw new RangeError(`Unknown level: ${levelId}`);
+  const level = toSpawnDirectorLevelDefinition(rawLevel);
+  const spawnDirector = new RuntimeConfigRegistry(bundle).balance().spawnDirector;
 
   return Object.freeze({
     level: Object.freeze({
       levelId,
       allowedShips: Object.freeze([...level.allowedShips]),
-      shipWeights: Object.freeze({ ...(level.shipWeights ?? {}) }),
+      shipWeights: Object.freeze({ ...level.shipWeights }),
       cargoTypes: Object.freeze([...level.cargoTypes]),
       cargoGeneration: Object.freeze({
         mode: level.cargoGeneration.mode,
@@ -288,26 +260,12 @@ export function createSpawnDirectorConfig(
         multiCargoChance: level.cargoGeneration.multiCargoChance,
       }),
       director: Object.freeze({
-        startInterval: level.director.startInterval,
-        minimumInterval: level.director.minimumInterval,
-        warningLeadTime: level.director.warningLeadTime,
-        maxAlive: level.director.maxAlive,
-        pressureCap: level.director.pressureCap,
-        jitter: level.director.jitter,
-        wave: Object.freeze({
-          burstMin: level.director.wave.burstMin,
-          burstMax: level.director.wave.burstMax,
-          breathMin: level.director.wave.breathMin,
-          breathMax: level.director.wave.breathMax,
-        }),
+        ...level.director,
+        wave: Object.freeze({ ...level.director.wave }),
       }),
-      scriptedIntroShip: level.flags.scriptedIntroShip ?? null,
+      scriptedIntroShip: level.scriptedIntroShip,
     }),
-    balance: Object.freeze({
-      occupiedDockPressureWeight: spawnDirector.occupiedDockPressureWeight,
-      activeStormCellPressureWeight: spawnDirector.activeStormCellPressureWeight,
-      unsafeSpawnRetryDelayMs: spawnDirector.unsafeSpawnRetryDelayMs,
-    }),
+    balance: Object.freeze({ ...spawnDirector }),
   });
 }
 
@@ -484,37 +442,11 @@ export class SpawnDirector {
       input.activeStormCellCount,
       this.#config.balance,
     );
-    const owner = input.getSpawnPointOwner(command.spawnPointId);
-    const ownOrFree = owner === null || owner === command.transactionId;
-    const geometrySafe = this.#isGeometrySafe(
-      command.spawnPoint,
-      event.shipType,
-      input.activeShips,
-    );
 
-    if (!this.#gatesOpen(pressure) || !ownOrFree || !geometrySafe) {
-      const transactionId = event.transactionId;
-      if (transactionId === null) {
-        throw new Error('scheduled logical spawn is missing transactionId');
-      }
-      event.scheduled = false;
-      event.spawnPointId = null;
-      event.transactionId = null;
-      event.placementAttempt += 1;
-      const retryDueTime =
-        input.simulationTime +
-        this.#config.balance.unsafeSpawnRetryDelayMs / 1000;
-      this.#retryDueTime = retryDueTime;
-      return Object.freeze({
-        kind: 'retry',
-        logicalSpawnId: event.identity.logicalSpawnId,
-        transactionId,
-        retryDueTime,
-        pressure: pressure.pressure,
-        aliveShips: pressure.activeShips,
-      });
-    }
-
+    // A confirmed incoming transaction is a player-visible promise. Geometry,
+    // pressure and maxAlive are authoritative when the placement is committed;
+    // re-checking them after the warning has been shown can silently cancel or
+    // relocate the exact spawn the player was told to expect.
     return Object.freeze({
       kind: 'approved',
       logicalSpawnId: event.identity.logicalSpawnId,

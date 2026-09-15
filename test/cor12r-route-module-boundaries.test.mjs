@@ -88,17 +88,19 @@ test('COR-12R RouteCommitService validates the exact canonical authored geometry
     'committed ShipRoute must reuse the exact geometry that was validated');
 });
 
-test('COR-12R departure commit trims gesture samples that lie before the guided release start', async () => {
-  const { routes, ships, ship, routeConfig } = await setup();
-  ship.setState(ships.ShipState.ReadyToLeave);
-  ship.setPositionXY(0, 0);
+test('COR-12R departure preparation trims gesture samples that lie before the guided release start', async () => {
+  const { routes, ships, ship: sourceShip, routeConfig } = await setup();
+  const ship = new ships.ShipModel({
+    id: 'departure-trim', characteristics: sourceShip.characteristics,
+    position: { x: 0, y: 0 }, rotationDeg: 0, state: ships.ShipState.ReadyToLeave, cargo: {},
+  });
   const routeStart = { x: 0, y: 58 };
   const service = new routes.RouteCommitService({
     navigation: new routes.NavigationValidator([]),
     config: routeConfig,
   });
 
-  const result = service.commit({
+  const result = service.prepare({
     ship,
     routeStart,
     draft: {
@@ -109,17 +111,20 @@ test('COR-12R departure commit trims gesture samples that lie before the guided 
         { x: 0, y: 30 },
         { x: 0, y: 45 },
         { x: 0, y: 60 },
+        { x: 0, y: 100 },
       ],
     },
   });
 
   assert.equal(result.kind, 'committed');
-  assert.deepEqual(ship.route.toSnapshot().start, routeStart);
+  assert.ok('route' in result);
+  assert.deepEqual(result.route.toSnapshot().start, routeStart);
   assert.ok(
-    ship.route.toSnapshot().points.every((point) => point.y >= routeStart.y - 1e-6),
-    `guided release must not route backward through dock gesture prefix: ${JSON.stringify(ship.route.toSnapshot())}`,
+    result.route.toSnapshot().points.every((point) => point.y >= routeStart.y - 1e-6),
+    `guided release must not route backward through dock gesture prefix: ${JSON.stringify(result.route.toSnapshot())}`,
   );
-  assert.deepEqual(ship.route.toSnapshot().points.at(-1), { x: 0, y: 60 });
+  assert.deepEqual(result.route.toSnapshot().points.at(-1), { x: 0, y: 100 });
+  assert.equal(ship.route, null, 'preparation must not mutate ReadyToLeave ship before DepartureCoordinator commit');
 });
 
 test('COR-12R exposes a dedicated RouteCanonicalizer module', async () => {

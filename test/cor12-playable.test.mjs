@@ -420,9 +420,15 @@ test('COR-12 #25 live outbound route starts departure before pointer release', a
   runtime.pointerMove({ source: 'mouse', pointerId: 25, screenPosition: target, cssPosition: target, internalViewport: viewport, worldToCssPixelScale: 1 });
   runtime.advanceRender(frameMs(60));
   const leaving = runtime.presentationSnapshot();
-  assert.equal(leaving.ships.find((candidate) => candidate.ship.id === ship.ship.id)?.ship.state, s.ShipState.Leaving);
+  const leavingShip = leaving.ships.find((candidate) => candidate.ship.id === ship.ship.id)?.ship;
+  assert.equal(leavingShip?.state, s.ShipState.Leaving);
   assert.notEqual(leaving.activeDraft, null);
   assert.equal(leaving.docks.find((dock) => dock.runtime.occupiedBy === ship.ship.id)?.busy, true);
+  assert.ok(leavingShip?.route, 'live outbound route must already exist while pointer is held');
+  const releaseOffset = {
+    x: leavingShip.route.start.x - ready.ship.position.x,
+    y: leavingShip.route.start.y - ready.ship.position.y,
+  };
 
   runtime.pointerMove({ source: 'mouse', pointerId: 25, screenPosition: outbound[1], cssPosition: outbound[1], internalViewport: viewport, worldToCssPixelScale: 1 });
   assert.equal(runtime.pointerUp({ source: 'mouse', pointerId: 25, screenPosition: outbound[1], cssPosition: outbound[1], internalViewport: viewport, worldToCssPixelScale: 1 }).kind, 'finished');
@@ -430,7 +436,10 @@ test('COR-12 #25 live outbound route starts departure before pointer release', a
   const released = runtime.presentationSnapshot();
   const releasedShip = released.ships.find((candidate) => candidate.ship.id === ship.ship.id);
   assert.equal(released.docks.some((dock) => dock.runtime.occupiedBy === ship.ship.id), false);
-  assert.deepEqual(releasedShip?.ship.route?.points.at(-1), outbound[1]);
+  assert.deepEqual(releasedShip?.ship.route?.points.at(-1), {
+    x: outbound[1].x + releaseOffset.x,
+    y: outbound[1].y + releaseOffset.y,
+  });
 });
 
 test('COR-12 #26 actual ExitSystem eventually removes successfully leaving ship', async () => {
@@ -526,16 +535,16 @@ test('COR-12 #35 runtime grounding and NavigationValidator share exact clearance
   const geometry = new s.LandClearanceGeometry([{ points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }] }]);
   const ship = createShip(s, registry, 'g', s.ShipState.Navigating, { x: -30, y: 120 });
   const navigation = new s.NavigationValidator(geometry.polygons);
-  const config = { simplifyEpsilon: 0, minValidRouteLength: 1, waypointTolerance: 1, maxSimplifiedPoints: 10, navigationClearanceExtra: 4 };
+  const config = { minValidRouteLength: 1, navigationClearanceExtra: 4 };
   const planned = navigation.validate(ship, [{ x: 130, y: 120 }], config);
   const grounding = new s.GroundingSystem({ geometry, navigationClearanceExtra: 4 });
   ship.setPositionXY(130, 120);
   const runtime = grounding.resolve([{ ship, spawnSequence: 1, previousPosition: { x: -30, y: 120 } }]);
-  assert.equal(runtime.terminalGrounding, null);
   assert.equal(
     planned.validPoints.length === 0,
-    runtime.avoidedShipIds.length > 0,
+    runtime.terminalGrounding !== null,
   );
+  assert.deepEqual(runtime.terminalGrounding, { shipId: ship.id, failReason: 'grounding' });
 });
 
 for (const [number, state] of [[36, 'Entering'], [37, 'Navigating'], [38, 'ApproachingDock'], [39, 'Leaving']]) {
@@ -545,10 +554,9 @@ for (const [number, state] of [[36, 'Entering'], [37, 'Navigating'], [38, 'Appro
     const ship = createShip(s, registry, `g-${state}`, s.ShipState[state], { x: -40, y: 50 });
     ship.setPositionXY(20, 50);
     const result = new s.GroundingSystem({ geometry, navigationClearanceExtra: 4 }).resolve([{ ship, spawnSequence: 1, previousPosition: { x: -40, y: 50 } }]);
-    assert.equal(result.terminalGrounding, null);
-    assert.deepEqual(result.avoidedShipIds, [`g-${state}`]);
+    assert.deepEqual(result.terminalGrounding, { shipId: `g-${state}`, failReason: 'grounding' });
     assert.equal(ship.state, s.ShipState[state]);
-    assert.notEqual(ship.routeRecoveryHeadingDeg, null);
+    assert.equal(ship.routeRecoveryHeadingDeg, null, 'GroundingSystem must report only; terminal arbitration owns destruction');
   });
 }
 

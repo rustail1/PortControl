@@ -129,7 +129,7 @@ test('collision candidate validation rejects duplicate active ship identities', 
 test('fixed 30 60 and 120 render partitions produce the same warning and collision sequence', async () => {
   const run = async (fps) => {
     const a = await setup(); const one = a.ship('one', 0, 0), two = a.ship('two', 100, 0); one.replaceRoute(new a.ships.ShipRoute([{ x: 200, y: 0 }])); const motor = new a.ships.ShipMotor(); const clock = new a.FixedStepClock({ fixedHz: 60, maxCatchUpSteps: 6 }); let terminal = null;
-    for (let frame = 0; frame < fps * 2; frame += 1) clock.advance(1000 / fps, (dt) => { motor.stepRoute(one, 1, dt); const outcome = a.system.step(a.candidates([one, 1], [two, 2]), dt); if (outcome.terminalCollision !== null) terminal = outcome.terminalCollision; });
+    for (let frame = 0; frame < fps * 2; frame += 1) clock.advance(1000 / fps, (dt) => { motor.stepRoute(one, dt); const outcome = a.system.step(a.candidates([one, 1], [two, 2]), dt); if (outcome.terminalCollision !== null) terminal = outcome.terminalCollision; });
     flush(a); return { warning: a.received.warning, collision: a.received.collision, terminal };
   };
   const [at30, at60, at120] = await Promise.all([run(30), run(60), run(120)]); assert.deepEqual(at60, at30); assert.deepEqual(at120, at30); assert.equal(at30.collision.length, 1);

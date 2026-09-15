@@ -60,7 +60,7 @@ async function dockingHarness() {
     position: { x: 100, y: 100 },
     rotationDeg: 90,
     dockAngle: 90,
-    snapRadius: 200,
+    approachRadius: 200,
     acceptedCargoTypes: ['general'],
     helperFlag: false,
     visualVariant: 'dock_general',
@@ -73,40 +73,45 @@ async function dockingHarness() {
     dockSystem,
     config: s.createDockingConfig(bundle),
   });
-  const ship = shipOf(s, registry);
+  const ship = shipOf(s, registry, 'speedboat', { position: { x: 0, y: 300 } });
   const candidates = [{ ship, spawnSequence: 0 }];
   controller.step(candidates, 0);
   controller.step(candidates, 0);
   return { s, ship, dock, controller, candidates };
 }
 
-test('COR-12 FIX-3 docking uses a guided curve rather than a linear side-slide', async () => {
+test('COR-12 FIX-3 docking follows the exact derived lane and pivots at an authored corner', async () => {
   const { s, ship, controller, candidates } = await dockingHarness();
   let visitedWaterSideApproach = false;
   let leftLinearSideSlide = false;
-  let turnedTowardBerth = false;
+  let pivotedAtAuthoredCorner = false;
 
   for (let step = 0; step < 1200 && ship.state === s.ShipState.Docking; step += 1) {
     controller.step(candidates, 1 / 60);
     if (ship.y > 100) visitedWaterSideApproach = true;
     if (ship.x > 40) leftLinearSideSlide = true;
-    if (ship.rotationDeg > 0 && ship.rotationDeg < 90) turnedTowardBerth = true;
+    if (ship.x > 99 && ship.y > 299 && ship.rotationDeg > 270 && ship.rotationDeg < 360) {
+      pivotedAtAuthoredCorner = true;
+    }
   }
 
   assert.equal(visitedWaterSideApproach, true, 'entry should visit the derived water-side approach lane');
-  assert.equal(leftLinearSideSlide, true, 'entry should leave the straight side-slide line');
-  assert.equal(turnedTowardBerth, true, 'entry should turn continuously toward the berth');
+  assert.equal(leftLinearSideSlide, true, 'entry should leave the old straight side-slide line');
+  assert.equal(pivotedAtAuthoredCorner, true, 'entry should pivot at the exact authored corner instead of cutting it');
 });
 
-test('COR-12 FIX-3 docking stays continuous and reaches exact pose at speed-based completion', async () => {
+test('COR-12 FIX-3 docking has bounded fixed-step motion and reaches the exact berth pose', async () => {
   const { s, ship, dock, controller, candidates } = await dockingHarness();
   let previous = ship.position;
+  let sawTranslation = false;
   for (let step = 0; step < 1200 && ship.state === s.ShipState.Docking; step += 1) {
     controller.step(candidates, 1 / 60);
     const travel = Math.hypot(ship.x - previous.x, ship.y - previous.y);
-    assert.ok(travel > 0 && travel < 50);
+    assert.ok(travel < 50, `harbor assist teleported ${travel} units in one fixed step`);
+    if (travel > 0) sawTranslation = true;
     previous = ship.position;
   }
+  assert.equal(sawTranslation, true);
   assert.deepEqual(ship.position, dock.definition.position);
   assert.equal(ship.rotationDeg, dock.definition.dockAngle);
   assert.equal(ship.state, s.ShipState.Unloading);
@@ -122,7 +127,7 @@ test('COR-12 FIX-3 two different docks can be occupied while each remains single
     position: { x, y: 100 },
     rotationDeg: 90,
     dockAngle: 90,
-    snapRadius: 30,
+    approachRadius: 30,
     acceptedCargoTypes: ['general'],
     helperFlag: false,
     visualVariant: 'dock_general',
@@ -190,7 +195,7 @@ for (const type of ['speedboat', 'cargo_boat', 'freighter']) {
       let previousCursor = 0;
       for (let step = 0; step < 3600 && ship.routeCursor < points.length; step += 1) {
         const before = ship.position;
-        motor.stepRoute(ship, 8, 1 / 60);
+        motor.stepRoute(ship, 1 / 60);
         assert.ok(ship.routeProgress >= previousProgress);
         assert.ok(ship.routeCursor >= previousCursor);
         assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
@@ -222,10 +227,10 @@ test('COR-12 FIX-3 short valid outbound command enters Leaving and continuation 
   assert.equal(ship.state, s.ShipState.Leaving);
   const motor = new s.ShipMotor();
   for (let step = 0; step < 120 && ship.routeCursor < 1; step += 1) {
-    motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
   }
   const beforeContinuation = ship.position;
-  motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
+  motor.stepRoute(ship, 1 / 60);
   assert.ok(ship.y > beforeContinuation.y);
 });
 
@@ -237,7 +242,7 @@ test('COR-12 FIX-3 generic 90 degree dock orientation points a leaving ship towa
     state: s.ShipState.Leaving,
     cargo: {},
   });
-  new s.ShipMotor().stepRoute(ship, 8, 1 / 60);
+  new s.ShipMotor().stepRoute(ship, 1 / 60);
   assert.equal(ship.x, 355);
   assert.ok(ship.y > 150);
 });
@@ -284,7 +289,7 @@ test('COR-12 FIX-3 follower waits for the exact vertex before turning toward the
   let previousProgress = 0;
   for (let step = 0; step < 600 && ship.routeCursor < 2; step += 1) {
     const before = ship.position;
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
     assert.ok(ship.routeProgress >= previousProgress);
     assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
     const expected = ship.route.pointAtDistance(ship.routeProgress);
@@ -305,7 +310,7 @@ test('COR-12 FIX-3 reaching a close waypoint keeps continuous forward movement',
   const ship = shipOf(s, registry, 'speedboat', { position: { x: 96, y: 0 } });
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }, { x: 200, y: 0 }]));
   const before = ship.position;
-  new s.ShipMotor().stepRoute(ship, 8, 1 / 60);
+  new s.ShipMotor().stepRoute(ship, 1 / 60);
   assert.ok(Math.hypot(ship.x - before.x, ship.y - before.y) <= ship.characteristics.speed / 60 + 1e-9);
   assert.ok(ship.x > 96);
   assert.equal(ship.y, 0);

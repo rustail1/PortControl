@@ -9,6 +9,12 @@ export interface CargoRejectVisualPulseSnapshot {
   readonly remainingSeconds: number;
 }
 
+export interface RouteRejectVisualPulseSnapshot {
+  readonly shipId: string;
+  readonly kind: 'rejected_too_short' | 'rejected_invalid' | 'rejected_locked';
+  readonly remainingSeconds: number;
+}
+
 interface MutableDangerPulse {
   readonly shipAId: string;
   readonly shipBId: string;
@@ -24,6 +30,7 @@ function pairKey(shipAId: string, shipBId: string): string {
 export class PresentationPulseStore {
   readonly #danger = new Map<string, MutableDangerPulse>();
   readonly #cargoReject = new Map<string, number>();
+  readonly #routeReject = new Map<string, { kind: RouteRejectVisualPulseSnapshot['kind']; remainingSeconds: number }>();
 
   public refreshDanger(shipAId: string, shipBId: string, ttlSeconds: number): void {
     this.#assertTtl(ttlSeconds);
@@ -42,6 +49,15 @@ export class PresentationPulseStore {
     this.#cargoReject.set(shipId, ttlSeconds);
   }
 
+  public refreshRouteReject(
+    shipId: string,
+    kind: RouteRejectVisualPulseSnapshot['kind'],
+    ttlSeconds: number,
+  ): void {
+    this.#assertTtl(ttlSeconds);
+    this.#routeReject.set(shipId, { kind, remainingSeconds: ttlSeconds });
+  }
+
   public advance(deltaSeconds: number): void {
     if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) {
       throw new RangeError('pulse deltaSeconds must be a non-negative finite number');
@@ -55,10 +71,16 @@ export class PresentationPulseStore {
       if (next <= 0) this.#cargoReject.delete(shipId);
       else this.#cargoReject.set(shipId, next);
     }
+    for (const [shipId, pulse] of this.#routeReject) {
+      const next = pulse.remainingSeconds - deltaSeconds;
+      if (next <= 0) this.#routeReject.delete(shipId);
+      else this.#routeReject.set(shipId, { ...pulse, remainingSeconds: next });
+    }
   }
 
   public forgetShip(shipId: string): void {
     this.#cargoReject.delete(shipId);
+    this.#routeReject.delete(shipId);
     for (const [key, pulse] of this.#danger) {
       if (pulse.shipAId === shipId || pulse.shipBId === shipId) {
         this.#danger.delete(key);
@@ -69,6 +91,7 @@ export class PresentationPulseStore {
   public clear(): void {
     this.#danger.clear();
     this.#cargoReject.clear();
+    this.#routeReject.clear();
   }
 
   public dangerSnapshot(): readonly DangerVisualPulseSnapshot[] {
@@ -84,6 +107,15 @@ export class PresentationPulseStore {
       [...this.#cargoReject.entries()]
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([shipId, remainingSeconds]) => Object.freeze({ shipId, remainingSeconds })),
+    );
+  }
+
+
+  public routeRejectSnapshot(): readonly RouteRejectVisualPulseSnapshot[] {
+    return Object.freeze(
+      [...this.#routeReject.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([shipId, pulse]) => Object.freeze({ shipId, kind: pulse.kind, remainingSeconds: pulse.remainingSeconds })),
     );
   }
 

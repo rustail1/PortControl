@@ -4,7 +4,7 @@ import { getLogicalWorldSize } from './config/getLogicalWorldSize.ts';
 import { loadBundledConfig } from './config/loadBundledConfig.ts';
 import { LocalPlatformAdapter } from './platform/LocalPlatformAdapter.ts';
 import { resolveDevelopmentLevelId } from './scenes/HarborLevelSelection.ts';
-import { HarborScene } from './scenes/HarborScene.ts';
+import { HarborScene, createCryptoAttemptSeed } from './scenes/HarborScene.ts';
 import './styles.css';
 
 const configBundle = loadBundledConfig();
@@ -24,7 +24,7 @@ const config: Phaser.Types.Core.GameConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     expandParent: true,
   },
-  scene: [new HarborScene(logicalWorld, configBundle, levelId)],
+  scene: [new HarborScene(logicalWorld, configBundle, levelId, createCryptoAttemptSeed, platform)],
 };
 
 async function bootstrap(): Promise<void> {

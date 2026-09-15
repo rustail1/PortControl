@@ -236,7 +236,7 @@ test('COR-12 live-follow never applies a fully invalid land-crossing suffix', as
   assert.equal(runtime.lastRouteCommitResult.kind, 'rejected_invalid');
 });
 
-test('COR-12 reverse live route keeps canonical position while hull turns toward it', async () => {
+test('COR-12 reverse live route keeps canonical progress while hull turns toward it', async () => {
   const { runtime } = await setupRuntime(1212);
   for (let frame = 0; frame < 120; frame += 1) runtime.advanceRender(1000 / 60);
   const ready = runtime.presentationSnapshot().ships[0].ship;
@@ -250,9 +250,11 @@ test('COR-12 reverse live route keeps canonical position while hull turns toward
   assert.notEqual(turning.route, null);
   assertOnRoute(turning);
   assert.ok(
-    Math.hypot(turning.position.x - ready.position.x, turning.position.y - ready.position.y) < 1e-7,
-    'exact reverse should turn in place until the hull has a forward component along the canonical route',
+    Math.hypot(turning.position.x - ready.position.x, turning.position.y - ready.position.y) <= 1e-7,
+    'exact reverse live route must turn in place until the route enters the hull forward half-plane',
   );
+  assert.equal(turning.routeSpeed ?? 0, 0, 'reverse live-route reorientation must remain stationary while facing away');
+  assert.equal(turning.routeTurnMode, 'reorientation');
   assert.ok(angleDelta(turning.rotationDeg, ready.rotationDeg) > 0, 'hull should begin turning without a rotation snap');
 
   runtime.pointerMove(pointer(redirected));

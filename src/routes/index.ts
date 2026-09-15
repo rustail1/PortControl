@@ -10,7 +10,6 @@ export {
 } from './RouteInputController.ts';
 export { createRouteSamplingConfig } from './RouteSamplingConfig.ts';
 export { createRouteProcessingConfig, type RouteProcessingConfig } from './RouteProcessingConfig.ts';
-export { simplifyRoute, type SimplifyConfig } from './RouteSimplifier.ts';
 export { canonicalizeRoute, RouteCanonicalizer } from './RouteCanonicalizer.ts';
 export {
   RoutePreparationService,

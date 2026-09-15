@@ -19,6 +19,15 @@ export type RouteCommitResult = {
     | 'rejected_locked';
 };
 
+export interface PreparedRouteCommit {
+  readonly route: ShipRoute;
+  readonly routeStart: { readonly x: number; readonly y: number };
+  readonly progress: number;
+  readonly kind: 'committed' | 'partial_prefix_committed';
+}
+
+export type RoutePreparationResult = PreparedRouteCommit | RouteCommitResult;
+
 function routeLength(
   start: { readonly x: number; readonly y: number },
   points: readonly { readonly x: number; readonly y: number }[],
@@ -48,54 +57,51 @@ export class RouteCommitService {
     });
   }
 
-  public commit(input: {
+  public prepare(input: {
     readonly ship: ShipModel;
     readonly draft: RawRouteDraft;
     readonly routeStart?: { readonly x: number; readonly y: number } | null;
-  }): RouteCommitResult {
+  }): RoutePreparationResult {
     const { ship, draft } = input;
-    if (draft.shipId !== ship.id || !isRouteInputState(ship.state)) {
-      return { kind: 'rejected_locked' };
-    }
+    if (draft.shipId !== ship.id || !isRouteInputState(ship.state)) return { kind: 'rejected_locked' };
     const routeStart = ship.state === ShipState.ReadyToLeave || ship.state === ShipState.Leaving
       ? input.routeStart ?? ship.position
       : draft.start ?? input.routeStart ?? ship.position;
     const drawnPoints = materializeRouteDraftFromStart(draft, routeStart);
-    const prepared = this.#preparation.prepare({
-      ship,
-      points: drawnPoints,
-      start: routeStart,
-    });
-    if (prepared.validPoints.length === 0) {
-      return { kind: 'rejected_invalid' };
-    }
-    if (
-      routeLength(ship.position, prepared.validPoints) <
-      this.#config.minValidRouteLength
-    ) {
-      return { kind: 'rejected_too_short' };
-    }
-
+    const prepared = this.#preparation.prepare({ ship, points: drawnPoints, start: routeStart });
+    if (prepared.validPoints.length === 0) return { kind: 'rejected_invalid' };
+    if (routeLength(routeStart, prepared.validPoints) < this.#config.minValidRouteLength) return { kind: 'rejected_too_short' };
     const route = new ShipRoute(prepared.validPoints, routeStart);
     const existingStart = ship.route?.toSnapshot().start;
-    const continuesActiveGesture = draft.start !== undefined && existingStart !== undefined &&
+    const continuesActiveGesture = ship.state !== ShipState.ReadyToLeave &&
+      draft.start !== undefined && existingStart !== undefined &&
       existingStart.x === draft.start.x && existingStart.y === draft.start.y;
-    ship.replaceRoute(
-      route,
-      routeStart,
-      continuesActiveGesture ? ship.routeProgress : 0,
-    );
-    if (ship.state === ShipState.Entering) {
-      ship.setState(ShipState.Navigating);
-    } else if (ship.state === ShipState.ReadyToLeave) {
-      ship.setState(ShipState.Leaving);
-    }
+    return Object.freeze({ route, routeStart: Object.freeze({ ...routeStart }), progress: continuesActiveGesture ? ship.routeProgress : 0, kind: prepared.rejectedPoints.length === 0 ? 'committed' : 'partial_prefix_committed' });
+  }
 
-    return {
-      kind:
-        prepared.rejectedPoints.length === 0
-          ? 'committed'
-          : 'partial_prefix_committed',
-    };
+  public applyPrepared(ship: ShipModel, prepared: PreparedRouteCommit): void {
+    if (ship.state === ShipState.ReadyToLeave) {
+      throw new Error('ReadyToLeave route commit requires DepartureCoordinator');
+    }
+    ship.replaceRoute(prepared.route, prepared.routeStart, prepared.progress);
+    if (ship.state === ShipState.Entering) ship.beginNavigationFromRoute();
+  }
+
+  public applyPreparedDeparture(ship: ShipModel, prepared: PreparedRouteCommit): void {
+    if (ship.state !== ShipState.ReadyToLeave) {
+      throw new Error('departure route commit requires ReadyToLeave');
+    }
+    ship.replaceRoute(prepared.route, prepared.routeStart, prepared.progress);
+    ship.beginLeaving();
+  }
+
+  public commit(input: { readonly ship: ShipModel; readonly draft: RawRouteDraft; readonly routeStart?: { readonly x: number; readonly y: number } | null; }): RouteCommitResult {
+    // ReadyToLeave must commit through DepartureCoordinator so route/state/maneuver
+    // become authoritative as one transaction instead of half-applying here.
+    if (input.ship.state === ShipState.ReadyToLeave) return { kind: 'rejected_locked' };
+    const prepared = this.prepare(input);
+    if (!('route' in prepared)) return prepared;
+    this.applyPrepared(input.ship, prepared);
+    return { kind: prepared.kind };
   }
 }

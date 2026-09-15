@@ -79,7 +79,7 @@ test('COR-12R browser seed 3333 selected serviced ship reaches departure', async
   }));
 
   runtime.enqueueRouteDraft(rawDraft(ship.ship.id, [
-    { x: dockX, y: ready.ship.position.y + 60 },
+    { x: dockX, y: ready.ship.position.y + 160 },
   ]));
   runtime.advanceRender(FRAME_MS);
 

@@ -19,38 +19,36 @@ async function setup(state = 'Navigating') {
   return { s, bundle, registry, ship, config: s.createRouteProcessingConfig(bundle) };
 }
 
-test('RDP is deterministic and preserves endpoint order', async () => {
+test('canonicalization is deterministic and preserves exact authored geometry', async () => {
   const { s } = await setup();
+  const start = { x: 0, y: 0 };
   const points = [{ x: 0, y: 0 }, { x: 10, y: 1 }, { x: 20, y: 0 }, { x: 30, y: 20 }];
-  const config = { simplifyEpsilon: 3.5, maxSimplifiedPoints: 96 };
-  const first = s.simplifyRoute(points, config);
+  const first = s.canonicalizeRoute(start, points);
 
-  assert.deepEqual(s.simplifyRoute(points, config), first);
-  assert.deepEqual(first[0], { x: 0, y: 0 });
-  assert.deepEqual(first.at(-1), { x: 30, y: 20 });
-  assert.ok(first.every((point, index) => points.findIndex((source) => source.x === point.x && source.y === point.y) >= index));
+  assert.deepEqual(s.canonicalizeRoute(start, points), first);
+  assert.deepEqual(first, points.slice(1));
 });
 
-test('route processing config reads all COR-03 values from validated balance.json', async () => {
+test('route processing config exposes only runtime-authoritative COR-03 values', async () => {
   const { s, bundle } = await setup();
   const config = s.createRouteProcessingConfig(bundle);
   const route = readBaselineSource().configs['balance.json'].route;
-  for (const key of ['simplifyEpsilon', 'minValidRouteLength', 'waypointTolerance', 'maxSimplifiedPoints', 'navigationClearanceExtra']) {
-    assert.equal(config[key], route[key]);
-  }
+  assert.deepEqual(config, {
+    minValidRouteLength: route.minValidRouteLength,
+    navigationClearanceExtra: route.navigationClearanceExtra,
+  });
+  assert.equal(config.simplifyEpsilon, undefined);
+  assert.equal(config.waypointTolerance, undefined);
+  assert.equal(config.maxSimplifiedPoints, undefined);
 });
 
-test('cap-aware RDP keeps ordered endpoints and never rejects only for point count', async () => {
+test('dense authored route points are never capped or simplified by canonicalization', async () => {
   const { s } = await setup();
-  const points = Array.from({ length: 8 }, (_, index) => ({ x: index, y: index % 2 }));
-  const base = s.simplifyRoute(points, { simplifyEpsilon: 0, maxSimplifiedPoints: 96 });
-  const capped = s.simplifyRoute(points, { simplifyEpsilon: 0, maxSimplifiedPoints: 3 });
+  const points = Array.from({ length: 8 }, (_, index) => ({ x: index + 1, y: index % 2 }));
+  const canonical = s.canonicalizeRoute({ x: 0, y: 0 }, points);
 
-  assert.ok(base.length > 3);
-  assert.ok(capped.length <= 3);
-  assert.deepEqual(capped[0], points[0]);
-  assert.deepEqual(capped.at(-1), points.at(-1));
-  assert.deepEqual(s.simplifyRoute(points, { simplifyEpsilon: 0, maxSimplifiedPoints: 3 }), capped);
+  assert.deepEqual(canonical, points);
+  assert.equal(canonical.length, points.length);
 });
 
 test('valid commit atomically replaces rather than appends and resets cursor', async () => {
@@ -107,7 +105,7 @@ test('ShipMotor follows the canonical polyline through a route corner without te
   ship.advanceRouteProgress(96);
 
   const before = ship.position;
-  motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
+  motor.stepRoute(ship, 1 / 60);
   const firstDx = ship.x - before.x;
   const firstDy = ship.y - before.y;
   assert.ok(Math.hypot(firstDx, firstDy) <= ship.characteristics.speed / 60 + 1e-9);
@@ -115,11 +113,11 @@ test('ShipMotor follows the canonical polyline through a route corner without te
   assert.ok(Math.abs(ship.y) < 1e-9);
 
   for (let step = 0; step < 120 && ship.routeCursor === 0; step += 1) {
-    motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
   }
   assert.equal(ship.routeCursor, 1);
   const corner = ship.position;
-  motor.stepRoute(ship, config.waypointTolerance, 1 / 60);
+  motor.stepRoute(ship, 1 / 60);
   assert.ok(Math.abs(ship.x - 100) < 1e-9);
   assert.ok(ship.y > corner.y);
   assert.ok(ship.rotationDeg > 0 && ship.rotationDeg < 90);
@@ -131,7 +129,7 @@ test('fixed clock partitions produce the same route snapshot', async () => {
     ship.replaceRoute(new s.ShipRoute([{ x: 300, y: 0 }]));
     const clock = new s.FixedStepClock({ fixedHz: 60, maxCatchUpSteps: 6 });
     const motor = new s.ShipMotor();
-    frames.forEach((frame) => clock.advance(frame, (dt) => motor.stepRoute(ship, config.waypointTolerance, dt)));
+    frames.forEach((frame) => clock.advance(frame, (dt) => motor.stepRoute(ship, dt)));
     return ship.toSnapshot();
   };
   assert.deepEqual(await run([100]), await run([1000 / 60, 1000 / 60, 1000 / 60, 1000 / 60, 1000 / 60, 1000 / 60]));
@@ -155,7 +153,7 @@ test('30, 60 and 120 FPS render partitions reach the same authoritative route ou
     const clock = new s.FixedStepClock({ fixedHz: 60, maxCatchUpSteps: 6 });
     const motor = new s.ShipMotor();
     for (let frame = 0; frame < fps * 3; frame += 1) {
-      clock.advance(1000 / fps, (dt) => motor.stepRoute(ship, config.waypointTolerance, dt));
+      clock.advance(1000 / fps, (dt) => motor.stepRoute(ship, dt));
     }
     return ship.toSnapshot();
   };

@@ -1,11 +1,11 @@
-import type { ShipPosition } from '../ships/ShipModel.ts';
+import type { ShipPosition } from '../shared/geometry/Point.ts';
 
 export interface DockDefinition {
   readonly id: string;
   readonly position: ShipPosition;
   readonly rotationDeg: number;
   readonly dockAngle: number;
-  readonly snapRadius: number;
+  readonly approachRadius: number;
   readonly acceptedCargoTypes: readonly string[];
   readonly helperFlag: boolean;
   readonly visualVariant: string;
@@ -52,6 +52,19 @@ export class DockModel {
 
   public toRuntimeSnapshot(): DockRuntimeSnapshot {
     return { id: this.id, reservedBy: this.reservedBy, occupiedBy: this.occupiedBy };
+  }
+
+  public restoreRuntime(snapshot: DockRuntimeSnapshot): void {
+    if (snapshot.id !== this.id) {
+      throw new RangeError('Dock runtime snapshot id does not match definition');
+    }
+    if (snapshot.reservedBy !== null && snapshot.occupiedBy !== null) {
+      throw new RangeError('dock cannot be reserved and occupied simultaneously');
+    }
+    const runtime = runtimeByDock.get(this);
+    if (runtime === undefined) throw new Error('dock runtime state missing');
+    runtime.reservedBy = snapshot.reservedBy;
+    runtime.occupiedBy = snapshot.occupiedBy;
   }
 
   public static restore(definition: DockDefinition, runtime: DockRuntimeSnapshot): DockModel {

@@ -53,11 +53,11 @@ test(`COR-12 redraw sideways drift with ${pointerOffset}px grab offset does not 
 });
 }
 
-test('COR-12 draft simplification preserves deliberate out-and-back turns', async () => {
-  const { s, routeConfig } = await setup();
-  assert.deepEqual(s.simplifyRoute([
-    { x: 500, y: 500 }, { x: 400, y: 500 }, { x: 600, y: 500 },
-  ], routeConfig), [{ x: 500, y: 500 }, { x: 400, y: 500 }, { x: 600, y: 500 }]);
+test('COR-12 canonicalization preserves deliberate out-and-back turns', async () => {
+  const { s } = await setup();
+  assert.deepEqual(s.canonicalizeRoute({ x: 500, y: 500 }, [
+    { x: 400, y: 500 }, { x: 600, y: 500 },
+  ]), [{ x: 400, y: 500 }, { x: 600, y: 500 }]);
 });
 
 function shipOf(s, registry, options = {}) {
@@ -120,7 +120,7 @@ test('COR-12 FIX-3B navigation keeps the center on canonical route while the hul
 
   for (let step = 0; step < 600 && ship.routeProgress < ship.route.totalLength; step += 1) {
     const beforeRotation = ship.rotationDeg;
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
     const expected = ship.route.pointAtDistance(ship.routeProgress);
     assert.ok(Math.abs(ship.x - expected.x) < 1e-9);
     assert.ok(Math.abs(ship.y - expected.y) < 1e-9);
@@ -141,15 +141,17 @@ test('COR-12 FIX-3B navigation keeps the center on canonical route while the hul
   assert.equal(observedIndependentHull, true);
 });
 
-test('COR-12 reverse-facing hull turns in place before making canonical forward progress', async () => {
+test('COR-12 reverse-facing hull turns in place before canonical forward progress', async () => {
   const { s, registry } = await setup();
   const ship = shipOf(s, registry, { rotationDeg: 180 });
   ship.replaceRoute(new s.ShipRoute([{ x: 100, y: 0 }]));
 
-  new s.ShipMotor().stepRoute(ship, 8, 1 / 60);
+  new s.ShipMotor().stepRoute(ship, 1 / 60);
 
+  assert.equal(ship.routeProgress, 0, 'reverse-facing reorientation must not translate backward along the hull');
   assert.deepEqual(ship.position, { x: 0, y: 0 });
-  assert.equal(ship.routeProgress, 0);
+  assert.equal(ship.routeSpeed, 0);
+  assert.equal(ship.routeTurnMode, s.RouteTurnMode.Reorientation);
   assert.ok(Math.abs(ship.rotationDeg - (180 - ship.characteristics.turnRateDeg / 60)) < 1e-9);
 });
 
@@ -161,8 +163,8 @@ test('COR-12 normal route navigation preserves ship-specific speed', async () =>
   freighter.replaceRoute(new s.ShipRoute([{ x: 1000, y: 0 }]));
   const motor = new s.ShipMotor();
 
-  motor.stepRoute(speedboat, 8, 0.2);
-  motor.stepRoute(freighter, 8, 0.2);
+  motor.stepRoute(speedboat, 0.2);
+  motor.stepRoute(freighter, 0.2);
 
   assert.equal(speedboat.x, speedboat.characteristics.speed * 0.2);
   assert.equal(freighter.x, freighter.characteristics.speed * 0.2);

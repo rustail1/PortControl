@@ -8,6 +8,11 @@ export interface FixedStepAdvanceResult {
   readonly interpolationAlpha: number;
 }
 
+export interface FixedStepClockSnapshot {
+  readonly completedSteps: number;
+  readonly accumulatedSteps: number;
+}
+
 export type FixedStepCallback = (deltaSeconds: number) => void;
 
 const MILLISECONDS_PER_SECOND = 1000;
@@ -45,6 +50,28 @@ export class FixedStepClock {
 
   public get interpolationAlpha(): number {
     return Math.min(Math.max(this.#accumulatedSteps, 0), 1 - Number.EPSILON);
+  }
+
+  public toSnapshot(): FixedStepClockSnapshot {
+    return Object.freeze({
+      completedSteps: this.#completedSteps,
+      accumulatedSteps: this.#accumulatedSteps,
+    });
+  }
+
+  public restore(snapshot: FixedStepClockSnapshot): void {
+    if (!Number.isSafeInteger(snapshot.completedSteps) || snapshot.completedSteps < 0) {
+      throw new RangeError('completedSteps must be a non-negative safe integer');
+    }
+    if (
+      !Number.isFinite(snapshot.accumulatedSteps) ||
+      snapshot.accumulatedSteps < 0 ||
+      snapshot.accumulatedSteps >= 1
+    ) {
+      throw new RangeError('accumulatedSteps must be finite in [0, 1)');
+    }
+    this.#completedSteps = snapshot.completedSteps;
+    this.#accumulatedSteps = snapshot.accumulatedSteps;
   }
 
   public advance(

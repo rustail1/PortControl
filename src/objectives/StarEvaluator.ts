@@ -183,16 +183,9 @@ export class StarEvaluator {
           earned = count >= condition.value;
           break;
         }
-        case 'service_ships_under_time': {
-          let count = 0;
-          for (const exit of metrics.exitTimeline) {
-            if (exit.exitTimeSeconds <= condition.maxSeconds) {
-              count += 1;
-            }
-          }
-          earned = count >= condition.shipTarget;
+        case 'service_ships_under_time':
+          earned = options.metrics.servicedExitsAtOrBefore(condition.maxSeconds) >= condition.shipTarget;
           break;
-        }
         case 'max_hazard_hits_by_ship':
           earned =
             metricValue(metrics, 'stormHitsByShipType', condition.shipId) <=

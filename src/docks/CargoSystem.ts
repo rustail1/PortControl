@@ -1,4 +1,3 @@
-import type { DomainEventQueue } from '../core/DomainEventQueue.ts';
 import { ShipState, type ShipModel } from '../ships/index.ts';
 import type { DockModel } from './DockModel.ts';
 import type { DockSystem } from './DockSystem.ts';
@@ -20,6 +19,7 @@ export interface CargoUnloadCandidate {
 export interface CargoUnloadFact {
   readonly shipId: string;
   readonly shipType: string;
+  readonly dockId: string;
   readonly cargoType: string;
 }
 
@@ -27,9 +27,19 @@ export interface CargoStepResult {
   readonly unloadedFacts: readonly CargoUnloadFact[];
 }
 
+export interface CargoTransactionSnapshot {
+  readonly shipId: string;
+  readonly dockId: string;
+  readonly elapsedMs: number;
+  readonly durationMs: number;
+}
+
+export interface CargoSystemSnapshot {
+  readonly transactions: readonly CargoTransactionSnapshot[];
+}
+
 export interface CargoSystemOptions {
   readonly dockSystem: DockSystem;
-  readonly events: DomainEventQueue<CargoDomainEvents>;
   readonly resolveUnloadDurationMs?: (base: number, ship: ShipModel) => number;
 }
 
@@ -42,15 +52,49 @@ interface Transaction {
 
 export class CargoSystem {
   readonly #dockSystem: DockSystem;
-  readonly #events: DomainEventQueue<CargoDomainEvents>;
   readonly #resolve: (base: number, ship: ShipModel) => number;
   readonly #active = new Map<string, Transaction>();
 
   public constructor(options: CargoSystemOptions) {
     this.#dockSystem = options.dockSystem;
-    this.#events = options.events;
     this.#resolve =
       options.resolveUnloadDurationMs ?? ((base) => base);
+  }
+
+  public toSnapshot(): CargoSystemSnapshot {
+    return Object.freeze({
+      transactions: Object.freeze(
+        [...this.#active.values()].map((transaction) =>
+          Object.freeze({
+            shipId: transaction.ship.id,
+            dockId: transaction.dock.id,
+            elapsedMs: transaction.elapsedMs,
+            durationMs: transaction.durationMs,
+          }),
+        ),
+      ),
+    });
+  }
+
+  public restore(
+    snapshot: CargoSystemSnapshot,
+    resolveShip: (shipId: string) => ShipModel | null,
+    resolveDock: (dockId: string) => DockModel | null,
+  ): void {
+    this.#active.clear();
+    for (const item of snapshot.transactions) {
+      const ship = resolveShip(item.shipId);
+      const dock = resolveDock(item.dockId);
+      if (ship === null || dock === null) {
+        throw new RangeError('cargo snapshot references missing ship or dock');
+      }
+      this.#active.set(ship.id, {
+        ship,
+        dock,
+        elapsedMs: item.elapsedMs,
+        durationMs: item.durationMs,
+      });
+    }
   }
 
   public step(
@@ -138,15 +182,10 @@ export class CargoSystem {
       const fact: CargoUnloadFact = Object.freeze({
         shipId: transaction.ship.id,
         shipType: transaction.ship.characteristics.type,
-        cargoType: type,
-      });
-      unloadedFacts.push(fact);
-      this.#events.emit('cargo_unloaded', {
-        shipId: transaction.ship.id,
-        shipType: transaction.ship.characteristics.type,
         dockId: transaction.dock.id,
         cargoType: type,
       });
+      unloadedFacts.push(fact);
       if (this.#compatibleType(transaction) === null) {
         this.#finish(transaction);
         return;
@@ -157,7 +196,7 @@ export class CargoSystem {
   #finish(transaction: Transaction): void {
     transaction.ship.clearRoute();
     if (transaction.ship.cargoTotal === 0) {
-      transaction.ship.setState(ShipState.ReadyToLeave);
+      transaction.ship.finishCargoService({ cargoRemaining: false });
       return;
     }
 
@@ -170,6 +209,6 @@ export class CargoSystem {
     ) {
       return;
     }
-    transaction.ship.setState(ShipState.Navigating);
+    transaction.ship.finishCargoService({ cargoRemaining: true });
   }
 }

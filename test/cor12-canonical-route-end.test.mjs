@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { readBaselineSource } from './support/readBaselineSource.mjs';
 
-test('COR-12 canonical navigating route holds at its authored end instead of drifting off-line', async () => {
+test('COR-12 canonical navigating route continues forward after its authored end', async () => {
   const [ships, config] = await Promise.all([
     import('../src/ships/index.ts'),
     import('../src/config/validateConfigSource.ts'),
@@ -21,13 +21,15 @@ test('COR-12 canonical navigating route holds at its authored end instead of dri
   const motor = new ships.ShipMotor();
 
   for (let step = 0; step < 120 && ship.routeProgress < ship.route.totalLength; step += 1) {
-    motor.stepRoute(ship, 8, 1 / 60);
+    motor.stepRoute(ship, 1 / 60);
   }
   assert.equal(ship.routeProgress, ship.route.totalLength);
   const endpoint = ship.position;
+  const speedAtEnd = ship.routeSpeed;
 
-  motor.stepRoute(ship, 8, 0.5);
+  motor.stepRoute(ship, 0.5);
 
-  assert.deepEqual(ship.position, endpoint);
-  assert.deepEqual(ship.position, { x: 20, y: 0 });
+  assert.ok(ship.x > endpoint.x, 'navigating ship should continue beyond the consumed line');
+  assert.ok(Math.abs(ship.y - endpoint.y) < 1e-9);
+  assert.ok(ship.routeSpeed >= speedAtEnd, 'route exhaustion must not create a speed drop');
 });

@@ -33,6 +33,21 @@ export interface ReadySpawnCommand {
   readonly payload: IncomingSpawnPayload;
 }
 
+export interface IncomingSpawnTransactionSnapshot {
+  readonly transactionId: string;
+  readonly spawnPoint: SpawnPoint;
+  readonly payload: IncomingSpawnPayload;
+  readonly leadTimeSeconds: number;
+  readonly elapsedSeconds: number;
+  readonly readyEmitted: boolean;
+}
+
+export interface IncomingSpawnSystemSnapshot {
+  readonly transactions: readonly IncomingSpawnTransactionSnapshot[];
+  readonly indicatorCommands: readonly IncomingIndicatorCommand[];
+  readonly readyCommands: readonly ReadySpawnCommand[];
+}
+
 export type ScheduleIncomingResult =
   | {
       readonly ok: true;
@@ -124,9 +139,67 @@ function freezePayload(payload: IncomingSpawnPayload): IncomingSpawnPayload {
 export class IncomingSpawnSystem {
   readonly #transactions = new Map<string, PendingIncomingTransaction>();
   readonly #spawnPointOwners = new Map<string, string>();
-  readonly #knownTransactionIds = new Set<string>();
   #indicatorCommands: IncomingIndicatorCommand[] = [];
   #readyCommands: ReadySpawnCommand[] = [];
+
+  public toSnapshot(): IncomingSpawnSystemSnapshot {
+    return Object.freeze({
+      transactions: Object.freeze(
+        [...this.#transactions.values()].map((transaction) =>
+          Object.freeze({
+            transactionId: transaction.transactionId,
+            spawnPoint: Object.freeze({ ...transaction.spawnPoint }),
+            payload: freezePayload(transaction.payload),
+            leadTimeSeconds: transaction.leadTimeSeconds,
+            elapsedSeconds: transaction.elapsedSeconds,
+            readyEmitted: transaction.readyEmitted,
+          }),
+        ),
+      ),
+      indicatorCommands: Object.freeze(
+        this.#indicatorCommands.map((command) => Object.freeze({ ...command })),
+      ),
+      readyCommands: Object.freeze(
+        this.#readyCommands.map((command) =>
+          Object.freeze({
+            ...command,
+            spawnPoint: Object.freeze({ ...command.spawnPoint }),
+            payload: freezePayload(command.payload),
+          }),
+        ),
+      ),
+    });
+  }
+
+  public restore(snapshot: IncomingSpawnSystemSnapshot): void {
+    this.#transactions.clear();
+    this.#spawnPointOwners.clear();
+    this.#indicatorCommands = snapshot.indicatorCommands.map((command) =>
+      Object.freeze({ ...command }),
+    );
+    this.#readyCommands = snapshot.readyCommands.map((command) =>
+      Object.freeze({
+        ...command,
+        spawnPoint: Object.freeze({ ...command.spawnPoint }),
+        payload: freezePayload(command.payload),
+      }),
+    );
+    for (const item of snapshot.transactions) {
+      const transaction: PendingIncomingTransaction = {
+        transactionId: item.transactionId,
+        spawnPoint: Object.freeze({ ...item.spawnPoint }),
+        payload: freezePayload(item.payload),
+        leadTimeSeconds: item.leadTimeSeconds,
+        elapsedSeconds: item.elapsedSeconds,
+        readyEmitted: item.readyEmitted,
+      };
+      this.#transactions.set(transaction.transactionId, transaction);
+      this.#spawnPointOwners.set(
+        transaction.spawnPoint.id,
+        transaction.transactionId,
+      );
+    }
+  }
 
   public get pendingCount(): number {
     return this.#transactions.size;
@@ -154,7 +227,7 @@ export class IncomingSpawnSystem {
     requireSpawnPoint(request.spawnPoint);
     requireNonNegativeFinite(request.leadTimeSeconds, 'leadTimeSeconds');
 
-    if (this.#knownTransactionIds.has(request.transactionId)) {
+    if (this.#transactions.has(request.transactionId) || this.#indicatorCommands.some((command) => command.transactionId === request.transactionId) || this.#readyCommands.some((command) => command.transactionId === request.transactionId)) {
       return Object.freeze({
         ok: false,
         reason: 'duplicate_transaction_id',
@@ -184,7 +257,6 @@ export class IncomingSpawnSystem {
       readyEmitted: false,
     };
 
-    this.#knownTransactionIds.add(request.transactionId);
     this.#transactions.set(request.transactionId, transaction);
     this.#spawnPointOwners.set(request.spawnPoint.id, request.transactionId);
 

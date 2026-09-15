@@ -4,9 +4,11 @@ import {
   CollisionSystem,
   createCollisionConfig,
   type CollisionDomainEvents,
-  type CollisionShipCandidate,
 } from '../collision/CollisionSystem.ts';
 import type { ConfigBundle } from '../config/types.ts';
+import { toLevelDefinition } from '../config/LevelDefinition.ts';
+import { assertLevelSupported } from '../config/RuntimeCapabilities.ts';
+import { RuntimeConfigRegistry } from '../config/RuntimeConfigRegistry.ts';
 import { DomainEventQueue } from '../core/DomainEventQueue.ts';
 import {
   FixedStepClock,
@@ -18,19 +20,17 @@ import {
 } from '../core/GameSession.ts';
 import { SeededRng } from '../core/SeededRng.ts';
 import { SessionState } from '../core/SessionState.ts';
+import { projectAcceptedFacts } from '../core/SimulationFacts.ts';
 import {
   CargoSystem,
   type CargoDomainEvents,
-  type CargoUnloadCandidate,
 } from '../docks/CargoSystem.ts';
 import { createDocksForValidatedLevel } from '../docks/DockFactory.ts';
 import type { DockModel, DockRuntimeSnapshot } from '../docks/DockModel.ts';
 import { DockSystem } from '../docks/DockSystem.ts';
 import { createDockingConfig } from '../docks/DockingConfig.ts';
-import {
-  DockingController,
-  type DockApproachCandidate,
-} from '../docks/DockingController.ts';
+import { DockingController } from '../docks/DockingController.ts';
+import { DepartureCoordinator } from '../docks/DepartureCoordinator.ts';
 import {
   createExitScore,
   createExitZones,
@@ -42,10 +42,8 @@ import {
   createLandClearanceGeometryFromLevel,
   type LandClearancePolygon,
 } from '../geometry/LandClearanceGeometry.ts';
-import {
-  GroundingSystem,
-  type GroundingShipCandidate,
-} from '../grounding/GroundingSystem.ts';
+import { GroundingSystem } from '../grounding/GroundingSystem.ts';
+import { LandRecoverySystem } from '../grounding/LandRecoverySystem.ts';
 import { NavigationValidator } from '../routes/NavigationValidator.ts';
 import {
   RouteCommitService,
@@ -53,114 +51,90 @@ import {
 } from '../routes/RouteCommitService.ts';
 import {
   isRouteInputState,
-  materializeRouteDraft,
+  materializeRouteDraftFromStart,
   RouteInputController,
   type ActiveRouteDraftSnapshot,
   type NormalizedPointerInput,
   type RawRouteDraft,
   type RouteInputOutcome,
 } from '../routes/RouteInputController.ts';
+import { RoutePreparationService } from '../routes/RoutePreparationService.ts';
 import { createRouteProcessingConfig } from '../routes/RouteProcessingConfig.ts';
 import { createRouteSamplingConfig } from '../routes/RouteSamplingConfig.ts';
 import {
   createShipCharacteristicsRegistry,
+  ShipModel,
   ShipRoute,
   ShipState,
-  type ShipModel,
   type ShipModelSnapshot,
 } from '../ships/index.ts';
 import { ShipMotor } from '../ships/ShipMotor.ts';
-import {
-  IncomingSpawnSystem,
-  type IncomingIndicatorCommand,
-} from '../spawning/IncomingSpawnSystem.ts';
-import { ShipSpawner } from '../spawning/ShipSpawner.ts';
-import {
-  createSpawnDirectorConfig,
-  SpawnDirector,
-  type SpawnDirectorActiveShip,
-  type SpawnDirectorInput,
-  type SpawnDirectorSnapshot,
-} from '../spawning/SpawnDirector.ts';
 import { createSpawnPointsForValidatedLevel } from '../spawning/SpawnPointFactory.ts';
 import type { SpawnPoint } from '../spawning/SpawnPoint.ts';
 import { PresentationPulseStore } from '../presentation/PresentationPulseStore.ts';
 import {
-  createIncomingVesselPresentation,
+  composeRoutePresentationTail,
+  createRouteRenderState,
+} from '../presentation/RouteRenderState.ts';
+import type { SimulationSnapshot } from '../rewind/SessionSnapshot.ts';
+import { HarborSimulationPorts } from './HarborSimulationPorts.ts';
+import { HarborShipRegistry } from './HarborShipRegistry.ts';
+import { HarborRouteCoordinator } from './HarborRouteCoordinator.ts';
+import { selectRouteInputShip } from './RouteInputHitTest.ts';
+import { HarborSpawnCoordinator } from './HarborSpawnCoordinator.ts';
+import {
+  HarborSnapshotCoordinator,
+  type HarborAuthoritativeSnapshot,
+} from './HarborSnapshotCoordinator.ts';
+import {
   DeparturePresentationStore,
   type DeparturePresentationSnapshot,
   type IncomingVesselPresentationSnapshot,
 } from '../presentation/VesselFlowPresentation.ts';
-
+import type { IncomingSpawnWarningPresentationSnapshot } from '../presentation/IncomingSpawnWarningPresentation.ts';
 export {
   createIncomingVesselPresentation,
   DeparturePresentationStore,
 } from '../presentation/VesselFlowPresentation.ts';
-
 const DANGER_VISUAL_TTL_SECONDS = 0.45;
 const CARGO_REJECT_VISUAL_TTL_SECONDS = 0.65;
-
-interface SimulationConfigSource {
-  readonly simulation: {
-    readonly fixedHz: number;
-    readonly maxCatchUpSteps: number;
-  };
-}
-
-interface ActiveShipRecord {
-  readonly ship: ShipModel;
-  readonly spawnSequence: number;
-  readonly transactionId: string;
-  readonly spawnPointId: string;
-  readonly spawnCandidate: SpawnDirectorActiveShip;
-  readonly collisionCandidate: CollisionShipCandidate;
-  readonly dockCandidate: DockApproachCandidate;
-  readonly previousPosition: { x: number; y: number };
-  readonly groundingCandidate: GroundingShipCandidate;
-  previousRotationDeg: number;
-}
-
+const ROUTE_REJECT_VISUAL_TTL_SECONDS = 0.75;
 export interface HarborShipPresentationSnapshot {
   readonly ship: ShipModelSnapshot;
   readonly remainingRoute: readonly Point[] | null;
+  readonly routeRenderKey: string;
   readonly spawnSequence: number;
   readonly previousPosition: Point;
   readonly previousRotationDeg: number;
 }
-
-interface IncomingPresentationRecord {
-  readonly indicator: IncomingIndicatorCommand;
-  readonly startedAtSeconds: number;
-}
-
 export interface HarborDockPresentationSnapshot {
   readonly definition: DockModel['definition'];
   readonly runtime: DockRuntimeSnapshot;
   readonly busy: boolean;
 }
-
 export function isDockPresentationBusy(runtime: DockRuntimeSnapshot): boolean {
   return runtime.occupiedBy !== null || runtime.reservedBy !== null;
 }
-
 export interface HarborDangerPairSnapshot {
   readonly shipAId: string;
   readonly shipBId: string;
   readonly remainingSeconds: number;
 }
-
 export interface HarborCargoRejectPulseSnapshot {
   readonly shipId: string;
   readonly remainingSeconds: number;
 }
-
+export interface HarborRouteRejectPulseSnapshot {
+  readonly shipId: string;
+  readonly kind: 'rejected_too_short' | 'rejected_invalid' | 'rejected_locked';
+  readonly remainingSeconds: number;
+}
 export interface HarborRoutePreviewSnapshot {
   readonly shipId: string;
   readonly start: Point;
   readonly validPoints: readonly Point[];
   readonly rejectedPoints: readonly Point[];
 }
-
 export interface HarborPresentationSnapshot {
   readonly levelId: string;
   readonly simulationTime: number;
@@ -174,82 +148,23 @@ export interface HarborPresentationSnapshot {
   readonly land: readonly LandClearancePolygon[];
   readonly spawnPoints: readonly SpawnPoint[];
   readonly incoming: readonly IncomingVesselPresentationSnapshot[];
+  readonly incomingWarnings: readonly IncomingSpawnWarningPresentationSnapshot[];
   readonly departures: readonly DeparturePresentationSnapshot[];
   readonly dangerPairs: readonly HarborDangerPairSnapshot[];
   readonly cargoRejectPulses: readonly HarborCargoRejectPulseSnapshot[];
+  readonly routeRejectPulses: readonly HarborRouteRejectPulseSnapshot[];
   readonly selectedShipId: string | null;
   readonly activeDraft: ActiveRouteDraftSnapshot | null;
   readonly routePreview: HarborRoutePreviewSnapshot | null;
 }
-
-export interface HarborAuthoritativeSnapshot {
-  readonly levelId: string;
-  readonly attemptSeed: number;
-  readonly session: ReturnType<HarborRuntime['sessionSnapshot']>;
-  readonly ships: readonly Readonly<{
-    ship: ShipModelSnapshot;
-    spawnSequence: number;
-  }>[];
-  readonly docks: readonly DockRuntimeSnapshot[];
-  readonly director: SpawnDirectorSnapshot;
-  readonly rngState: readonly number[];
-  readonly queuedRouteCommands: number;
-  readonly pendingIncoming: number;
-}
-
-export interface RouteSelectableShip {
-  readonly ship: ShipModel;
-  readonly spawnSequence: number;
-}
-
-export function selectRouteInputShip(
-  candidates: readonly RouteSelectableShip[],
-  worldPoint: Point,
-  effectiveWorldToCssPixelScale: number,
-): ShipModel | null {
-  if (
-    !Number.isFinite(effectiveWorldToCssPixelScale) ||
-    effectiveWorldToCssPixelScale <= 0
-  ) {
-    throw new RangeError('effectiveWorldToCssPixelScale must be positive and finite');
-  }
-  let winner: RouteSelectableShip | null = null;
-  let winnerDistanceSquared = Number.POSITIVE_INFINITY;
-  for (const candidate of candidates) {
-    if (!isRouteInputState(candidate.ship.state)) {
-      continue;
-    }
-    const selectionRadius = Math.max(
-      candidate.ship.characteristics.collisionRadius,
-      24 / effectiveWorldToCssPixelScale,
-    );
-    const dx = worldPoint.x - candidate.ship.x;
-    const dy = worldPoint.y - candidate.ship.y;
-    const distanceSquared = dx * dx + dy * dy;
-    if (distanceSquared > selectionRadius * selectionRadius) {
-      continue;
-    }
-    if (
-      winner === null ||
-      distanceSquared < winnerDistanceSquared ||
-      (distanceSquared === winnerDistanceSquared &&
-        candidate.spawnSequence < winner.spawnSequence)
-    ) {
-      winner = candidate;
-      winnerDistanceSquared = distanceSquared;
-    }
-  }
-  return winner?.ship ?? null;
-}
-
+export type { HarborAuthoritativeSnapshot } from './HarborSnapshotCoordinator.ts';
+export { selectRouteInputShip } from './RouteInputHitTest.ts';
 export interface HarborRuntimeOptions {
   readonly bundle: ConfigBundle;
   readonly levelId: string;
   readonly attemptSeed: number;
 }
-
 export type AttemptSeedProvider = () => number;
-
 export function selectNextAttemptSeed(
   result: SessionResult,
   currentAttemptSeed: number,
@@ -257,30 +172,11 @@ export function selectNextAttemptSeed(
 ): number {
   return result.kind === 'failed' ? currentAttemptSeed : acquireNewSeed();
 }
-
-function cloneDraft(draft: RawRouteDraft): RawRouteDraft {
-  return Object.freeze({
-    shipId: draft.shipId,
-    ...(draft.start === undefined ? {} : { start: Object.freeze({ ...draft.start }) }),
-    ...(draft.tip === undefined ? {} : { tip: Object.freeze({ ...draft.tip }) }),
-    points: Object.freeze(
-      draft.points.map((point) => Object.freeze({ ...point })),
-    ),
-  });
-}
-
-function cloneIndicator(
-  command: IncomingIndicatorCommand,
-): IncomingIndicatorCommand {
-  return Object.freeze({ ...command });
-}
-
 function freezePoints(points: readonly Point[]): readonly Point[] {
   return Object.freeze(points.map((point) => Object.freeze({ ...point })));
 }
-
 export class HarborRuntime {
-  readonly #level: Record<string, unknown>;
+  readonly #exitZones: readonly ExitZoneDefinition[];
   readonly #levelId: string;
   readonly #allowedShipTypes: readonly string[];
   readonly #attemptSeed: number;
@@ -292,7 +188,7 @@ export class HarborRuntime {
   readonly #landGeometry: ReturnType<typeof createLandClearanceGeometryFromLevel>;
   readonly #routeConfig: ReturnType<typeof createRouteProcessingConfig>;
   readonly #navigation: NavigationValidator;
-  readonly #routeCommit: RouteCommitService;
+  readonly #routePreparation: RoutePreparationService;
   readonly #routeInput: RouteInputController;
   readonly #docks: ReturnType<typeof createDocksForValidatedLevel>;
   readonly #dockSystem = new DockSystem();
@@ -304,28 +200,20 @@ export class HarborRuntime {
   readonly #collisionEvents = new DomainEventQueue<CollisionDomainEvents>();
   readonly #collision: CollisionSystem;
   readonly #grounding: GroundingSystem;
+  readonly #landRecovery: LandRecoverySystem;
   readonly #spawnPoints: readonly SpawnPoint[];
-  readonly #incoming = new IncomingSpawnSystem();
-  readonly #spawner: ShipSpawner;
-  readonly #director: SpawnDirector;
   readonly #session: ReturnType<typeof createGameSessionFromConfig>;
-  readonly #active = new Map<string, ActiveShipRecord>();
-  readonly #routeCommands: RawRouteDraft[] = [];
-  #pendingLiveRouteDraft: RawRouteDraft | null = null;
-  readonly #incomingIndicators = new Map<string, IncomingPresentationRecord>();
+  readonly #spawning: HarborSpawnCoordinator;
+  readonly #simulationPorts: HarborSimulationPorts;
+  readonly #ships = new HarborShipRegistry();
+  readonly #routes: HarborRouteCoordinator;
+  readonly #snapshotCoordinator: HarborSnapshotCoordinator;
   readonly #departures: DeparturePresentationStore;
   readonly #presentationPulses = new PresentationPulseStore();
-  readonly #spawnCandidates: SpawnDirectorActiveShip[] = [];
-  readonly #collisionCandidates: CollisionShipCandidate[] = [];
-  readonly #dockCandidates: DockApproachCandidate[] = [];
-  readonly #groundingCandidates: GroundingShipCandidate[] = [];
-  readonly #cargoCandidates: CargoUnloadCandidate[] = [];
-  readonly #exitShips: ShipModel[] = [];
-  #nextSpawnSequence = 0;
+  #latestSimulationSnapshot: SimulationSnapshot | null = null;
   #activeForRenderAdvance = true;
-  #lastRouteCommitResult: RouteCommitResult | null = null;
   #presentationSelectedShipId: string | null = null;
-
+  #pendingRoutePreviewDraft: RawRouteDraft | null = null;
   public constructor(options: HarborRuntimeOptions) {
     this.#levelId = options.levelId;
     this.#attemptSeed = options.attemptSeed;
@@ -333,42 +221,34 @@ export class HarborRuntime {
     if (level === undefined) {
       throw new RangeError(`Unknown level: ${options.levelId}`);
     }
-    this.#level = level;
-    const allowedShips = level['allowedShips'];
-    if (
-      !Array.isArray(allowedShips) ||
-      !allowedShips.every((value) => typeof value === 'string')
-    ) {
-      throw new RangeError('level.allowedShips must be a string array');
-    }
-    this.#allowedShipTypes = Object.freeze([...allowedShips]);
-
-    const balance = options.bundle.configs['balance.json'] as unknown as SimulationConfigSource;
+    const levelDefinition = toLevelDefinition(level);
+    assertLevelSupported(levelDefinition);
+    this.#allowedShipTypes = levelDefinition.allowedShips;
+    const balance = new RuntimeConfigRegistry(options.bundle).balance();
     this.#clock = new FixedStepClock({
       fixedHz: balance.simulation.fixedHz,
       maxCatchUpSteps: balance.simulation.maxCatchUpSteps,
     });
-    const logicalWorld = (
-      options.bundle.configs['balance.json'] as {
-        readonly simulation: { readonly logicalWorld: readonly [number, number] };
-      }
-    ).simulation.logicalWorld;
+    const logicalWorld = balance.simulation.logicalWorld;
     this.#viewport = new SquareWorldViewport({
       width: logicalWorld[0],
       height: logicalWorld[1],
     });
     this.#departures = new DeparturePresentationStore(this.#viewport.logicalWorld);
-
     this.#rng = new SeededRng(options.attemptSeed);
     this.#characteristics = createShipCharacteristicsRegistry(options.bundle);
     this.#landGeometry = createLandClearanceGeometryFromLevel(level);
     this.#routeConfig = createRouteProcessingConfig(options.bundle);
     this.#navigation = new NavigationValidator(this.#landGeometry.polygons);
-    this.#routeCommit = new RouteCommitService({
+    this.#routePreparation = new RoutePreparationService({
       navigation: this.#navigation,
       config: this.#routeConfig,
     });
-
+    const routeCommit = new RouteCommitService({
+      navigation: this.#navigation,
+      config: this.#routeConfig,
+      preparation: this.#routePreparation,
+    });
     this.#docks = createDocksForValidatedLevel(options.bundle, options.levelId);
     this.#docking = new DockingController({
       docks: this.#docks,
@@ -377,57 +257,125 @@ export class HarborRuntime {
       landGeometry: this.#landGeometry,
       navigationClearanceExtra: this.#routeConfig.navigationClearanceExtra,
     });
+    const departure = new DepartureCoordinator({ routes: routeCommit, docking: this.#docking });
     this.#cargo = new CargoSystem({
       dockSystem: this.#dockSystem,
-      events: this.#cargoEvents,
     });
+    this.#exitZones = createExitZones(levelDefinition);
     this.#exit = new ExitSystem({
-      zones: createExitZones(level),
+      zones: this.#exitZones,
       worldBounds: this.#viewport.logicalWorld,
       score: createExitScore(options.bundle),
-      events: this.#exitEvents,
     });
     this.#collision = new CollisionSystem({
-      events: this.#collisionEvents,
       config: createCollisionConfig(options.bundle),
     });
     this.#grounding = new GroundingSystem({
       geometry: this.#landGeometry,
       navigationClearanceExtra: this.#routeConfig.navigationClearanceExtra,
     });
-
+    this.#landRecovery = new LandRecoverySystem({
+      geometry: this.#landGeometry,
+      navigationClearanceExtra: this.#routeConfig.navigationClearanceExtra,
+    });
     this.#spawnPoints = createSpawnPointsForValidatedLevel(
       options.bundle,
       options.levelId,
     );
-    this.#spawner = new ShipSpawner(this.#characteristics);
-    this.#director = new SpawnDirector({
-      config: createSpawnDirectorConfig(options.bundle, options.levelId),
-      spawnPoints: this.#spawnPoints,
-      characteristics: this.#characteristics,
-      rng: this.#rng,
-      allocateIdentity: () => {
-        const spawnSequence = this.#nextSpawnSequence;
-        this.#nextSpawnSequence += 1;
-        return Object.freeze({
-          shipId: `ship-${spawnSequence}`,
-          spawnSequence,
-          logicalSpawnId: `spawn-${spawnSequence}`,
-        });
-      },
-    });
     this.#session = createGameSessionFromConfig(
       options.bundle,
       options.levelId,
       options.attemptSeed,
     );
-
+    this.#spawning = new HarborSpawnCoordinator({
+      bundle: options.bundle,
+      levelId: options.levelId,
+      spawnPoints: this.#spawnPoints,
+      characteristics: this.#characteristics,
+      rng: this.#rng,
+      session: this.#session,
+      ships: this.#ships,
+      docks: () => this.#docks.values(),
+    });
+    this.#snapshotCoordinator = new HarborSnapshotCoordinator({
+      levelId: this.#levelId,
+      attemptSeed: this.#attemptSeed,
+      session: this.#session,
+      clock: this.#clock,
+      rng: this.#rng,
+      characteristics: this.#characteristics,
+      docks: this.#docks,
+      ships: this.#ships,
+      spawning: this.#spawning,
+      docking: this.#docking,
+      cargo: this.#cargo,
+      exit: this.#exit,
+      collision: this.#collision,
+    });
     this.#routeInput = new RouteInputController({
       viewport: this.#viewport,
       sampling: createRouteSamplingConfig(options.bundle),
-      processing: this.#routeConfig,
       hitTest: (worldPoint, worldToCssPixelScale) =>
         this.#hitTestShip(worldPoint, worldToCssPixelScale),
+      routeStartForShip: (ship) => this.#routeStartFor(ship),
+    });
+
+    this.#routes = new HarborRouteCoordinator({
+      routes: routeCommit,
+      departure,
+      resolveShip: (shipId) => this.#ships.resolveShip(shipId),
+      routeStartFor: (ship) => this.#routeStartFor(ship),
+      isCommitDeferred: (ship) =>
+        this.#docking.isShipInManeuver(ship.id) ||
+        ship.routeRecoveryHeadingDeg !== null ||
+        ship.landRecoveryHeadingDeg !== null,
+      onCommitResult: (shipId, result) => {
+        if (this.#pendingRoutePreviewDraft?.shipId === shipId) {
+          this.#pendingRoutePreviewDraft = null;
+        }
+        if (
+          result.kind === 'rejected_too_short' ||
+          result.kind === 'rejected_invalid' ||
+          result.kind === 'rejected_locked'
+        ) {
+          this.#presentationPulses.refreshRouteReject(
+            shipId,
+            result.kind,
+            ROUTE_REJECT_VISUAL_TTL_SECONDS,
+          );
+        }
+      },
+    });
+
+    this.#simulationPorts = new HarborSimulationPorts({
+      session: this.#session,
+      collision: this.#collision,
+      grounding: this.#grounding,
+      landRecovery: this.#landRecovery,
+      docking: this.#docking,
+      cargo: this.#cargo,
+      exit: this.#exit,
+      applyCommands: () => this.#routes.applyPending(),
+      spawn: (deltaSeconds) => this.#spawning.step(deltaSeconds),
+      move: (deltaSeconds) => { this.#ships.snapshotPreviousPoses(); this.#moveShips(deltaSeconds); },
+      collisionCandidates: () => this.#ships.collisionCandidates((ship) => this.#docking.isShipCollidable(ship)),
+      groundingCandidates: () => this.#ships.groundingCandidates((shipId) => this.#docking.isShipInManeuver(shipId)),
+      landRecoveryShips: () => this.#ships.landRecoveryShips((shipId) => this.#docking.isShipInManeuver(shipId)),
+      dockingCandidates: () => this.#ships.dockingCandidates(),
+      cargoCandidates: () => this.#ships.cargoCandidates(this.#docks.values()),
+      exitShips: () => this.#ships.exitShips(),
+      resolveShip: (shipId) => this.#ships.resolveShip(shipId),
+      onExit: (result) => this.#handleExitResult(result),
+      projectFacts: (collision, cargo, exit) => projectAcceptedFacts({
+        collision,
+        cargo,
+        exit,
+        collisionEvents: this.#collisionEvents,
+        cargoEvents: this.#cargoEvents,
+        exitEvents: this.#exitEvents,
+      }),
+      capture: () => this.#captureEndOfStep(),
+      flush: () => this.#flushEvents(),
     });
 
     this.#collisionEvents.subscribe('danger_warning', (event) => {
@@ -456,15 +404,15 @@ export class HarborRuntime {
   }
 
   public get activeShipCount(): number {
-    return this.#active.size;
+    return this.#ships.size;
   }
 
   public get queuedRouteCommandCount(): number {
-    return this.#routeCommands.length;
+    return this.#routes.queuedCount;
   }
 
   public get lastRouteCommitResult(): RouteCommitResult | null {
-    return this.#lastRouteCommitResult;
+    return this.#routes.lastCommitResult;
   }
 
   public objectiveSnapshot() {
@@ -475,8 +423,14 @@ export class HarborRuntime {
     return this.#session.toSnapshot();
   }
 
+  public latestSimulationSnapshot(): SimulationSnapshot | null {
+    return this.#latestSimulationSnapshot === null
+      ? null
+      : structuredClone(this.#latestSimulationSnapshot);
+  }
+
   public enqueueRouteDraft(draft: RawRouteDraft): void {
-    this.#routeCommands.push(cloneDraft(draft));
+    this.#routes.enqueue(draft);
   }
 
   public pointerDown(input: NormalizedPointerInput): RouteInputOutcome {
@@ -491,17 +445,18 @@ export class HarborRuntime {
     const ownsActiveDraft = this.#routeInput.activePointerId === input.pointerId;
     const outcome = this.#routeInput.pointerMove(input);
     const selectedShipId = this.#routeInput.selectedShipId;
-    const selected = selectedShipId === null ? undefined : this.#active.get(selectedShipId);
+    const selected = selectedShipId === null ? undefined : this.#ships.get(selectedShipId);
     if (
       ownsActiveDraft &&
       selected !== undefined &&
-      selected.ship.routeRecoveryHeadingDeg !== null
+      (selected.ship.routeRecoveryHeadingDeg !== null ||
+        selected.ship.landRecoveryHeadingDeg !== null)
     ) {
       this.#routeInput.rebaseActiveDraftToShip();
     }
     const activeDraft = this.#routeInput.activeDraftSnapshot;
     if (activeDraft !== null && ownsActiveDraft) {
-      this.#pendingLiveRouteDraft = cloneDraft(activeDraft);
+      this.#routes.setLiveDraft(activeDraft);
     }
     return this.#handleRouteInputOutcome(outcome);
   }
@@ -554,19 +509,22 @@ export class HarborRuntime {
 
   public presentationSnapshot(): HarborPresentationSnapshot {
     this.#discardInvalidPresentationSelection();
-    const ships = [...this.#active.values()]
+    const ships = [...this.#ships.values()]
       .sort((left, right) => left.spawnSequence - right.spawnSequence)
-      .map((record) =>
-        Object.freeze({
+      .map((record) => {
+        const routeRender = createRouteRenderState(
+          record.ship,
+          this.#docking.departurePresentationPrefix(record.ship),
+        );
+        return Object.freeze({
           ship: record.ship.toSnapshot(),
-          remainingRoute: record.ship.route?.remainingPolyline(
-            record.ship.routeProgress,
-          ) ?? null,
+          remainingRoute: routeRender.points,
+          routeRenderKey: routeRender.key,
           spawnSequence: record.spawnSequence,
           previousPosition: Object.freeze({ ...record.previousPosition }),
           previousRotationDeg: record.previousRotationDeg,
-        }),
-      );
+        });
+      });
     const docks = [...this.#docks.values()].map((dock) => {
       const runtime = Object.freeze({ ...dock.toRuntimeSnapshot() });
       return Object.freeze({
@@ -577,6 +535,7 @@ export class HarborRuntime {
     });
     const dangerPairs = this.#presentationPulses.dangerSnapshot();
     const cargoRejectPulses = this.#presentationPulses.cargoRejectSnapshot();
+    const routeRejectPulses = this.#presentationPulses.routeRejectSnapshot();
     return Object.freeze({
       levelId: this.#levelId,
       simulationTime: this.#session.simulationTime,
@@ -586,25 +545,18 @@ export class HarborRuntime {
       result: this.#session.result,
       ships: Object.freeze(ships),
       docks: Object.freeze(docks),
-      exits: createExitZones(this.#level),
+      exits: this.#exitZones,
       land: this.#landGeometry.polygons,
       spawnPoints: this.#spawnPoints,
-      incoming: Object.freeze(
-        [...this.#incomingIndicators.values()].map((record) => {
-          const characteristics = this.#characteristics.require(
-            record.indicator.shipType,
-          );
-          return createIncomingVesselPresentation({
-            indicator: record.indicator,
-            elapsedSeconds: this.#session.simulationTime - record.startedAtSeconds,
-            speed: characteristics.speed,
-            collisionRadius: characteristics.collisionRadius,
-          });
-        }),
+      incoming: this.#spawning.presentationSnapshot(this.#session.simulationTime),
+      incomingWarnings: this.#spawning.warningPresentationSnapshot(
+        this.#session.simulationTime,
+        this.#viewport.logicalWorld,
       ),
       departures: this.#departures.snapshot(),
       dangerPairs: Object.freeze(dangerPairs),
       cargoRejectPulses: Object.freeze(cargoRejectPulses),
+      routeRejectPulses: Object.freeze(routeRejectPulses),
       selectedShipId: this.#presentationSelectedShipId,
       activeDraft: this.#routeInput.activeDraftSnapshot,
       routePreview: this.#createRoutePreviewSnapshot(),
@@ -612,36 +564,47 @@ export class HarborRuntime {
   }
 
   public authoritativeSnapshot(): HarborAuthoritativeSnapshot {
-    const ships = [...this.#active.values()]
-      .sort((left, right) => left.spawnSequence - right.spawnSequence)
-      .map((record) =>
-        Object.freeze({
-          ship: record.ship.toSnapshot(),
-          spawnSequence: record.spawnSequence,
-        }),
-      );
-    const docks = [...this.#docks.values()].map((dock) =>
-      Object.freeze({ ...dock.toRuntimeSnapshot() }),
-    );
-    return Object.freeze({
-      levelId: this.#levelId,
-      attemptSeed: this.#attemptSeed,
-      session: this.#session.toSnapshot(),
-      ships: Object.freeze(ships),
-      docks: Object.freeze(docks),
-      director: this.#director.toSnapshot(),
-      rngState: Object.freeze([...this.#rng.getState()]),
-      queuedRouteCommands: this.#routeCommands.length,
-      pendingIncoming: this.#incoming.pendingCount,
+    return this.#snapshotCoordinator.authoritativeSnapshot(this.#routes.queuedCount);
+  }
+
+  public captureSimulationSnapshot(): SimulationSnapshot {
+    return this.#snapshotCoordinator.captureSimulationSnapshot({
+      queuedCommands: this.#routes.queuedCount,
+      hasLiveDraft: this.#routes.hasLiveDraft,
+      pendingEvents:
+        this.#collisionEvents.pendingCount +
+        this.#cargoEvents.pendingCount +
+        this.#exitEvents.pendingCount,
     });
+  }
+
+  public restoreSimulationSnapshot(snapshot: SimulationSnapshot): void {
+    this.#routeInput.cancelActiveDraft();
+    this.#routes.clear();
+    this.#presentationSelectedShipId = null;
+    this.#pendingRoutePreviewDraft = null;
+    this.#collisionEvents.clear();
+    this.#cargoEvents.clear();
+    this.#exitEvents.clear();
+    this.#presentationPulses.clear();
+    this.#departures.clear();
+    this.#spawning.clearPresentation();
+
+    this.#snapshotCoordinator.restoreSimulationSnapshot(snapshot);
+    this.#latestSimulationSnapshot = structuredClone(snapshot);
   }
 
   #handleRouteInputOutcome(outcome: RouteInputOutcome): RouteInputOutcome {
     if (outcome.kind === 'finished') {
-      this.#pendingLiveRouteDraft = null;
+      this.#routes.setLiveDraft(null);
+      const record = this.#ships.get(outcome.draft.shipId);
+      this.#pendingRoutePreviewDraft = record?.ship.state === ShipState.ReadyToLeave
+        ? outcome.draft
+        : null;
       this.enqueueRouteDraft(outcome.draft);
     } else if (outcome.kind === 'cancelled') {
-      this.#pendingLiveRouteDraft = null;
+      this.#routes.setLiveDraft(null);
+      this.#pendingRoutePreviewDraft = null;
       this.#presentationSelectedShipId = null;
     }
     return outcome;
@@ -650,7 +613,7 @@ export class HarborRuntime {
   #discardInvalidPresentationSelection(): void {
     const selectedShipId = this.#presentationSelectedShipId;
     if (selectedShipId === null) return;
-    const selected = this.#active.get(selectedShipId);
+    const selected = this.#ships.get(selectedShipId);
     if (
       selected === undefined ||
       this.#session.state !== SessionState.Active ||
@@ -661,85 +624,53 @@ export class HarborRuntime {
   }
 
   #createRoutePreviewSnapshot(): HarborRoutePreviewSnapshot | null {
-    const draft = this.#routeInput.activeDraftSnapshot;
+    const draft = this.#routeInput.activeDraftSnapshot ?? this.#pendingRoutePreviewDraft;
     if (draft === null) {
       return null;
     }
-    const record = this.#active.get(draft.shipId);
+    const record = this.#ships.get(draft.shipId);
     if (record === undefined) {
       return null;
     }
-    const routeStart = draft.start;
-    const validation = this.#navigation.validate(
-      record.ship,
-      materializeRouteDraft(draft),
-      this.#routeConfig,
-      routeStart,
-    );
-    const committedStart = record.ship.route?.toSnapshot().start;
-    const progress = committedStart !== undefined &&
-      committedStart.x === routeStart.x && committedStart.y === routeStart.y
-      ? record.ship.routeProgress
-      : 0;
-    const remaining = validation.validPoints.length === 0
+    const routeStart = this.#routeStartFor(record.ship);
+    const prepared = this.#routePreparation.prepare({
+      ship: record.ship,
+      points: materializeRouteDraftFromStart(draft, routeStart),
+      start: routeStart,
+    });
+    const remaining = prepared.validPoints.length === 0
       ? Object.freeze([])
-      : new ShipRoute(validation.validPoints, routeStart).remainingPolyline(progress);
+      : new ShipRoute(prepared.validPoints, routeStart).remainingPolyline(0);
+    const authoredPreview = (
+      Math.hypot(record.ship.x - routeStart.x, record.ship.y - routeStart.y) > 1e-9 &&
+      remaining.length > 0
+    )
+      ? [routeStart, ...remaining.slice(1)]
+      : remaining.slice(1);
+    const previewPoints = composeRoutePresentationTail(
+      this.#docking.departurePresentationPrefix(record.ship),
+      authoredPreview,
+    );
     return Object.freeze({
       shipId: draft.shipId,
       start: Object.freeze({ ...record.ship.position }),
-      validPoints: freezePoints(remaining.slice(1)),
-      rejectedPoints: freezePoints(validation.rejectedPoints),
+      validPoints: freezePoints(previewPoints),
+      rejectedPoints: freezePoints(prepared.rejectedPoints),
     });
   }
 
   #fixedStep(deltaSeconds: number): void {
-    if (this.#session.state !== SessionState.Active) {
-      return;
-    }
+    if (this.#session.state !== SessionState.Active) return;
     this.#advancePresentationPulses(deltaSeconds);
-    this.#applyQueuedRoutes();
-    this.#applyLiveRouteDraft();
-    this.#spawnPhase(deltaSeconds);
-    this.#snapshotPreviousPoses();
-    this.#moveShips(deltaSeconds);
+    this.#session.runSimulationStep(deltaSeconds, this.#simulationPorts);
+  }
 
-    this.#buildCollisionCandidates();
-    const collision = this.#collision.step(
-      this.#collisionCandidates,
-      deltaSeconds,
-    );
-    this.#buildGroundingCandidates();
-    const grounding = this.#grounding.resolve(this.#groundingCandidates);
-
-    if (
-      collision.terminalCollision !== null ||
-      grounding.terminalGrounding !== null
-    ) {
-      this.#session.step({
-        deltaSeconds,
-        collisionTerminal: collision.terminalCollision,
-        groundingTerminal: grounding.terminalGrounding,
-      });
-      this.#flushEvents();
-      return;
-    }
-
-    this.#buildDockCandidates();
-    this.#docking.step(this.#dockCandidates, deltaSeconds);
-
-    this.#buildCargoCandidates();
-    const cargo = this.#cargo.step(this.#cargoCandidates, deltaSeconds);
-
-    this.#buildExitShips();
-    const exit = this.#exit.step(this.#exitShips);
+  #handleExitResult(exit: import('../exits/ExitSystem.ts').ExitStepResult): void {
     for (const shipId of exit.rejectedCargoShipIds) {
-      this.#presentationPulses.refreshCargoReject(
-        shipId,
-        CARGO_REJECT_VISUAL_TTL_SECONDS,
-      );
+      this.#presentationPulses.refreshCargoReject(shipId, CARGO_REJECT_VISUAL_TTL_SECONDS);
     }
     for (const shipId of exit.despawnedShipIds) {
-      const record = this.#active.get(shipId);
+      const record = this.#ships.get(shipId);
       if (record !== undefined) {
         this.#departures.add({
           shipId,
@@ -752,288 +683,62 @@ export class HarborRuntime {
       }
       this.#removeActiveShip(shipId);
     }
-
-    this.#session.step({
-      deltaSeconds,
-      dangerWarningCount: collision.dangerWarningCount,
-      cargoUnloadedFacts: cargo.unloadedFacts,
-      exitedShipFacts: exit.exitedShipFacts,
-    });
-    this.#flushEvents();
   }
 
   #advancePresentationPulses(deltaSeconds: number): void {
     this.#presentationPulses.advance(deltaSeconds);
   }
 
-  #applyQueuedRoutes(): void {
-    if (this.#routeCommands.length === 0) {
-      return;
-    }
-    const commands = this.#routeCommands.splice(0);
-    const deferred: RawRouteDraft[] = [];
-    for (const draft of commands) {
-      const record = this.#active.get(draft.shipId);
-      if (record === undefined) {
-        continue;
-      }
-      if (this.#routeCommitIsDeferred(record.ship)) {
-        deferred.push(draft);
-        continue;
-      }
-      this.#commitRouteDraft(record.ship, draft);
-    }
-    this.#routeCommands.unshift(...deferred);
-  }
-
-  #applyLiveRouteDraft(): void {
-    const draft = this.#pendingLiveRouteDraft;
-    if (draft === null) return;
-    const record = this.#active.get(draft.shipId);
-    if (record === undefined) {
-      this.#pendingLiveRouteDraft = null;
-      return;
-    }
-    if (this.#routeCommitIsDeferred(record.ship)) return;
-    this.#pendingLiveRouteDraft = null;
-    this.#commitRouteDraft(record.ship, draft);
-  }
-
-  #commitRouteDraft(ship: ShipModel, draft: RawRouteDraft): void {
-    const wasReadyToLeave = ship.state === ShipState.ReadyToLeave;
-    this.#lastRouteCommitResult = this.#routeCommit.commit({
-      ship,
-      draft,
-      routeStart: this.#routeStartFor(ship),
-    });
-    if (
-      wasReadyToLeave &&
-      (this.#lastRouteCommitResult.kind === 'committed' ||
-        this.#lastRouteCommitResult.kind === 'partial_prefix_committed')
-    ) {
-      this.#docking.beginDeparture(ship);
-    }
-  }
-
-  #routeCommitIsDeferred(ship: ShipModel): boolean {
-    return this.#docking.isShipInManeuver(ship.id) ||
-      ship.routeRecoveryHeadingDeg !== null;
-  }
-
   #routeStartFor(ship: ShipModel): Point {
-    if (ship.state !== ShipState.ReadyToLeave) return ship.position;
+    if (ship.state !== ShipState.ReadyToLeave && ship.state !== ShipState.Leaving) {
+      return ship.position;
+    }
     return this.#docking.departureRouteStart(ship) ?? ship.position;
-  }
-
-  #spawnPhase(deltaSeconds: number): void {
-    const pendingAtPhaseStart = this.#incoming.pendingCount > 0;
-    const simulationTime = this.#session.simulationTime;
-    const directorInput = this.#createDirectorInput(simulationTime);
-    const directorResult = this.#director.step(directorInput);
-
-    if (pendingAtPhaseStart) {
-      this.#incoming.step(deltaSeconds);
-      this.#resolveReadySpawns(simulationTime);
-    }
-
-    if (directorResult.kind === 'schedule_incoming') {
-      const scheduled = this.#incoming.schedule(directorResult.command);
-      if (scheduled.ok) {
-        this.#director.confirmScheduled(
-          directorResult.command.transactionId,
-          simulationTime,
-        );
-      } else {
-        this.#director.rejectScheduled(
-          directorResult.command.transactionId,
-          simulationTime,
-        );
-      }
-    }
-
-    for (const indicator of this.#incoming.consumeIndicatorCommands()) {
-      this.#incomingIndicators.set(indicator.transactionId, {
-        indicator: cloneIndicator(indicator),
-        startedAtSeconds: simulationTime + deltaSeconds,
-      });
-    }
-  }
-
-  #resolveReadySpawns(simulationTime: number): void {
-    const ready = this.#incoming.peekReadySpawns();
-    if (ready.length === 0) {
-      return;
-    }
-    for (const command of ready) {
-      const resolution = this.#director.resolveReadySpawn(
-        command,
-        this.#createDirectorInput(simulationTime),
-      );
-      if (resolution.kind === 'retry') {
-        this.#incoming.cancel(command.transactionId);
-        this.#incomingIndicators.delete(command.transactionId);
-        continue;
-      }
-
-      const consumed = this.#incoming.consumeReadySpawns();
-      const approved = consumed.find(
-        (candidate) => candidate.transactionId === command.transactionId,
-      );
-      if (approved === undefined) {
-        throw new Error('approved ReadySpawn was not consumable');
-      }
-      const spawned = this.#spawner.materialize(approved);
-      const record = this.#createActiveRecord(spawned);
-      this.#active.set(spawned.ship.id, record);
-      this.#session.registerSpawnedShip({
-        shipId: spawned.ship.id,
-        shipType: spawned.ship.characteristics.type,
-        initialCargo: approved.payload.cargo,
-      });
-      this.#director.confirmMaterialized(resolution.logicalSpawnId);
-      this.#incomingIndicators.delete(command.transactionId);
-      break;
-    }
-  }
-
-  #createActiveRecord(spawned: {
-    readonly ship: ShipModel;
-    readonly spawnSequence: number;
-    readonly transactionId: string;
-    readonly spawnPointId: string;
-  }): ActiveShipRecord {
-    const previousPosition = { x: spawned.ship.x, y: spawned.ship.y };
-    const record = {
-      ship: spawned.ship,
-      spawnSequence: spawned.spawnSequence,
-      transactionId: spawned.transactionId,
-      spawnPointId: spawned.spawnPointId,
-      spawnCandidate: Object.freeze({ ship: spawned.ship }),
-      collisionCandidate: Object.freeze({
-        ship: spawned.ship,
-        spawnSequence: spawned.spawnSequence,
-      }),
-      dockCandidate: Object.freeze({
-        ship: spawned.ship,
-        spawnSequence: spawned.spawnSequence,
-      }),
-      previousPosition,
-      groundingCandidate: null as unknown as GroundingShipCandidate,
-      previousRotationDeg: spawned.ship.rotationDeg,
-    };
-    const groundingCandidate: GroundingShipCandidate = Object.freeze({
-      ship: spawned.ship,
-      spawnSequence: spawned.spawnSequence,
-      previousPosition,
-    });
-    record.groundingCandidate = groundingCandidate;
-    return record;
-  }
-
-  #createDirectorInput(simulationTime: number): SpawnDirectorInput {
-    this.#spawnCandidates.length = 0;
-    for (const record of this.#active.values()) {
-      this.#spawnCandidates.push(record.spawnCandidate);
-    }
-    let occupiedDockCount = 0;
-    for (const dock of this.#docks.values()) {
-      if (dock.occupiedBy !== null) {
-        occupiedDockCount += 1;
-      }
-    }
-    return {
-      simulationTime,
-      activeShips: this.#spawnCandidates,
-      occupiedDockCount,
-      activeStormCellCount: 0,
-      getSpawnPointOwner: (spawnPointId) =>
-        this.#incoming.getSpawnPointOwner(spawnPointId),
-    };
-  }
-
-  #snapshotPreviousPoses(): void {
-    for (const record of this.#active.values()) {
-      record.previousPosition.x = record.ship.x;
-      record.previousPosition.y = record.ship.y;
-      record.previousRotationDeg = record.ship.rotationDeg;
-    }
   }
 
   #moveShips(deltaSeconds: number): void {
     const liveShipId = this.#routeInput.activeDraftSnapshot?.shipId ?? null;
-    for (const record of this.#active.values()) {
+    for (const record of this.#ships.values()) {
       this.#shipMotor.stepRoute(
         record.ship,
-        this.#routeConfig.waypointTolerance,
         deltaSeconds,
         record.ship.id !== liveShipId,
       );
     }
   }
 
-  #buildCollisionCandidates(): void {
-    this.#collisionCandidates.length = 0;
-    for (const record of this.#active.values()) {
-      if (this.#docking.isShipCollidable(record.ship)) {
-        this.#collisionCandidates.push(record.collisionCandidate);
-      }
-    }
-  }
-
-  #buildGroundingCandidates(): void {
-    this.#groundingCandidates.length = 0;
-    for (const record of this.#active.values()) {
-      if (!this.#docking.isShipInManeuver(record.ship.id)) {
-        this.#groundingCandidates.push(record.groundingCandidate);
-      }
-    }
-  }
-
-  #buildDockCandidates(): void {
-    this.#dockCandidates.length = 0;
-    for (const record of this.#active.values()) {
-      this.#dockCandidates.push(record.dockCandidate);
-    }
-  }
-
-  #buildCargoCandidates(): void {
-    this.#cargoCandidates.length = 0;
-    for (const dock of this.#docks.values()) {
-      const shipId = dock.occupiedBy;
-      if (shipId === null) {
-        continue;
-      }
-      const record = this.#active.get(shipId);
-      if (record !== undefined) {
-        this.#cargoCandidates.push({ ship: record.ship, dock });
-      }
-    }
-  }
-
-  #buildExitShips(): void {
-    this.#exitShips.length = 0;
-    for (const record of this.#active.values()) {
-      this.#exitShips.push(record.ship);
-    }
-  }
-
   #removeActiveShip(shipId: string): void {
-    if (!this.#active.delete(shipId)) {
+    if (!this.#ships.delete(shipId)) {
       return;
     }
     this.#collision.forgetShip(shipId);
+    this.#docking.forgetShip(shipId);
+    this.#exit.forgetShip(shipId);
+    this.#session.forgetShip(shipId);
     this.#presentationPulses.forgetShip(shipId);
     if (this.#presentationSelectedShipId === shipId) {
       this.#presentationSelectedShipId = null;
     }
+    if (this.#pendingRoutePreviewDraft?.shipId === shipId) {
+      this.#pendingRoutePreviewDraft = null;
+    }
     if (this.#routeInput.selectedShipId === shipId) {
       this.#routeInput.cancelActiveDraft();
     }
-    for (let index = this.#routeCommands.length - 1; index >= 0; index -= 1) {
-      if (this.#routeCommands[index]?.shipId === shipId) {
-        this.#routeCommands.splice(index, 1);
-      }
+    this.#routes.forgetShip(shipId);
+  }
+
+  #captureEndOfStep(): void {
+    if (
+      this.#routes.queuedCount !== 0 ||
+      this.#routes.hasLiveDraft ||
+      this.#collisionEvents.pendingCount !== 0 ||
+      this.#cargoEvents.pendingCount !== 0 ||
+      this.#exitEvents.pendingCount !== 0
+    ) {
+      return;
     }
+    this.#latestSimulationSnapshot = this.captureSimulationSnapshot();
   }
 
   #flushEvents(): void {
@@ -1044,7 +749,7 @@ export class HarborRuntime {
 
   #hitTestShip(worldPoint: Point, worldToCssPixelScale: number): ShipModel | null {
     return selectRouteInputShip(
-      [...this.#active.values()].filter(
+      [...this.#ships.values()].filter(
         (record) => !this.#docking.isShipInManeuver(record.ship.id),
       ),
       worldPoint,

@@ -33,6 +33,10 @@ export interface ServicedShipExitFact {
   readonly exitTimeSeconds: number;
 }
 
+export interface SessionMetricsOptions {
+  readonly serviceTimeThresholds?: readonly number[];
+}
+
 export interface SessionMetricsSnapshot {
   readonly cargoUnloadedTotal: number;
   readonly cargoUnloadedByType: Readonly<Record<string, number>>;
@@ -45,6 +49,7 @@ export interface SessionMetricsSnapshot {
   readonly exitTimeline: readonly ServicedShipExitFact[];
   readonly spawnedShipProvenance: readonly SpawnedShipProvenance[];
   readonly countedExitShipIds: readonly string[];
+  readonly serviceExitCountsByMaxSeconds: Readonly<Record<string, number>>;
 }
 
 function assertNonNegativeInteger(value: number, label: string): void {
@@ -92,6 +97,13 @@ function positiveCargoTypeCount(cargo: CargoManifest): number {
   return count;
 }
 
+const MAX_DIAGNOSTIC_EXIT_HISTORY = 64;
+
+function thresholdKey(seconds: number): string {
+  assertNonNegativeFinite(seconds, 'service time threshold');
+  return String(seconds);
+}
+
 export class SessionMetrics {
   #cargoUnloadedTotal = 0;
   #cargoUnloadedByType: Record<string, number> = {};
@@ -104,6 +116,18 @@ export class SessionMetrics {
   #exitTimeline: ServicedShipExitFact[] = [];
   readonly #spawnedShipProvenance = new Map<string, SpawnedShipProvenance>();
   readonly #countedExitShipIds = new Set<string>();
+  readonly #serviceTimeThresholds: readonly number[];
+  #serviceExitCountsByMaxSeconds: Record<string, number> = {};
+
+  public constructor(options: SessionMetricsOptions = {}) {
+    const unique = new Set<number>();
+    for (const threshold of options.serviceTimeThresholds ?? []) {
+      assertNonNegativeFinite(threshold, 'service time threshold');
+      unique.add(threshold);
+      this.#serviceExitCountsByMaxSeconds[thresholdKey(threshold)] = 0;
+    }
+    this.#serviceTimeThresholds = Object.freeze([...unique].sort((a, b) => a - b));
+  }
 
   public get cargoUnloadedTotal(): number {
     return this.#cargoUnloadedTotal;
@@ -139,12 +163,13 @@ export class SessionMetrics {
 
   public servicedExitsAtOrBefore(maxSeconds: number): number {
     assertNonNegativeFinite(maxSeconds, 'maxSeconds');
+    const tracked = this.#serviceExitCountsByMaxSeconds[thresholdKey(maxSeconds)];
+    if (tracked !== undefined) return tracked;
+    // Compatibility for callers asking an unregistered threshold: the bounded
+    // diagnostic history can answer recent queries, but gameplay star thresholds
+    // are registered up front by GameSession and therefore never depend on history.
     let count = 0;
-    for (const exit of this.#exitTimeline) {
-      if (exit.exitTimeSeconds <= maxSeconds) {
-        count += 1;
-      }
-    }
+    for (const exit of this.#exitTimeline) if (exit.exitTimeSeconds <= maxSeconds) count += 1;
     return count;
   }
 
@@ -210,12 +235,26 @@ export class SessionMetrics {
         exitTimeSeconds,
       }),
     );
+    if (this.#exitTimeline.length > MAX_DIAGNOSTIC_EXIT_HISTORY) {
+      this.#exitTimeline.splice(0, this.#exitTimeline.length - MAX_DIAGNOSTIC_EXIT_HISTORY);
+    }
+    for (const threshold of this.#serviceTimeThresholds) {
+      if (exitTimeSeconds <= threshold) {
+        const key = thresholdKey(threshold);
+        this.#serviceExitCountsByMaxSeconds[key] = (this.#serviceExitCountsByMaxSeconds[key] ?? 0) + 1;
+      }
+    }
     const provenance = this.#spawnedShipProvenance.get(fact.shipId);
     if (provenance?.initialPositiveCargoTypeCount !== undefined &&
         provenance.initialPositiveCargoTypeCount >= 2) {
       this.#multiCargoShipExits += 1;
     }
     return true;
+  }
+
+  public forgetShip(shipId: string): void {
+    this.#spawnedShipProvenance.delete(shipId);
+    this.#countedExitShipIds.delete(shipId);
   }
 
   public recordWrongDockAttempts(facts: readonly WrongDockAttemptFact[]): void {
@@ -255,6 +294,7 @@ export class SessionMetrics {
         ),
       ),
       countedExitShipIds: Object.freeze([...this.#countedExitShipIds]),
+      serviceExitCountsByMaxSeconds: freezeCounter(this.#serviceExitCountsByMaxSeconds),
     });
   }
 
@@ -297,6 +337,11 @@ export class SessionMetrics {
         throw new RangeError('counted exit ship id must not be empty');
       }
       this.#countedExitShipIds.add(shipId);
+    }
+    this.#serviceExitCountsByMaxSeconds = copyCounter(snapshot.serviceExitCountsByMaxSeconds ?? {});
+    for (const threshold of this.#serviceTimeThresholds) {
+      const key = thresholdKey(threshold);
+      if (this.#serviceExitCountsByMaxSeconds[key] === undefined) this.#serviceExitCountsByMaxSeconds[key] = 0;
     }
   }
 }
